@@ -125,13 +125,22 @@ body {
 .brand-icon {
   width: 44px;
   height: 44px;
-  background: var(--primary-blue);
+  background: transparent;
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #ffffff;
   box-shadow: 0 4px 10px rgba(0, 132, 255, 0.28);
+  overflow: hidden;
+}
+
+.brand-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 12px;
+  display: block;
 }
 
 .brand-icon svg {
@@ -518,23 +527,6 @@ body {
   gap: 20px;
 }
 
-.hero-avatar-circle {
-  width: 54px;
-  height: 54px;
-  border-radius: 50%;
-  background: var(--primary-blue);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #ffffff;
-  flex-shrink: 0;
-  box-shadow: 0 4px 12px rgba(0, 132, 255, 0.32);
-}
-
-.hero-avatar-circle svg {
-  width: 28px;
-  height: 28px;
-}
 
 .hero-text-content h1 {
   font-size: 1.45rem;
@@ -1417,7 +1409,8 @@ body {
 /* Digital Twin Deep Dive */
 .twin-deep-layout {
   display: grid;
-  grid-template-columns: 340px 1fr;
+  grid-template-columns: 1fr;
+  max-width: 900px;
   gap: 24px;
 }
 
@@ -2847,15 +2840,6 @@ a,
     gap: 12px;
   }
 
-  .hero-avatar-circle {
-    width: 44px;
-    height: 44px;
-  }
-
-  .hero-avatar-circle svg {
-    width: 24px;
-    height: 24px;
-  }
 
   .microcycle-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -3078,13 +3062,13 @@ a,
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #0084FF 0%, #00C5FF 100%);
-  color: #ffffff;
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow: 0 4px 12px rgba(0, 132, 255, 0.35);
   flex-shrink: 0;
+  overflow: hidden;
 }
 
 .twin-badge-row {
@@ -3192,10 +3176,10 @@ a,
   border-color: var(--primary-blue);
 }
 
-/* 5 Scores Horizontal Grid */
+/* 4 Scores Horizontal Grid */
 .twin-scores-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 14px;
 }
 
@@ -3600,10 +3584,11 @@ a,
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.07);
 }
 
-.scenario-comp-card.recommended-card {
+.scenario-comp-card.selected-card,
+.scenario-comp-card.active-card {
   border: 2px solid var(--primary-blue);
   background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%);
-  box-shadow: 0 6px 20px rgba(0, 132, 255, 0.12);
+  box-shadow: 0 6px 20px rgba(0, 132, 255, 0.16);
 }
 
 .comp-card-top {
@@ -3709,6 +3694,96 @@ a,
   background: var(--primary-blue);
   color: #ffffff;
   border-color: var(--primary-blue);
+}
+
+/* Inline Custom Plan Steppers & Pills */
+.custom-card-inline-adjust {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.custom-adjust-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.72rem;
+}
+
+.custom-adjust-lbl {
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.custom-stepper-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  border-radius: 6px;
+  padding: 2px 4px;
+}
+
+.btn-step-dur {
+  background: transparent;
+  border: none;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--primary-blue);
+  cursor: pointer;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background 0.15s ease;
+}
+
+.btn-step-dur:hover {
+  background: #EBF4FF;
+}
+
+.custom-step-val {
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: var(--text-dark);
+  min-width: 32px;
+  text-align: center;
+}
+
+.custom-int-pills-row {
+  display: flex;
+  gap: 4px;
+}
+
+.card-int-pill {
+  background: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--text-body);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.card-int-pill:hover {
+  border-color: var(--primary-blue);
+  color: var(--primary-blue);
+}
+
+.card-int-pill.active {
+  background: var(--primary-blue);
+  border-color: var(--primary-blue);
+  color: #FFFFFF;
 }
 
 /* 5. AI Insights & Weekly Report Elements */
@@ -3846,7 +3921,7 @@ a,
 /* Responsive adjustments for new AI components */
 @media (max-width: 1024px) {
   .twin-scores-grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
   }
   .ai-coach-middle-grid {
     grid-template-columns: 1fr;

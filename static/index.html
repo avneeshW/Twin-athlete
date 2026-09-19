@@ -13,6 +13,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
+  <link rel="icon" type="image/png" href="images/digital_twin_logo.png">
   <link rel="stylesheet" href="style.css">
 </head>
 
@@ -33,15 +34,7 @@
       <!-- Brand Logo and Identity -->
       <a href="#dashboard" class="brand-box">
         <div class="brand-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
-            stroke-linejoin="round">
-            <!-- Stylized Running Athlete Silhouette -->
-            <circle cx="16" cy="4" r="2" />
-            <path d="m19 10-4 1-2-3-3 2v4" />
-            <path d="M9 14 5 19" />
-            <path d="m14 11 3 8 4-1" />
-            <path d="m8 9-5 1" />
-          </svg>
+          <img src="images/digital_twin_logo.png" alt="Digital Twin Athlete Logo" class="brand-logo-img">
         </div>
         <div class="brand-text">
           <span class="brand-name">Digital Twin Athlete</span>
@@ -86,14 +79,7 @@
       <div class="sidebar-drawer-header">
         <div class="drawer-brand">
           <div class="brand-icon drawer-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
-              stroke-linejoin="round">
-              <circle cx="16" cy="4" r="2" />
-              <path d="m19 10-4 1-2-3-3 2v4" />
-              <path d="M9 14 5 19" />
-              <path d="m14 11 3 8 4-1" />
-              <path d="m8 9-5 1" />
-            </svg>
+            <img src="images/digital_twin_logo.png" alt="Digital Twin Athlete Logo" class="brand-logo-img">
           </div>
           <span class="drawer-title">Navigation</span>
         </div>
@@ -188,15 +174,6 @@
 
             <!-- 1. Hero Greeting Banner Card -->
             <div class="card hero-banner-card">
-              <div class="hero-avatar-circle">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
-                  <circle cx="16" cy="4" r="2" />
-                  <path d="m19 10-4 1-2-3-3 2v4" />
-                  <path d="M9 14 5 19" />
-                  <path d="m14 11 3 8 4-1" />
-                  <path d="m8 9-5 1" />
-                </svg>
-              </div>
               <div class="hero-text-content">
                 <h1 id="heroGreeting">Good Morning, Daniel!</h1>
                 <p id="heroSubtext">Your body. Your data. A stronger you.</p>
@@ -208,9 +185,7 @@
               <div class="twin-card-header">
                 <div class="twin-title-group">
                   <div class="twin-pulse-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
-                      <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-                    </svg>
+                    <img src="images/digital_twin_logo.png" alt="Digital Twin Athlete Logo" class="brand-logo-img">
                   </div>
                   <div>
                     <div class="twin-badge-row">
@@ -237,7 +212,7 @@
                 </div>
               </div>
 
-              <!-- 5 Core Physiological Scores -->
+              <!-- 4 Core Physiological Scores -->
               <div class="twin-scores-grid">
                 <div class="twin-score-item score-readiness">
                   <span class="score-label">Readiness Score</span>
@@ -282,90 +257,56 @@
                     <div class="score-fill fill-purple" id="twinPerformanceBar" style="width: 87%;"></div>
                   </div>
                 </div>
-
-                <div class="twin-score-item score-load">
-                  <span class="score-label">Training Load</span>
-                  <div class="score-val-row">
-                    <span class="score-num" id="twinLoadVal">42 AU</span>
-                    <span class="score-subtext text-cyan" id="twinLoadLabel">Moderate</span>
-                  </div>
-                  <div class="score-meta-text">ACWR: <strong id="twinAcwrVal">1.09</strong> (Sweet Spot)</div>
-                </div>
               </div>
             </div>
 
-            <!-- 1C. Today's AI Recommendation & Smart Alerts Row -->
-            <div class="ai-coach-middle-grid">
-              <!-- Today's AI Recommendation Card -->
-              <div class="card ai-recommendation-card" id="aiRecommendationCard">
-                <div class="ai-card-header">
-                  <div class="ai-header-title-box">
-                    <div class="ai-brain-icon">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
-                        <path
-                          d="M12 2a4 4 0 0 0-4 4c0 .8.2 1.5.6 2.1C6.2 8.9 4 11.2 4 14c0 3.3 2.7 6 6 6h4c3.3 0 6-2.7 6-6 0-2.8-2.2-5.1-4.6-5.9.4-.6.6-1.3.6-2.1a4 4 0 0 0-4-4z" />
-                        <path d="M12 6v14M8 10h8M8 14h8" />
-                      </svg>
-                    </div>
-                    <div>
-                      <span class="card-main-title">TODAY'S AI TRAINING RECOMMENDATION</span>
-                      <span class="ai-state-tag" id="recStateTag">HIGH READINESS</span>
-                    </div>
-                  </div>
-                  <button type="button" class="btn-why-rec" id="btnWhyRecommendation">
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2">
-                      <circle cx="12" cy="12" r="10" />
-                      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-                      <line x1="12" y1="17" x2="12.01" y2="17" />
+            <!-- 1C. Today's AI Recommendation -->
+            <div class="card ai-recommendation-card" id="aiRecommendationCard" style="margin-bottom: 20px;">
+              <div class="ai-card-header">
+                <div class="ai-header-title-box">
+                  <div class="ai-brain-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
+                      <path
+                        d="M12 2a4 4 0 0 0-4 4c0 .8.2 1.5.6 2.1C6.2 8.9 4 11.2 4 14c0 3.3 2.7 6 6 6h4c3.3 0 6-2.7 6-6 0-2.8-2.2-5.1-4.6-5.9.4-.6.6-1.3.6-2.1a4 4 0 0 0-4-4z" />
+                      <path d="M12 6v14M8 10h8M8 14h8" />
                     </svg>
-                    <span>Why This Recommendation?</span>
-                  </button>
-                </div>
-
-                <div class="ai-rec-body">
-                  <h3 class="ai-rec-headline" id="recHeadline">High-Intensity Tactical &amp; Power Training</h3>
-
-                  <div class="ai-rec-chips-grid">
-                    <div class="rec-chip">
-                      <span class="rec-chip-label">Duration</span>
-                      <strong class="rec-chip-val" id="recDuration">75 minutes</strong>
-                    </div>
-                    <div class="rec-chip">
-                      <span class="rec-chip-label">Recommended Intensity</span>
-                      <strong class="rec-chip-val" id="recIntensity">80–85% HRmax (Zone 4)</strong>
-                    </div>
-                    <div class="rec-chip chip-focus">
-                      <span class="rec-chip-label">Session Focus</span>
-                      <strong class="rec-chip-val" id="recFocus">High-Speed Sprints + Small-Sided Game Drills</strong>
-                    </div>
                   </div>
-
-                  <div class="ai-rec-reason-box">
-                    <span class="reason-title">AI Rationale:</span>
-                    <p class="reason-text" id="recReason">Your readiness is high (82%) with optimal recovery (78%) and low neuromuscular fatigue. Your digital twin indicates peak capacity for neuromuscular strain.</p>
+                  <div>
+                    <span class="card-main-title">TODAY'S AI TRAINING RECOMMENDATION</span>
+                    <span class="ai-state-tag" id="recStateTag">HIGH READINESS</span>
                   </div>
                 </div>
+                <button type="button" class="btn-why-rec" id="btnWhyRecommendation">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
+                  <span>Why This Recommendation?</span>
+                </button>
               </div>
 
-              <!-- Smart Anomaly & Risk Alerts Card -->
-              <div class="card smart-alerts-card" id="smartAlertsCard">
-                <div class="ai-card-header">
-                  <div class="ai-header-title-box">
-                    <div class="ai-alert-icon">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
-                        <path
-                          d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                        <line x1="12" y1="9" x2="12" y2="13" />
-                        <line x1="12" y1="17" x2="12.01" y2="17" />
-                      </svg>
-                    </div>
-                    <span class="card-main-title">SMART ALERTS &amp; ANOMALIES</span>
+              <div class="ai-rec-body">
+                <h3 class="ai-rec-headline" id="recHeadline">High-Intensity Tactical &amp; Power Training</h3>
+
+                <div class="ai-rec-chips-grid">
+                  <div class="rec-chip">
+                    <span class="rec-chip-label">Duration</span>
+                    <strong class="rec-chip-val" id="recDuration">75 minutes</strong>
                   </div>
-                  <span class="alerts-count-badge" id="alertsCountBadge">2 Active Indicators</span>
+                  <div class="rec-chip">
+                    <span class="rec-chip-label">Recommended Intensity</span>
+                    <strong class="rec-chip-val" id="recIntensity">80–85% HRmax (Zone 4)</strong>
+                  </div>
+                  <div class="rec-chip chip-focus">
+                    <span class="rec-chip-label">Session Focus</span>
+                    <strong class="rec-chip-val" id="recFocus">High-Speed Sprints + Small-Sided Game Drills</strong>
+                  </div>
                 </div>
 
-                <div class="smart-alerts-list" id="smartAlertsList">
-                  <!-- Dynamic alert items populated via JS -->
+                <div class="ai-rec-reason-box">
+                  <span class="reason-title">AI Rationale:</span>
+                  <p class="reason-text" id="recReason">Your readiness is high (82%) with optimal recovery (78%) and low neuromuscular fatigue. Your digital twin indicates peak capacity for neuromuscular strain.</p>
                 </div>
               </div>
             </div>
@@ -683,12 +624,6 @@
                 <!-- Hamstring Strain -->
                 <div class="injury-row-item" data-injury="hamstring"
                   title="Click for Hamstring Strain biomechanical details &amp; prevention">
-                  <div class="injury-muscle-icon icon-hamstring">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M16 3c-1.5 1-3 4-3 7 0 4 3 6 3 10-1.5 1-4 1-6 0-1-3-2-6-2-9 0-3 1.5-6 3-8z"
-                        fill="rgba(239, 68, 68, 0.15)" />
-                    </svg>
-                  </div>
                   <span class="injury-name">Hamstring Strain</span>
                   <span class="badge-pill pill-red" id="badgeHamstring">Elevated</span>
                   <span class="injury-chevron">›</span>
@@ -697,11 +632,6 @@
                 <!-- Quadriceps Strain -->
                 <div class="injury-row-item" data-injury="quadriceps"
                   title="Click for Quadriceps Strain biomechanical details &amp; prevention">
-                  <div class="injury-muscle-icon icon-quadriceps">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <ellipse cx="12" cy="12" rx="5" ry="9" fill="rgba(245, 158, 11, 0.15)" />
-                    </svg>
-                  </div>
                   <span class="injury-name">Quadriceps Strain</span>
                   <span class="badge-pill pill-yellow" id="badgeQuadriceps">Moderate</span>
                   <span class="injury-chevron">›</span>
@@ -710,11 +640,6 @@
                 <!-- Calf Strain -->
                 <div class="injury-row-item" data-injury="calf"
                   title="Click for Calf Strain biomechanical details &amp; prevention">
-                  <div class="injury-muscle-icon icon-calf">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M14 4c1 3 2 6 2 9 0 4-2 7-4 7s-4-3-4-7c0-3 1-6 2-9z" fill="rgba(16, 185, 129, 0.15)" />
-                    </svg>
-                  </div>
                   <span class="injury-name">Calf Strain</span>
                   <span class="badge-pill pill-green" id="badgeCalf">Low</span>
                   <span class="injury-chevron">›</span>
@@ -723,11 +648,6 @@
                 <!-- Achilles Tendon Injury -->
                 <div class="injury-row-item" data-injury="achilles"
                   title="Click for Achilles Tendon Injury biomechanical details &amp; prevention">
-                  <div class="injury-muscle-icon icon-achilles">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M8 4h4v10l5 3v3h-9z" fill="rgba(239, 68, 68, 0.15)" />
-                    </svg>
-                  </div>
                   <span class="injury-name">Achilles Tendon Injury</span>
                   <span class="badge-pill pill-red" id="badgeAchilles">Elevated</span>
                   <span class="injury-chevron">›</span>
@@ -1479,7 +1399,7 @@
             </div>
 
             <!-- Scenario B -->
-            <div class="scenario-comp-card recommended-card" id="cardScenarioB">
+            <div class="scenario-comp-card" id="cardScenarioB">
               <div class="comp-card-top">
                 <span class="comp-badge badge-moderate">Scenario B</span>
                 <span class="comp-tag-pill pill-green-light">Target Focus</span>
@@ -1568,7 +1488,28 @@
               <div class="comp-risk-pill" id="scCustom_risk">
                 <span id="scCustom_riskText">Synchronized with Sliders Above</span>
               </div>
-              <button type="button" class="btn-apply-scenario active" id="btnSyncCustomScenario">Re-calculate Custom</button>
+
+              <!-- Inline Quick Modifiers for Custom Plan -->
+              <div class="custom-card-inline-adjust">
+                <div class="custom-adjust-row">
+                  <span class="custom-adjust-lbl">Duration</span>
+                  <div class="custom-stepper-box">
+                    <button type="button" class="btn-step-dur" id="btnStepDurMinus" title="Decrease duration by 5 min">−</button>
+                    <span class="custom-step-val" id="customStepDurVal">60m</span>
+                    <button type="button" class="btn-step-dur" id="btnStepDurPlus" title="Increase duration by 5 min">+</button>
+                  </div>
+                </div>
+                <div class="custom-adjust-row">
+                  <span class="custom-adjust-lbl">Intensity</span>
+                  <div class="custom-int-pills-row" id="customCardIntPills">
+                    <button type="button" class="card-int-pill" data-int="Low">Low</button>
+                    <button type="button" class="card-int-pill active" data-int="Moderate">Mod</button>
+                    <button type="button" class="card-int-pill" data-int="High">High</button>
+                  </div>
+                </div>
+              </div>
+
+              <button type="button" class="btn-apply-scenario" id="btnSyncCustomScenario">Apply Custom Plan</button>
             </div>
           </div>
         </div>
@@ -1679,49 +1620,6 @@
         </div>
 
         <div class="twin-deep-layout">
-          <div class="twin-deep-graphic-card">
-            <svg viewBox="0 0 140 280" class="hologram-svg" id="deepHologramSvg">
-              <ellipse cx="70" cy="30" rx="14" ry="18" class="wire-head" />
-              <line x1="70" y1="48" x2="70" y2="125" class="wire-spine" />
-              <line x1="42" y1="72" x2="98" y2="72" class="wire-clavicle" />
-              <line x1="42" y1="72" x2="28" y2="115" class="wire-arm" />
-              <line x1="28" y1="115" x2="20" y2="155" class="wire-arm" />
-              <line x1="98" y1="72" x2="112" y2="115" class="wire-arm" />
-              <line x1="112" y1="115" x2="120" y2="155" class="wire-arm" />
-              <line x1="50" y1="125" x2="90" y2="125" class="wire-pelvis" />
-              <line x1="55" y1="125" x2="52" y2="190" class="wire-leg" />
-              <line x1="52" y1="190" x2="48" y2="255" class="wire-leg" />
-              <line x1="85" y1="125" x2="88" y2="190" class="wire-leg" />
-              <line x1="88" y1="190" x2="92" y2="255" class="wire-leg" />
-
-              <!-- Interactive Clickable Sensor Nodes -->
-              <circle cx="70" cy="30" r="5" class="joint-node pulse-glow" id="deepNodeHead" data-node="Head (Cerebral)"
-                style="cursor:pointer;" />
-              <circle cx="70" cy="80" r="6" class="joint-node pulse-glow" id="deepNodeHeart"
-                data-node="Heart (Cardiovascular)" style="fill:#EF4444;stroke:#ffffff;cursor:pointer;" />
-              <circle cx="20" cy="155" r="5" class="joint-node pulse-glow" id="deepNodeLWrist"
-                data-node="Left Wrist (Grip / Cadence)" style="cursor:pointer;" />
-              <circle cx="120" cy="155" r="5" class="joint-node pulse-glow" id="deepNodeRWrist"
-                data-node="Right Wrist (Grip / Cadence)" style="cursor:pointer;" />
-              <circle cx="52" cy="190" r="5" class="joint-node pulse-glow" id="deepNodeLKnee"
-                data-node="Left Knee (Patellar Load)" style="cursor:pointer;" />
-              <circle cx="88" cy="190" r="5" class="joint-node pulse-glow" id="deepNodeRKnee"
-                data-node="Right Knee (Patellar Load)" style="cursor:pointer;" />
-              <circle cx="48" cy="255" r="5" class="joint-node pulse-glow" id="deepNodeLAnkle"
-                data-node="Left Ankle (Achilles / Ground Force)" style="cursor:pointer;" />
-              <circle cx="92" cy="255" r="5" class="joint-node pulse-glow" id="deepNodeRAnkle"
-                data-node="Right Ankle (Achilles / Ground Force)" style="cursor:pointer;" />
-            </svg>
-
-            <div class="card" id="nodeInspectCard"
-              style="width:100%;margin-top:16px;padding:12px 14px;background:#F1F6FB;">
-              <span class="metric-label" style="text-transform:uppercase;color:var(--primary-blue);"
-                id="inspectNodeTitle">Inspecting: Heart (Cardiovascular)</span>
-              <p style="font-size:0.8rem;color:var(--text-body);margin-top:4px;" id="inspectNodeDesc">Cardiac output
-                synchronized to live telemetry (156 BPM, High Intensity).</p>
-            </div>
-          </div>
-
           <div style="display:flex;flex-direction:column;gap:18px;">
             <div class="card" style="padding:22px;">
               <h3 style="font-size:1rem;font-weight:800;color:var(--text-dark);margin-bottom:14px;">Sleep-Driven AI
@@ -1951,13 +1849,7 @@
         <span style="font-size:0.75rem;color:var(--text-muted);">#10 • Midfielder • City FC</span>
       </div>
     </div>
-    <div class="profile-dropdown-stats">
-      <div class="stat-pill-mini"><span>Matches</span><span>18</span></div>
-      <div class="stat-pill-mini"><span>Goals / Ast</span><span>6 / 9</span></div>
-      <div class="stat-pill-mini"><span>VO2 Max</span><span>58.4 ml</span></div>
-      <div class="stat-pill-mini"><span>Max Speed</span><span>32.8 km/h</span></div>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--border-subtle);padding-top:10px;">
+    <div style="display:flex;flex-direction:column;gap:6px;padding-top:12px;">
       <a href="#digital-twin" class="btn-top-action" id="dropdownLinkProfile"
         style="justify-content:center;text-decoration:none;">Biomechanical Twin Model</a>
       <a href="#settings" class="btn-top-action" id="dropdownLinkSettings"
@@ -2385,11 +2277,6 @@ Content-Type: application/json
             </div>
           </div>
         </div>
-
-        <button type="button" class="btn-top-action" id="btnCloseHowTwinBottom"
-          style="background:var(--primary-blue);color:#ffffff;padding:10px;border-radius:8px;font-weight:700;justify-content:center;">
-          Explore Cockpit
-        </button>
       </div>
     </div>
   </div>

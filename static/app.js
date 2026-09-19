@@ -3226,17 +3226,67 @@ async function initWhatIfComparativeScenarios() {
     }
   }
 
+  // Helper to dynamically highlight only the selected scenario card
+  function highlightSelectedCard(cardId) {
+    const cards = [
+      document.getElementById("cardScenarioA"),
+      document.getElementById("cardScenarioB"),
+      document.getElementById("cardScenarioC"),
+      document.getElementById("cardScenarioCustom")
+    ];
+    cards.forEach(c => {
+      if (c) {
+        c.classList.remove("recommended-card");
+        if (c.id === cardId) {
+          c.classList.add("selected-card");
+        } else {
+          c.classList.remove("selected-card");
+        }
+      }
+    });
+
+    // Update button text labels
+    applyBtns.forEach(b => {
+      const parentCard = b.closest(".scenario-comp-card");
+      if (parentCard && parentCard.id === cardId) {
+        b.textContent = "Applied ✓";
+        b.classList.add("active");
+      } else {
+        const dur = b.dataset.applyDur;
+        if (dur === "90") b.textContent = "Apply Scenario A";
+        else if (dur === "60") b.textContent = "Apply Scenario B";
+        else if (dur === "45") b.textContent = "Apply Scenario C";
+        b.classList.remove("active");
+      }
+    });
+
+    const customBtn = document.getElementById("btnSyncCustomScenario");
+    if (customBtn) {
+      if (cardId === "cardScenarioCustom") {
+        customBtn.textContent = "Custom Applied ✓";
+        customBtn.classList.add("active");
+      } else {
+        customBtn.textContent = "Apply Custom Plan";
+        customBtn.classList.remove("active");
+      }
+    }
+  }
+
   // Wire up "Apply Scenario A/B/C" buttons
   const applyBtns = document.querySelectorAll(".btn-apply-scenario[data-apply-dur]");
   applyBtns.forEach(btn => {
     btn.addEventListener("click", () => {
       const targetDur = parseInt(btn.dataset.applyDur) || 60;
       const targetInt = btn.dataset.applyInt || "Moderate";
+      const parentCard = btn.closest(".scenario-comp-card");
+      if (parentCard) highlightSelectedCard(parentCard.id);
 
       // Sync slider & inputs in What-If studio
       if (durRange) durRange.value = targetDur;
       const durInput = document.getElementById("whatifDurationInput");
       if (durInput) durInput.value = targetDur;
+      const inlineDurVal = document.getElementById("customStepDurVal");
+      if (inlineDurVal) inlineDurVal.textContent = `${targetDur}m`;
 
       if (intGroup) {
         const btns = intGroup.querySelectorAll(".int-btn");
@@ -3245,6 +3295,7 @@ async function initWhatIfComparativeScenarios() {
           else b.classList.remove("active");
         });
       }
+      syncInlineIntPills(targetInt);
 
       let factor = 0.65;
       if (targetInt === "Low") factor = 0.40;
@@ -3260,17 +3311,117 @@ async function initWhatIfComparativeScenarios() {
     });
   });
 
-  if (customSyncBtn) {
-    customSyncBtn.addEventListener("click", () => {
-      const activeIntBtn = intGroup?.querySelector(".int-btn.active");
-      const intName = activeIntBtn?.dataset.int || "Moderate";
+  // Helpers for inline Custom Plan modifiers
+  const inlineDurVal = document.getElementById("customStepDurVal");
+  const stepMinusBtn = document.getElementById("btnStepDurMinus");
+  const stepPlusBtn = document.getElementById("btnStepDurPlus");
+  const inlineIntPills = document.querySelectorAll("#customCardIntPills .card-int-pill");
+
+  function syncInlineIntPills(intName) {
+    inlineIntPills.forEach(pill => {
+      if (pill.dataset.int === intName) pill.classList.add("active");
+      else pill.classList.remove("active");
+    });
+  }
+
+  function getCurrentIntFactor() {
+    const activeIntBtn = document.querySelector("#customCardIntPills .card-int-pill.active") ||
+                         intGroup?.querySelector(".int-btn.active");
+    const intName = activeIntBtn?.dataset.int || "Moderate";
+    if (intName === "Low") return { factor: 0.40, name: "Low" };
+    if (intName === "High") return { factor: 0.88, name: "High" };
+    return { factor: 0.65, name: "Moderate" };
+  }
+
+  function setCustomDuration(newDur) {
+    newDur = Math.max(15, Math.min(120, newDur));
+    if (inlineDurVal) inlineDurVal.textContent = `${newDur}m`;
+    if (durRange) durRange.value = newDur;
+    const durInput = document.getElementById("whatifDurationInput");
+    if (durInput) durInput.value = newDur;
+
+    const { factor } = getCurrentIntFactor();
+    fetchAndRenderComparisons(newDur, factor);
+    highlightSelectedCard("cardScenarioCustom");
+  }
+
+  if (stepMinusBtn) {
+    stepMinusBtn.addEventListener("click", () => {
+      const currentVal = parseInt(inlineDurVal?.textContent) || (durRange ? parseInt(durRange.value) : 60);
+      setCustomDuration(currentVal - 5);
+    });
+  }
+
+  if (stepPlusBtn) {
+    stepPlusBtn.addEventListener("click", () => {
+      const currentVal = parseInt(inlineDurVal?.textContent) || (durRange ? parseInt(durRange.value) : 60);
+      setCustomDuration(currentVal + 5);
+    });
+  }
+
+  inlineIntPills.forEach(pill => {
+    pill.addEventListener("click", () => {
+      const intName = pill.dataset.int;
+      syncInlineIntPills(intName);
+      if (intGroup) {
+        const btns = intGroup.querySelectorAll(".int-btn");
+        btns.forEach(b => {
+          if (b.dataset.int === intName) b.classList.add("active");
+          else b.classList.remove("active");
+        });
+      }
+      const dur = durRange ? parseInt(durRange.value) : 60;
       let factor = 0.65;
       if (intName === "Low") factor = 0.40;
       else if (intName === "High") factor = 0.88;
+      fetchAndRenderComparisons(dur, factor);
+      highlightSelectedCard("cardScenarioCustom");
+    });
+  });
 
+  // Debounced sync from the top "Scenario Conditions" controls to the custom card
+  let syncDebounceTimer = null;
+  if (durRange) {
+    durRange.addEventListener("input", () => {
+      const dur = parseInt(durRange.value);
+      if (inlineDurVal) inlineDurVal.textContent = `${dur}m`;
+      clearTimeout(syncDebounceTimer);
+      syncDebounceTimer = setTimeout(() => {
+        const { factor } = getCurrentIntFactor();
+        fetchAndRenderComparisons(dur, factor);
+        highlightSelectedCard("cardScenarioCustom");
+      }, 150);
+    });
+  }
+
+  if (intGroup) {
+    const btns = intGroup.querySelectorAll(".int-btn");
+    btns.forEach(b => {
+      b.addEventListener("click", () => {
+        const intName = b.dataset.int;
+        syncInlineIntPills(intName);
+        const dur = durRange ? parseInt(durRange.value) : 60;
+        let factor = 0.65;
+        if (intName === "Low") factor = 0.40;
+        else if (intName === "High") factor = 0.88;
+        fetchAndRenderComparisons(dur, factor);
+        highlightSelectedCard("cardScenarioCustom");
+      });
+    });
+  }
+
+  if (customSyncBtn) {
+    customSyncBtn.addEventListener("click", () => {
+      const { factor, name } = getCurrentIntFactor();
       const dur = durRange ? parseInt(durRange.value) : 60;
       fetchAndRenderComparisons(dur, factor);
-      showToast("Synchronized custom scenario with current slider inputs", "✓");
+      highlightSelectedCard("cardScenarioCustom");
+
+      // Trigger the single scenario calculation in the top panel as well
+      const runSingleBtn = document.getElementById("btnRunWhatIfSim");
+      if (runSingleBtn) runSingleBtn.click();
+
+      showToast(`Applied Custom Plan: ${dur} min @ ${name} Intensity`, "✓");
     });
   }
 
