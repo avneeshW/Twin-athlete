@@ -1,0 +1,10 @@
+{
+  "features": [
+    "prev_fatigue",
+    "prev_recovery",
+    "sleep_hours",
+    "workout_duration_min",
+    "workout_intensity",
+    "daily_load"
+  ]
+}
