@@ -40,6 +40,13 @@ document.addEventListener("DOMContentLoaded", () => {
   loadDashboardData("1H");
   initLiveStream();
 
+  // Personalized Digital Twin + AI Coach Engine
+  loadDigitalTwinCoach();
+  initWhyRecommendationModal();
+  initWeeklyReportModal();
+  initHowTwinWorksModal();
+  initWhatIfComparativeScenarios();
+
   // Support direct deep-linking via hash (e.g. #analytics, #digital-twin, #what-if)
   const hash = window.location.hash.replace("#", "");
   if (hash && ["dashboard", "live-data", "training-sessions", "analytics", "digital-twin", "what-if", "settings"].includes(hash)) {
@@ -601,6 +608,60 @@ function updateTwinUI(status) {
   if (deepPerfEl) deepPerfEl.textContent = status.performance_label || "High";
   if (deepPerfBar) deepPerfBar.style.width = `${Math.min(100, Math.max(5, pVal))}%`;
   if (deepPerfNum) deepPerfNum.textContent = `Performance Score: ${pVal.toFixed(1)} / 100`;
+
+  // 4. Athlete Digital Twin Core Status Card (Top of Dashboard)
+  const readinessVal = status.readiness_value !== undefined ? status.readiness_value : Math.min(99, Math.max(10, Math.round(rVal * 0.45 + (100 - fVal) * 0.35 + 18)));
+  const twReadinessEl = document.getElementById("twinReadinessVal");
+  const twReadinessBar = document.getElementById("twinReadinessBar");
+  const twReadinessLabel = document.getElementById("twinReadinessLabel");
+  if (twReadinessEl) twReadinessEl.textContent = `${Math.round(readinessVal)}%`;
+  if (twReadinessBar) twReadinessBar.style.width = `${Math.min(100, Math.max(5, readinessVal))}%`;
+  if (twReadinessLabel) twReadinessLabel.textContent = readinessVal >= 80 ? "High" : (readinessVal >= 65 ? "Moderate" : "Low");
+
+  const twRecVal = document.getElementById("twinRecoveryVal");
+  const twRecBar = document.getElementById("twinRecoveryBar");
+  const twRecLabel = document.getElementById("twinRecoveryLabel");
+  if (twRecVal) twRecVal.textContent = `${Math.round(rVal)}%`;
+  if (twRecBar) twRecBar.style.width = `${Math.min(100, Math.max(5, rVal))}%`;
+  if (twRecLabel) twRecLabel.textContent = rVal >= 75 ? "Optimal" : (rVal >= 60 ? "Moderate" : "Depleted");
+
+  const twFatVal = document.getElementById("twinFatigueVal");
+  const twFatBar = document.getElementById("twinFatigueBar");
+  const twFatLabel = document.getElementById("twinFatigueLabel");
+  if (twFatVal) twFatVal.textContent = `${Math.round(fVal)}%`;
+  if (twFatBar) twFatBar.style.width = `${Math.min(100, Math.max(5, fVal))}%`;
+  if (twFatLabel) twFatLabel.textContent = fVal > 55 ? "High" : (fVal > 30 ? "Moderate" : "Low");
+
+  const twPerfVal = document.getElementById("twinPerformanceVal");
+  const twPerfBar = document.getElementById("twinPerformanceBar");
+  const twPerfLabel = document.getElementById("twinPerformanceLabel");
+  if (twPerfVal) twPerfVal.textContent = `${Math.round(pVal)}%`;
+  if (twPerfBar) twPerfBar.style.width = `${Math.min(100, Math.max(5, pVal))}%`;
+  if (twPerfLabel) twPerfLabel.textContent = pVal >= 80 ? "High Output" : (pVal >= 65 ? "Steady" : "Reduced");
+
+  // Overall State Badge
+  const stateBadge = document.getElementById("twinOverallStateBadge");
+  const stateText = document.getElementById("twinOverallStateText");
+  if (stateBadge && stateText) {
+    if (fVal >= 62) {
+      stateBadge.className = "overall-state-badge badge-fatigue";
+      stateText.textContent = "HIGH FATIGUE DETECTED";
+    } else if (readinessVal < 65 || rVal < 60) {
+      stateBadge.className = "overall-state-badge badge-recovery";
+      stateText.textContent = "RECOVERY RECOMMENDED";
+    } else {
+      stateBadge.className = "overall-state-badge badge-ready";
+      stateText.textContent = "READY FOR TRAINING";
+    }
+  }
+
+  // Update What-If transition flow current node
+  const flowCurrReadiness = document.getElementById("flowCurrReadiness");
+  const flowCurrFatigue = document.getElementById("flowCurrFatigue");
+  const flowCurrRec = document.getElementById("flowCurrRec");
+  if (flowCurrReadiness) flowCurrReadiness.textContent = `${Math.round(readinessVal)}%`;
+  if (flowCurrFatigue) flowCurrFatigue.textContent = `${Math.round(fVal)}%`;
+  if (flowCurrRec) flowCurrRec.textContent = `${Math.round(rVal)}%`;
 }
 
 /**
@@ -2709,3 +2770,511 @@ function initWhatIfStudio() {
     });
   }
 }
+
+/* ==============================================================================
+   25. PERSONALIZED DIGITAL TWIN + AI COACH CONTROLLER
+   ============================================================================== */
+let cachedCoachData = null;
+let cachedComparativeScenarios = null;
+
+/**
+ * Loads and coordinates the unified AI Coach & Digital Twin state.
+ */
+async function loadDigitalTwinCoach() {
+  try {
+    const res = await fetch("/api/ai/coach-overview");
+    if (!res.ok) throw new Error("Coach overview failed");
+    const data = await res.json();
+    cachedCoachData = data;
+
+    const twin = data.digital_twin || {};
+    const rec = data.recommendation || {};
+    const alerts = data.smart_alerts || [];
+    const insights = data.insights || [];
+    const weekly = data.weekly_report || {};
+
+    // 1. Digital Twin Core Scores (Top of Dashboard)
+    const twReadinessEl = document.getElementById("twinReadinessVal");
+    const twReadinessBar = document.getElementById("twinReadinessBar");
+    const twReadinessLabel = document.getElementById("twinReadinessLabel");
+    if (twReadinessEl) twReadinessEl.textContent = `${Math.round(twin.readiness_score || 82)}%`;
+    if (twReadinessBar) twReadinessBar.style.width = `${twin.readiness_score || 82}%`;
+    if (twReadinessLabel) twReadinessLabel.textContent = (twin.readiness_score || 82) >= 80 ? "High" : ((twin.readiness_score || 82) >= 65 ? "Moderate" : "Low");
+
+    const twRecVal = document.getElementById("twinRecoveryVal");
+    const twRecBar = document.getElementById("twinRecoveryBar");
+    const twRecLabel = document.getElementById("twinRecoveryLabel");
+    if (twRecVal) twRecVal.textContent = `${Math.round(twin.recovery_score || 78)}%`;
+    if (twRecBar) twRecBar.style.width = `${twin.recovery_score || 78}%`;
+    if (twRecLabel) twRecLabel.textContent = (twin.recovery_score || 78) >= 75 ? "Optimal" : "Moderate";
+
+    const twFatVal = document.getElementById("twinFatigueVal");
+    const twFatBar = document.getElementById("twinFatigueBar");
+    const twFatLabel = document.getElementById("twinFatigueLabel");
+    if (twFatVal) twFatVal.textContent = `${Math.round(twin.fatigue_score || 38)}%`;
+    if (twFatBar) twFatBar.style.width = `${twin.fatigue_score || 38}%`;
+    if (twFatLabel) twFatLabel.textContent = (twin.fatigue_score || 38) > 55 ? "High" : ((twin.fatigue_score || 38) > 30 ? "Moderate" : "Low");
+
+    const twPerfVal = document.getElementById("twinPerformanceVal");
+    const twPerfBar = document.getElementById("twinPerformanceBar");
+    const twPerfLabel = document.getElementById("twinPerformanceLabel");
+    if (twPerfVal) twPerfVal.textContent = `${Math.round(twin.performance_score || 87)}%`;
+    if (twPerfBar) twPerfBar.style.width = `${twin.performance_score || 87}%`;
+    if (twPerfLabel) twPerfLabel.textContent = (twin.performance_score || 87) >= 80 ? "High Output" : "Steady";
+
+    const twLoadVal = document.getElementById("twinLoadVal");
+    const twLoadLabel = document.getElementById("twinLoadLabel");
+    if (twLoadVal) twLoadVal.textContent = `${Math.round(twin.training_load || 42)} AU`;
+    if (twLoadLabel) twLoadLabel.textContent = twin.training_load_label || "Moderate";
+
+    // Overall State Badge
+    const stateBadge = document.getElementById("twinOverallStateBadge");
+    const stateText = document.getElementById("twinOverallStateText");
+    if (stateBadge && stateText && twin.overall_state) {
+      const col = twin.overall_state.color || "green";
+      stateBadge.className = `overall-state-badge badge-${col === 'green' ? 'ready' : (col === 'red' ? 'fatigue' : 'recovery')}`;
+      stateText.textContent = twin.overall_state.label || "READY FOR TRAINING";
+    }
+
+    // 2. Today's AI Recommendation Card
+    const recStateTag = document.getElementById("recStateTag");
+    const recHeadline = document.getElementById("recHeadline");
+    const recDuration = document.getElementById("recDuration");
+    const recIntensity = document.getElementById("recIntensity");
+    const recFocus = document.getElementById("recFocus");
+    const recReason = document.getElementById("recReason");
+
+    if (recStateTag) {
+      recStateTag.textContent = rec.state_badge || "HIGH READINESS";
+      recStateTag.className = `ai-state-tag ${rec.badge_class || 'pill-green'}`;
+    }
+    if (recHeadline) recHeadline.textContent = rec.headline || "High-Intensity Tactical & Power Training";
+    if (recDuration) recDuration.textContent = `${rec.duration_min || 75} minutes`;
+    if (recIntensity) recIntensity.textContent = rec.recommended_intensity || "80–85% HRmax (Zone 4)";
+    if (recFocus) recFocus.textContent = rec.focus || "High-Speed Sprints + Small-Sided Game Drills";
+    if (recReason) recReason.textContent = rec.reason || "Your readiness is high with optimal recovery.";
+
+    // 3. Render Smart Alerts
+    renderSmartAlerts(alerts);
+
+    // 4. Render AI Performance Insights in Analytics View
+    renderAIInsights(insights);
+
+    // 5. Render Weekly Report Summary in Analytics View
+    renderWeeklyReportSummary(weekly);
+
+  } catch (err) {
+    console.error("AI Coach Overview load error:", err);
+  }
+}
+
+/**
+ * Renders Smart Anomaly & Risk Alerts with Risk Factors and Suggested Actions.
+ */
+function renderSmartAlerts(alerts) {
+  const container = document.getElementById("smartAlertsList");
+  const countBadge = document.getElementById("alertsCountBadge");
+  if (!container) return;
+
+  if (countBadge) {
+    const dangerCount = alerts.filter(a => a.status === "danger" || a.status === "warning").length;
+    countBadge.textContent = `${dangerCount} Active Indicator${dangerCount === 1 ? '' : 's'}`;
+  }
+
+  if (!alerts || alerts.length === 0) {
+    container.innerHTML = `
+      <div class="smart-alert-card-item alert-success">
+        <div class="alert-top-title-row">
+          <span class="alert-item-title">🟢 Normal Pattern</span>
+          <span class="badge-pill pill-green">Optimal</span>
+        </div>
+        <p style="margin:4px 0 0 0;">All physiological parameters and ground impact metrics are within baseline variance.</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = alerts.map(alert => {
+    const riskFactorItems = alert.risk_factors ? Object.entries(alert.risk_factors)
+      .map(([k, v]) => `<span><strong>${k}:</strong> ${v}</span>`)
+      .join("&bull; ") : "";
+
+    return `
+      <div class="smart-alert-card-item alert-${alert.status || 'warning'}">
+        <div class="alert-top-title-row">
+          <span class="alert-item-title">${alert.title}</span>
+          <span class="badge-pill ${alert.status === 'danger' ? 'pill-red' : (alert.status === 'warning' ? 'pill-yellow' : 'pill-green')}">${alert.badge || 'Alert'}</span>
+        </div>
+        <p style="margin:4px 0 6px 0;font-size:0.79rem;line-height:1.4;">${alert.description}</p>
+        ${riskFactorItems ? `<div class="alert-factors-mini-row">${riskFactorItems}</div>` : ""}
+        ${alert.suggested_action ? `<div class="alert-suggested-action"><strong>Suggested Action:</strong> ${alert.suggested_action}</div>` : ""}
+      </div>
+    `;
+  }).join("");
+}
+
+/**
+ * Renders AI Performance Insights in the Analytics View.
+ */
+function renderAIInsights(insights) {
+  const container = document.getElementById("aiInsightsList");
+  if (!container) return;
+
+  if (!insights || insights.length === 0) {
+    container.innerHTML = `<p style="color:var(--text-muted);font-size:0.82rem;">No longitudinal trends detected yet.</p>`;
+    return;
+  }
+
+  container.innerHTML = insights.map(item => {
+    const badgeClass = item.type === "positive" ? "pill-green" : (item.type === "warning" ? "pill-yellow" : "pill-blue");
+    return `
+      <div class="ai-insight-card">
+        <div class="insight-head">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span>${item.icon || '⚡'}</span>
+            <strong class="insight-title">${item.title}</strong>
+          </div>
+          <span class="badge-pill ${badgeClass}">${item.badge}</span>
+        </div>
+        <p style="margin:4px 0 0 0;color:var(--text-muted);font-size:0.8rem;line-height:1.45;">${item.text}</p>
+      </div>
+    `;
+  }).join("");
+}
+
+/**
+ * Renders Weekly Athlete Report Summary card in Analytics View.
+ */
+function renderWeeklyReportSummary(report) {
+  const container = document.getElementById("weeklyReportCardSummary");
+  if (!container || !report) return;
+
+  const p = report.performance || {};
+  const t = report.training || {};
+  const r = report.recovery || {};
+
+  container.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+      <div style="background:#F1F6FB;padding:10px 12px;border-radius:8px;">
+        <span style="font-size:0.68rem;color:var(--text-muted);font-weight:700;display:block;">Avg Readiness</span>
+        <strong style="font-size:1.1rem;color:var(--text-dark);">${p.average_score || 86.4}%</strong>
+        <span style="font-size:0.7rem;color:#10B981;font-weight:800;">${p.performance_change || '+3.8%'}</span>
+      </div>
+      <div style="background:#F1F6FB;padding:10px 12px;border-radius:8px;">
+        <span style="font-size:0.68rem;color:var(--text-muted);font-weight:700;display:block;">Weekly Load</span>
+        <strong style="font-size:1.1rem;color:var(--text-dark);">${t.total_load || 328.5} AU</strong>
+        <span style="font-size:0.7rem;color:var(--text-muted);">${t.completed_hours || '6.5 hours'}</span>
+      </div>
+    </div>
+    <div style="background:#F8FAFC;border:1px solid var(--border-card);border-radius:8px;padding:10px 12px;font-size:0.78rem;color:var(--text-muted);line-height:1.45;">
+      <strong style="color:var(--text-dark);display:block;margin-bottom:2px;">AI Synthesis:</strong>
+      ${report.ai_summary ? report.ai_summary.slice(0, 160) + "..." : "Training consistency is stable with optimal readiness."}
+    </div>
+  `;
+}
+
+/**
+ * "Why This Recommendation?" Factor Attribution Modal.
+ */
+function initWhyRecommendationModal() {
+  const btn = document.getElementById("btnWhyRecommendation");
+  const modal = document.getElementById("whyRecModal");
+  const closeBtn = document.getElementById("btnCloseWhyRecModal");
+  const understandBtn = document.getElementById("btnUnderstandRec");
+
+  if (!btn || !modal) return;
+
+  function openModal() {
+    const rec = cachedCoachData?.recommendation;
+    const headline = document.getElementById("modalRecHeadline");
+    const quote = document.getElementById("modalRecQuote");
+    const factorsList = document.getElementById("modalWhyFactorsList");
+
+    if (headline && rec) headline.textContent = rec.headline;
+    if (quote && rec) quote.textContent = `"${rec.quote || rec.reason}"`;
+
+    if (factorsList) {
+      const factors = rec?.why_factors || [
+        { name: "Recovery Status", value: "78%", weight: "45%", impact: "Optimal", color: "#10B981", detail: "Restorative sleep and autonomic parasympathetic recovery." },
+        { name: "Fatigue Level", value: "38%", weight: "35%", impact: "Moderate", color: "#38BDF8", detail: "Accumulated acute strain from prior matches." },
+        { name: "Sleep Adequacy", value: "7.8h", weight: "12%", impact: "Sufficient", color: "#10B981", detail: "Exceeds 7.5h baseline threshold for muscle glycogen." },
+        { name: "Acute:Chronic Ratio", value: "1.09", weight: "8%", impact: "Sweet Spot", color: "#10B981", detail: "Safe adaptation zone." }
+      ];
+
+      factorsList.innerHTML = factors.map(f => `
+        <div class="why-factor-row">
+          <div class="why-factor-left">
+            <span class="why-factor-name">${f.name}</span>
+            <span class="why-factor-detail">${f.detail}</span>
+          </div>
+          <div class="why-factor-right">
+            <span class="why-factor-val" style="color:${f.color || 'var(--text-dark)'};">${f.value}</span>
+            <span class="why-factor-weight">${f.weight} weight</span>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    modal.style.display = "flex";
+  }
+
+  btn.addEventListener("click", openModal);
+  if (closeBtn) closeBtn.addEventListener("click", () => modal.style.display = "none");
+  if (understandBtn) understandBtn.addEventListener("click", () => modal.style.display = "none");
+  modal.addEventListener("click", e => { if (e.target === modal) modal.style.display = "none"; });
+}
+
+/**
+ * Weekly Athlete Report Full Retrospective Modal.
+ */
+function initWeeklyReportModal() {
+  const btn = document.getElementById("btnOpenFullWeeklyReport");
+  const modal = document.getElementById("weeklyReportModal");
+  const closeBtn = document.getElementById("btnCloseWeeklyReportModal");
+  const closeBottom = document.getElementById("btnCloseWeeklyReportBottom");
+
+  if (!btn || !modal) return;
+
+  function openModal() {
+    const rep = cachedCoachData?.weekly_report;
+    if (rep) {
+      const aiSum = document.getElementById("weeklyModalAiSummary");
+      const sub = document.getElementById("weeklyReportPeriodSubtitle");
+      const p = rep.performance || {};
+      const t = rep.training || {};
+      const r = rep.recovery || {};
+
+      if (aiSum) aiSum.textContent = rep.ai_summary || "";
+      if (sub) sub.textContent = `${rep.report_period || "This Week"} • ${rep.athlete_name || "Daniel Saji"}`;
+
+      const avgP = document.getElementById("wkAvgPerf");
+      const pChg = document.getElementById("wkPerfChange");
+      const totL = document.getElementById("wkTotalLoad");
+      const hrs = document.getElementById("wkHours");
+      const freq = document.getElementById("wkFreq");
+      const avgI = document.getElementById("wkAvgInt");
+      const avgR = document.getElementById("wkAvgRec");
+      const slp = document.getElementById("wkSleep");
+
+      if (avgP) avgP.textContent = p.average_score || 86.4;
+      if (pChg) pChg.textContent = p.performance_change || "+3.8%";
+      if (totL) totL.textContent = `${t.total_load || 328.5} AU`;
+      if (hrs) hrs.textContent = t.completed_hours || "6.5 hours";
+      if (freq) freq.textContent = t.training_frequency || "5 Sessions";
+      if (avgI) avgI.textContent = `${t.avg_intensity || '72%'} avg int`;
+      if (avgR) avgR.textContent = r.average_recovery || "76.8%";
+      if (slp) slp.textContent = r.avg_sleep || "7.8h sleep";
+
+      const bestTitle = document.getElementById("wkBestSessionTitle");
+      const bestKudos = document.getElementById("wkBestSessionKudos");
+      if (bestTitle && p.best_session) bestTitle.textContent = p.best_session.title;
+      if (bestKudos && p.best_session) bestKudos.textContent = p.best_session.kudos;
+
+      const fatTrend = document.getElementById("wkFatigueTrendText");
+      const redTrend = document.getElementById("wkReadinessTrendText");
+      if (fatTrend) fatTrend.textContent = r.fatigue_trend || "Compounding (+16%). Recovery session indicated.";
+      if (redTrend) redTrend.textContent = r.readiness_trend || "Stable in optimal range (82–88%).";
+    }
+
+    modal.style.display = "flex";
+  }
+
+  btn.addEventListener("click", openModal);
+  if (closeBtn) closeBtn.addEventListener("click", () => modal.style.display = "none");
+  if (closeBottom) closeBottom.addEventListener("click", () => modal.style.display = "none");
+  modal.addEventListener("click", e => { if (e.target === modal) modal.style.display = "none"; });
+}
+
+/**
+ * "How Your Digital Twin Works" 5-Step Pipeline Explainer Modal.
+ */
+function initHowTwinWorksModal() {
+  const btn = document.getElementById("btnOpenHowTwinWorks");
+  const modal = document.getElementById("howTwinWorksModal");
+  const closeBtn = document.getElementById("btnCloseHowTwinModal");
+  const closeBottom = document.getElementById("btnCloseHowTwinBottom");
+
+  if (!btn || !modal) return;
+
+  btn.addEventListener("click", () => modal.style.display = "flex");
+  if (closeBtn) closeBtn.addEventListener("click", () => modal.style.display = "none");
+  if (closeBottom) closeBottom.addEventListener("click", () => modal.style.display = "none");
+  modal.addEventListener("click", e => { if (e.target === modal) modal.style.display = "none"; });
+}
+
+/**
+ * What-If Scenario Comparative Engine (Scenario A vs B vs C vs Custom)
+ * and Current -> Training -> Predicted State visual flow.
+ */
+async function initWhatIfComparativeScenarios() {
+  const durRange = document.getElementById("whatifDurationRange");
+  const intGroup = document.getElementById("whatifIntensityButtons");
+  const customSyncBtn = document.getElementById("btnSyncCustomScenario");
+
+  let currentDur = durRange ? parseInt(durRange.value) : 60;
+  let currentIntFactor = 0.65;
+
+  async function fetchAndRenderComparisons(dur, intFactor) {
+    try {
+      const res = await fetch("/api/ai/what-if-scenarios", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ duration: dur, intensity: intFactor })
+      });
+
+      if (!res.ok) throw new Error("Comparative scenarios fetch failed");
+      const data = await res.json();
+      cachedComparativeScenarios = data;
+
+      // 1. Update Transition Flow Stepper
+      const curr = data.current_state || {};
+      const customSc = data.scenarios?.find(s => s.id === "Custom") || data.scenarios?.[1];
+
+      const flowCurrReadiness = document.getElementById("flowCurrReadiness");
+      const flowCurrFatigue = document.getElementById("flowCurrFatigue");
+      const flowCurrRec = document.getElementById("flowCurrRec");
+      const flowConnectorLoad = document.getElementById("flowConnectorLoad");
+      const flowPlannedDur = document.getElementById("flowPlannedDur");
+      const flowPlannedInt = document.getElementById("flowPlannedInt");
+      const flowPlannedCals = document.getElementById("flowPlannedCals");
+      const flowPredReadiness = document.getElementById("flowPredReadiness");
+      const flowPredFatigue = document.getElementById("flowPredFatigue");
+      const flowPredRecoveryHours = document.getElementById("flowPredRecoveryHours");
+
+      if (flowCurrReadiness) flowCurrReadiness.textContent = `${Math.round(curr.readiness || 85)}%`;
+      if (flowCurrFatigue) flowCurrFatigue.textContent = `${Math.round(curr.fatigue || 38)}%`;
+      if (flowCurrRec) flowCurrRec.textContent = `${Math.round(curr.recovery || 78)}%`;
+
+      if (customSc) {
+        if (flowConnectorLoad) flowConnectorLoad.textContent = `+${Math.round(customSc.daily_load)} AU Load`;
+        if (flowPlannedDur) flowPlannedDur.textContent = `${customSc.duration_min} min`;
+        if (flowPlannedInt) flowPlannedInt.textContent = `@ ${customSc.intensity_label}`;
+        if (flowPlannedCals) flowPlannedCals.textContent = `${Math.round(customSc.duration_min * customSc.intensity_val * 16.5)} kcal`;
+        if (flowPredReadiness) flowPredReadiness.textContent = `${Math.round(customSc.predicted_readiness)}%`;
+        if (flowPredFatigue) flowPredFatigue.textContent = `${Math.round(customSc.predicted_fatigue)}%`;
+        if (flowPredRecoveryHours) flowPredRecoveryHours.textContent = customSc.recovery_requirement;
+      }
+
+      // 2. Populate Static/Dynamic Comparative Cards
+      const scA = data.scenarios?.find(s => s.id === "A");
+      const scB = data.scenarios?.find(s => s.id === "B");
+      const scC = data.scenarios?.find(s => s.id === "C");
+
+      if (scA) {
+        const fA = document.getElementById("scA_fatigue");
+        const rA = document.getElementById("scA_readiness");
+        const restA = document.getElementById("scA_rest");
+        if (fA) fA.textContent = `${Math.round(scA.predicted_fatigue)}%`;
+        if (rA) rA.textContent = `${Math.round(scA.predicted_readiness)}%`;
+        if (restA) restA.textContent = scA.recovery_requirement;
+      }
+
+      if (scB) {
+        const fB = document.getElementById("scB_fatigue");
+        const rB = document.getElementById("scB_readiness");
+        const restB = document.getElementById("scB_rest");
+        if (fB) fB.textContent = `${Math.round(scB.predicted_fatigue)}%`;
+        if (rB) rB.textContent = `${Math.round(scB.predicted_readiness)}%`;
+        if (restB) restB.textContent = scB.recovery_requirement;
+      }
+
+      if (scC) {
+        const fC = document.getElementById("scC_fatigue");
+        const rC = document.getElementById("scC_readiness");
+        const restC = document.getElementById("scC_rest");
+        if (fC) fC.textContent = `${Math.round(scC.predicted_fatigue)}%`;
+        if (rC) rC.textContent = `${Math.round(scC.predicted_readiness)}%`;
+        if (restC) restC.textContent = scC.recovery_requirement;
+      }
+
+      if (customSc) {
+        const cTitle = document.getElementById("scCustom_title");
+        const cLoad = document.getElementById("scCustom_load");
+        const cBurn = document.getElementById("scCustom_burn");
+        const cFat = document.getElementById("scCustom_fatigue");
+        const cDFat = document.getElementById("scCustom_dFatigue");
+        const cRead = document.getElementById("scCustom_readiness");
+        const cDRead = document.getElementById("scCustom_dReadiness");
+        const cRest = document.getElementById("scCustom_rest");
+        const cRisk = document.getElementById("scCustom_risk");
+        const cRiskText = document.getElementById("scCustom_riskText");
+
+        if (cTitle) cTitle.textContent = `${customSc.duration_min} min @ ${customSc.intensity_label}`;
+        if (cLoad) cLoad.textContent = `${Math.round(customSc.daily_load)} AU`;
+        if (cBurn) cBurn.textContent = `${Math.round(customSc.duration_min * customSc.intensity_val * 16.5)} kcal`;
+        if (cFat) cFat.textContent = `${Math.round(customSc.predicted_fatigue)}%`;
+        if (cDFat) {
+          const dF = customSc.delta_fatigue;
+          cDFat.className = `c-delta ${dF >= 0 ? 'delta-up' : 'delta-down'}`;
+          cDFat.textContent = `${dF >= 0 ? '+' : ''}${dF}%`;
+        }
+        if (cRead) cRead.textContent = `${Math.round(customSc.predicted_readiness)}%`;
+        if (cDRead) {
+          const dR = customSc.delta_readiness;
+          cDRead.className = `c-delta ${dR >= 0 ? 'delta-down' : 'delta-up'}`;
+          cDRead.textContent = `${dR >= 0 ? '+' : ''}${dR}%`;
+        }
+        if (cRest) cRest.textContent = customSc.recovery_requirement;
+        if (cRisk && cRiskText) {
+          cRisk.className = `comp-risk-pill ${customSc.risk_color === '#EF4444' ? 'risk-elevated' : (customSc.risk_color === '#F59E0B' ? 'risk-moderate' : 'risk-low')}`;
+          cRiskText.textContent = customSc.risk_indicator;
+        }
+      }
+
+    } catch (err) {
+      console.error("Comparison simulation error:", err);
+    }
+  }
+
+  // Wire up "Apply Scenario A/B/C" buttons
+  const applyBtns = document.querySelectorAll(".btn-apply-scenario[data-apply-dur]");
+  applyBtns.forEach(btn => {
+    btn.addEventListener("click", () => {
+      const targetDur = parseInt(btn.dataset.applyDur) || 60;
+      const targetInt = btn.dataset.applyInt || "Moderate";
+
+      // Sync slider & inputs in What-If studio
+      if (durRange) durRange.value = targetDur;
+      const durInput = document.getElementById("whatifDurationInput");
+      if (durInput) durInput.value = targetDur;
+
+      if (intGroup) {
+        const btns = intGroup.querySelectorAll(".int-btn");
+        btns.forEach(b => {
+          if (b.dataset.int === targetInt) b.classList.add("active");
+          else b.classList.remove("active");
+        });
+      }
+
+      let factor = 0.65;
+      if (targetInt === "Low") factor = 0.40;
+      else if (targetInt === "High") factor = 0.88;
+
+      fetchAndRenderComparisons(targetDur, factor);
+
+      // Trigger the single scenario calculation as well
+      const runSingleBtn = document.getElementById("btnRunWhatIfSim");
+      if (runSingleBtn) runSingleBtn.click();
+
+      showToast(`Applied ${targetInt} Intensity (${targetDur} min) to What-If simulator`, "⚡");
+    });
+  });
+
+  if (customSyncBtn) {
+    customSyncBtn.addEventListener("click", () => {
+      const activeIntBtn = intGroup?.querySelector(".int-btn.active");
+      const intName = activeIntBtn?.dataset.int || "Moderate";
+      let factor = 0.65;
+      if (intName === "Low") factor = 0.40;
+      else if (intName === "High") factor = 0.88;
+
+      const dur = durRange ? parseInt(durRange.value) : 60;
+      fetchAndRenderComparisons(dur, factor);
+      showToast("Synchronized custom scenario with current slider inputs", "✓");
+    });
+  }
+
+  // Initial fetch
+  fetchAndRenderComparisons(currentDur, currentIntFactor);
+}
+

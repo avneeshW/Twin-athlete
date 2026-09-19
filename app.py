@@ -11,6 +11,7 @@ from flask import Flask, jsonify, request, send_from_directory, Response
 
 import simulator
 import generate_data
+import ai_coach_engine
 from telemetry_engine import engine
 
 app = Flask(__name__, static_folder="static", static_url_path="")
@@ -177,7 +178,7 @@ def get_dashboard_data():
             "calories": 680
         }
 
-    twin_status = latest["twin_status"] if is_live else {
+    twin_status = latest["twin_status"].copy() if (is_live and "twin_status" in latest) else {
         "fatigue_label": "Moderate",
         "fatigue_value": 38.0,
         "recovery_label": "78%",
@@ -185,6 +186,21 @@ def get_dashboard_data():
         "performance_label": "High",
         "performance_value": 85.0
     }
+
+    readiness_val = ai_coach_engine.calculate_readiness(
+        recovery=float(twin_status.get("recovery_value", 78.0)),
+        fatigue=float(twin_status.get("fatigue_value", 38.0))
+    )
+    st_key, st_label, st_color = ai_coach_engine.classify_overall_state(
+        readiness=readiness_val,
+        fatigue=float(twin_status.get("fatigue_value", 38.0)),
+        recovery=float(twin_status.get("recovery_value", 78.0))
+    )
+    twin_status["readiness_value"] = readiness_val
+    twin_status["readiness_label"] = f"{int(round(readiness_val))}%"
+    twin_status["overall_state_key"] = st_key
+    twin_status["overall_state_label"] = st_label
+    twin_status["overall_state_color"] = st_color
 
     return jsonify({
         "athlete": {
@@ -335,6 +351,144 @@ def api_simulate_schedule():
         })
     except Exception as e:
         return jsonify({"error": f"Simulation failed: {str(e)}"}), 500
+
+
+# ==============================================================================
+# AI DIGITAL TWIN COACH ENDPOINTS
+# ==============================================================================
+
+@app.route("/api/ai/coach-overview", methods=["GET"])
+def get_ai_coach_overview():
+    """
+    Unified AI Coach & Digital Twin endpoint:
+    Returns the persistent athlete profile, real-time digital twin state (Readiness,
+    Recovery, Fatigue, Performance, Training Load, Overall State Badge), today's AI
+    training recommendation with reason & diagnostic factor weights, active smart
+    alerts, AI natural-language performance insights, and weekly report summary.
+    """
+    latest = engine.get_latest_state()
+    is_live = (engine.last_packet_time is not None and (time.time() - engine.last_packet_time < 4.0)) or mock_feed_running
+
+    history_df = None
+    if os.path.exists("synthetic_athlete_dataset.csv"):
+        try:
+            history_df = pd.read_csv("synthetic_athlete_dataset.csv")
+        except Exception:
+            pass
+
+    if is_live and "twin_status" in latest:
+        fatigue = float(latest["twin_status"].get("fatigue_value", 38.0))
+        recovery = float(latest["twin_status"].get("recovery_value", 78.0))
+        load = float(latest.get("vitals", {}).get("acceleration", {}).get("value", 2.8) * 15.0)
+    else:
+        fatigue = 38.0
+        recovery = 78.0
+        load = 42.0
+
+    sleep_hours = 7.8
+    readiness = ai_coach_engine.calculate_readiness(recovery=recovery, fatigue=fatigue, sleep_hours=sleep_hours)
+    performance = ai_coach_engine.calculate_performance(readiness=readiness, recovery=recovery)
+    state_key, state_label, state_color = ai_coach_engine.classify_overall_state(readiness, fatigue, recovery)
+
+    twin_state = {
+        "readiness_score": readiness,
+        "recovery_score": recovery,
+        "fatigue_score": fatigue,
+        "performance_score": performance,
+        "training_load": load,
+        "training_load_label": "Moderate" if load < 50 else ("High" if load >= 75 else "Optimal"),
+        "sleep_hours": sleep_hours,
+        "overall_state": {
+            "key": state_key,
+            "label": state_label,
+            "color": state_color
+        }
+    }
+
+    recommendation = ai_coach_engine.generate_recommendation(twin_state)
+    alerts = ai_coach_engine.detect_anomalies({
+        "daily_load": load,
+        "fatigue": fatigue,
+        "recovery": recovery,
+        "asymmetry_pct": 14.2,
+        "max_impact_g": 2.8
+    }, history_df)
+    insights = ai_coach_engine.generate_insights(history_df, twin_state)
+    weekly_report = ai_coach_engine.generate_weekly_report(history_df)
+
+    return jsonify({
+        "athlete": ai_coach_engine.athlete_profile.to_dict(),
+        "digital_twin": twin_state,
+        "recommendation": recommendation,
+        "smart_alerts": alerts,
+        "insights": insights,
+        "weekly_report": weekly_report
+    })
+
+
+@app.route("/api/ai/what-if-scenarios", methods=["POST"])
+def api_what_if_scenarios():
+    """
+    Evaluates Scenario A (High), Scenario B (Moderate), Scenario C (Low),
+    and user custom configuration with predicted transition and risk indicators.
+    """
+    data = request.get_json(silent=True) or {}
+    custom_dur = int(data.get("duration", 60))
+    custom_int = float(data.get("intensity", 0.65))
+
+    latest = engine.get_latest_state()
+    is_live = (engine.last_packet_time is not None and (time.time() - engine.last_packet_time < 4.0)) or mock_feed_running
+    fatigue = float(latest["twin_status"]["fatigue_value"]) if (is_live and "twin_status" in latest) else 38.0
+    recovery = float(latest["twin_status"]["recovery_value"]) if (is_live and "twin_status" in latest) else 78.0
+    readiness = ai_coach_engine.calculate_readiness(recovery, fatigue)
+
+    current_state = {
+        "fatigue": fatigue,
+        "recovery": recovery,
+        "readiness": readiness,
+        "sleep_hours": 7.8
+    }
+
+    results = ai_coach_engine.simulate_scenarios_comparison(
+        current_state=current_state,
+        custom_duration=custom_dur,
+        custom_intensity=custom_int
+    )
+    return jsonify(results)
+
+
+@app.route("/api/ai/why-recommendation", methods=["GET"])
+def api_why_recommendation():
+    """Returns exact diagnostic factor weights and thresholds behind the recommendation."""
+    latest = engine.get_latest_state()
+    is_live = (engine.last_packet_time is not None and (time.time() - engine.last_packet_time < 4.0)) or mock_feed_running
+    fatigue = float(latest["twin_status"]["fatigue_value"]) if (is_live and "twin_status" in latest) else 38.0
+    recovery = float(latest["twin_status"]["recovery_value"]) if (is_live and "twin_status" in latest) else 78.0
+    readiness = ai_coach_engine.calculate_readiness(recovery, fatigue)
+    rec = ai_coach_engine.generate_recommendation({
+        "readiness": readiness,
+        "fatigue": fatigue,
+        "recovery": recovery,
+        "sleep_hours": 7.8
+    })
+    return jsonify({
+        "recommendation": rec,
+        "weights": ai_coach_engine.READINESS_WEIGHTS,
+        "factors": rec["why_factors"]
+    })
+
+
+@app.route("/api/ai/weekly-report", methods=["GET"])
+def api_weekly_report():
+    """Returns the full 7-day retrospective summary and AI natural language synthesis."""
+    history_df = None
+    if os.path.exists("synthetic_athlete_dataset.csv"):
+        try:
+            history_df = pd.read_csv("synthetic_athlete_dataset.csv")
+        except Exception:
+            pass
+    report = ai_coach_engine.generate_weekly_report(history_df)
+    return jsonify(report)
 
 
 @app.route("/api/history", methods=["GET"])

@@ -203,6 +203,173 @@
               </div>
             </div>
 
+            <!-- 1B. Athlete Digital Twin Core Status Card -->
+            <div class="card athlete-digital-twin-card" id="athleteTwinStatusCard">
+              <div class="twin-card-header">
+                <div class="twin-title-group">
+                  <div class="twin-pulse-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
+                      <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div class="twin-badge-row">
+                      <span class="twin-section-label">ATHLETE DIGITAL TWIN</span>
+                      <span class="twin-model-tag">v2.4 • Dynamic Calibrated Model</span>
+                    </div>
+                    <h2 class="twin-athlete-title">Daniel Saji • Personal Digital Twin</h2>
+                  </div>
+                </div>
+                <div class="twin-header-right">
+                  <div class="overall-state-badge badge-ready" id="twinOverallStateBadge">
+                    <span class="pulsing-state-dot"></span>
+                    <span id="twinOverallStateText">READY FOR TRAINING</span>
+                  </div>
+                  <button type="button" class="btn-twin-explainer" id="btnOpenHowTwinWorks"
+                    title="Understand how your personalized digital twin calculates your state">
+                    <span>How It Works</span>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="16" x2="12" y2="12" />
+                      <line x1="12" y1="8" x2="12.01" y2="8" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <!-- 5 Core Physiological Scores -->
+              <div class="twin-scores-grid">
+                <div class="twin-score-item score-readiness">
+                  <span class="score-label">Readiness Score</span>
+                  <div class="score-val-row">
+                    <span class="score-num" id="twinReadinessVal">82%</span>
+                    <span class="score-subtext text-green" id="twinReadinessLabel">High</span>
+                  </div>
+                  <div class="score-progress-bar">
+                    <div class="score-fill fill-green" id="twinReadinessBar" style="width: 82%;"></div>
+                  </div>
+                </div>
+
+                <div class="twin-score-item score-recovery">
+                  <span class="score-label">Recovery Score</span>
+                  <div class="score-val-row">
+                    <span class="score-num" id="twinRecoveryVal">78%</span>
+                    <span class="score-subtext text-blue" id="twinRecoveryLabel">Optimal</span>
+                  </div>
+                  <div class="score-progress-bar">
+                    <div class="score-fill fill-blue" id="twinRecoveryBar" style="width: 78%;"></div>
+                  </div>
+                </div>
+
+                <div class="twin-score-item score-fatigue">
+                  <span class="score-label">Fatigue Score</span>
+                  <div class="score-val-row">
+                    <span class="score-num" id="twinFatigueVal">38%</span>
+                    <span class="score-subtext text-amber" id="twinFatigueLabel">Moderate</span>
+                  </div>
+                  <div class="score-progress-bar">
+                    <div class="score-fill fill-amber" id="twinFatigueBar" style="width: 38%;"></div>
+                  </div>
+                </div>
+
+                <div class="twin-score-item score-performance">
+                  <span class="score-label">Performance Score</span>
+                  <div class="score-val-row">
+                    <span class="score-num" id="twinPerformanceVal">87%</span>
+                    <span class="score-subtext text-purple" id="twinPerformanceLabel">High Output</span>
+                  </div>
+                  <div class="score-progress-bar">
+                    <div class="score-fill fill-purple" id="twinPerformanceBar" style="width: 87%;"></div>
+                  </div>
+                </div>
+
+                <div class="twin-score-item score-load">
+                  <span class="score-label">Training Load</span>
+                  <div class="score-val-row">
+                    <span class="score-num" id="twinLoadVal">42 AU</span>
+                    <span class="score-subtext text-cyan" id="twinLoadLabel">Moderate</span>
+                  </div>
+                  <div class="score-meta-text">ACWR: <strong id="twinAcwrVal">1.09</strong> (Sweet Spot)</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 1C. Today's AI Recommendation & Smart Alerts Row -->
+            <div class="ai-coach-middle-grid">
+              <!-- Today's AI Recommendation Card -->
+              <div class="card ai-recommendation-card" id="aiRecommendationCard">
+                <div class="ai-card-header">
+                  <div class="ai-header-title-box">
+                    <div class="ai-brain-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
+                        <path
+                          d="M12 2a4 4 0 0 0-4 4c0 .8.2 1.5.6 2.1C6.2 8.9 4 11.2 4 14c0 3.3 2.7 6 6 6h4c3.3 0 6-2.7 6-6 0-2.8-2.2-5.1-4.6-5.9.4-.6.6-1.3.6-2.1a4 4 0 0 0-4-4z" />
+                        <path d="M12 6v14M8 10h8M8 14h8" />
+                      </svg>
+                    </div>
+                    <div>
+                      <span class="card-main-title">TODAY'S AI TRAINING RECOMMENDATION</span>
+                      <span class="ai-state-tag" id="recStateTag">HIGH READINESS</span>
+                    </div>
+                  </div>
+                  <button type="button" class="btn-why-rec" id="btnWhyRecommendation">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2">
+                      <circle cx="12" cy="12" r="10" />
+                      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
+                    <span>Why This Recommendation?</span>
+                  </button>
+                </div>
+
+                <div class="ai-rec-body">
+                  <h3 class="ai-rec-headline" id="recHeadline">High-Intensity Tactical &amp; Power Training</h3>
+
+                  <div class="ai-rec-chips-grid">
+                    <div class="rec-chip">
+                      <span class="rec-chip-label">Duration</span>
+                      <strong class="rec-chip-val" id="recDuration">75 minutes</strong>
+                    </div>
+                    <div class="rec-chip">
+                      <span class="rec-chip-label">Recommended Intensity</span>
+                      <strong class="rec-chip-val" id="recIntensity">80–85% HRmax (Zone 4)</strong>
+                    </div>
+                    <div class="rec-chip chip-focus">
+                      <span class="rec-chip-label">Session Focus</span>
+                      <strong class="rec-chip-val" id="recFocus">High-Speed Sprints + Small-Sided Game Drills</strong>
+                    </div>
+                  </div>
+
+                  <div class="ai-rec-reason-box">
+                    <span class="reason-title">AI Rationale:</span>
+                    <p class="reason-text" id="recReason">Your readiness is high (82%) with optimal recovery (78%) and low neuromuscular fatigue. Your digital twin indicates peak capacity for neuromuscular strain.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Smart Anomaly & Risk Alerts Card -->
+              <div class="card smart-alerts-card" id="smartAlertsCard">
+                <div class="ai-card-header">
+                  <div class="ai-header-title-box">
+                    <div class="ai-alert-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
+                        <path
+                          d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                        <line x1="12" y1="9" x2="12" y2="13" />
+                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                      </svg>
+                    </div>
+                    <span class="card-main-title">SMART ALERTS &amp; ANOMALIES</span>
+                  </div>
+                  <span class="alerts-count-badge" id="alertsCountBadge">2 Active Indicators</span>
+                </div>
+
+                <div class="smart-alerts-list" id="smartAlertsList">
+                  <!-- Dynamic alert items populated via JS -->
+                </div>
+              </div>
+            </div>
+
             <!-- 2. 4 Quick Vitals Metric Cards -->
             <div class="vitals-grid-row">
 
@@ -837,6 +1004,48 @@
           </div>
         </div>
 
+        <!-- AI Natural-Language Insights & Weekly Athlete Report Row -->
+        <div class="analytics-ai-row" style="display:grid;grid-template-columns:1.3fr 1fr;gap:18px;margin-bottom:20px;">
+          <!-- Card 1: AI Performance Insights -->
+          <div class="card" style="padding:20px;">
+            <div class="subpanel-header" style="margin-bottom:14px;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:1.2rem;">🧠</span>
+                <span class="subpanel-title" style="font-size:1.02rem;">AI Performance Insights</span>
+              </div>
+              <span class="badge-pill pill-blue">Natural Language Engine</span>
+            </div>
+            <div class="ai-insights-list" id="aiInsightsList">
+              <!-- Dynamically populated via JS -->
+            </div>
+          </div>
+
+          <!-- Card 2: Weekly Athlete Report Summary -->
+          <div class="card" style="padding:20px;display:flex;flex-direction:column;justify-content:space-between;">
+            <div>
+              <div class="subpanel-header" style="margin-bottom:12px;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span style="font-size:1.2rem;">📋</span>
+                  <span class="subpanel-title" style="font-size:1.02rem;">Weekly Athlete Report</span>
+                </div>
+                <button type="button" class="btn-top-action" id="btnOpenFullWeeklyReport"
+                  style="background:var(--primary-blue);color:#fff;padding:6px 14px;font-size:0.75rem;border-radius:6px;font-weight:700;">
+                  <span>Full Report &rarr;</span>
+                </button>
+              </div>
+
+              <div id="weeklyReportCardSummary">
+                <!-- Dynamically populated via JS -->
+              </div>
+            </div>
+
+            <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border-card);display:flex;justify-content:space-between;align-items:center;font-size:0.75rem;color:var(--text-muted);">
+              <span>Report Generated: <strong id="weeklyReportGenDate">Today</strong></span>
+              <span style="color:#10B981;font-weight:700;">✓ Ready for Physio Review</span>
+            </div>
+          </div>
+        </div>
+
         <div class="analytics-kpi-grid">
           <div class="card" style="padding:14px;">
             <span class="metric-label">Sleep Average</span>
@@ -942,6 +1151,59 @@
               </svg>
               <span>Reset to Baseline</span>
             </button>
+          </div>
+        </div>
+
+        <!-- Visual State Transition Flow: Current -> Training -> Predicted State -->
+        <div class="card whatif-state-flow-card" style="margin-bottom:20px;padding:18px 24px;">
+          <div class="flow-header">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:1.25rem;">⚡</span>
+              <div>
+                <h3 class="flow-title">Physiological State Transition Simulation</h3>
+                <span class="flow-subtitle">Current Baseline &rarr; Prospective Training Load &rarr; Predicted Future State</span>
+              </div>
+            </div>
+            <span class="disclaimer-badge">Deterministic &amp; ML Regression Flow</span>
+          </div>
+
+          <div class="state-transition-flow">
+            <!-- Step 1: Current -->
+            <div class="flow-node node-current">
+              <div class="flow-node-badge">1. Current State</div>
+              <div class="flow-node-metric"><strong id="flowCurrReadiness">85%</strong> <span>Readiness</span></div>
+              <div class="flow-node-sub">Fatigue: <span id="flowCurrFatigue">38%</span> &bull; Rec: <span id="flowCurrRec">78%</span></div>
+            </div>
+
+            <div class="flow-connector">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="5" y1="12" x2="19" y2="12" />
+                <polyline points="12 5 19 12 12 19" />
+              </svg>
+              <span class="flow-connector-label" id="flowConnectorLoad">+42 AU Load</span>
+            </div>
+
+            <!-- Step 2: Training Exertion -->
+            <div class="flow-node node-training">
+              <div class="flow-node-badge">2. Planned Session</div>
+              <div class="flow-node-metric"><strong id="flowPlannedDur">60 min</strong> <span id="flowPlannedInt">@ Moderate (65%)</span></div>
+              <div class="flow-node-sub">Est. Burn: <span id="flowPlannedCals">680 kcal</span> &bull; Strain: <span id="flowPlannedZone">Zone 3</span></div>
+            </div>
+
+            <div class="flow-connector">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="5" y1="12" x2="19" y2="12" />
+                <polyline points="12 5 19 12 12 19" />
+              </svg>
+              <span class="flow-connector-label">Model Estimates</span>
+            </div>
+
+            <!-- Step 3: Predicted State -->
+            <div class="flow-node node-predicted">
+              <div class="flow-node-badge">3. Predicted Future State</div>
+              <div class="flow-node-metric"><strong id="flowPredReadiness">74%</strong> <span>Readiness</span></div>
+              <div class="flow-node-sub">Fatigue: <span id="flowPredFatigue">52%</span> &bull; Rest: <span id="flowPredRecoveryHours">24–36h</span></div>
+            </div>
           </div>
         </div>
 
@@ -1166,6 +1428,149 @@
             </div>
           </div>
 
+        </div>
+
+        <!-- Section 1B: Multi-Scenario Comparative Analysis (Scenario A vs B vs C vs Custom) -->
+        <div class="card whatif-scenarios-comparison-card" style="margin-bottom:24px;padding:22px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:12px;">
+            <div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:1.2rem;">⚖️</span>
+                <h3 style="font-size:1.1rem;font-weight:800;color:var(--text-dark);">What-If Scenario Comparison</h3>
+              </div>
+              <p style="font-size:0.82rem;color:var(--text-muted);margin-top:2px;">Compare how prospective session options alter fatigue accumulation, recovery window, and readiness</p>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="disclaimer-badge">Scikit-Learn ML Model Estimates</span>
+            </div>
+          </div>
+
+          <!-- 4 Comparison Cards Grid -->
+          <div class="scenarios-comparison-grid" id="scenariosComparisonGrid">
+            <!-- Scenario A -->
+            <div class="scenario-comp-card" id="cardScenarioA">
+              <div class="comp-card-top">
+                <span class="comp-badge badge-high">Scenario A</span>
+                <span class="comp-tag-pill">Match / Sprint</span>
+              </div>
+              <h4 class="comp-title">High Intensity / 90 min</h4>
+              <div class="comp-kpi-row">
+                <div><span class="comp-kpi-lbl">Load:</span> <strong class="comp-kpi-val">94 AU</strong></div>
+                <div><span class="comp-kpi-lbl">Est. Burn:</span> <strong class="comp-kpi-val">1,180 kcal</strong></div>
+              </div>
+              <div class="comp-metrics-list">
+                <div class="comp-metric-item">
+                  <span class="c-lbl">Predicted Fatigue</span>
+                  <div class="c-val-box"><strong class="c-val text-red" id="scA_fatigue">64%</strong> <span class="c-delta delta-up">+26%</span></div>
+                </div>
+                <div class="comp-metric-item">
+                  <span class="c-lbl">Predicted Readiness</span>
+                  <div class="c-val-box"><strong class="c-val text-amber" id="scA_readiness">68%</strong> <span class="c-delta delta-down">-17%</span></div>
+                </div>
+                <div class="comp-metric-item">
+                  <span class="c-lbl">Recovery Required</span>
+                  <strong class="c-val" id="scA_rest">36–48 hours</strong>
+                </div>
+              </div>
+              <div class="comp-risk-pill risk-elevated" id="scA_risk">
+                <span>⚠️ Elevated Injury-Risk Indicator</span>
+              </div>
+              <button type="button" class="btn-apply-scenario" data-apply-dur="90" data-apply-int="High">Apply Scenario A</button>
+            </div>
+
+            <!-- Scenario B -->
+            <div class="scenario-comp-card recommended-card" id="cardScenarioB">
+              <div class="comp-card-top">
+                <span class="comp-badge badge-moderate">Scenario B</span>
+                <span class="comp-tag-pill pill-green-light">Target Focus</span>
+              </div>
+              <h4 class="comp-title">Moderate Intensity / 60 min</h4>
+              <div class="comp-kpi-row">
+                <div><span class="comp-kpi-lbl">Load:</span> <strong class="comp-kpi-val">54 AU</strong></div>
+                <div><span class="comp-kpi-lbl">Est. Burn:</span> <strong class="comp-kpi-val">680 kcal</strong></div>
+              </div>
+              <div class="comp-metrics-list">
+                <div class="comp-metric-item">
+                  <span class="c-lbl">Predicted Fatigue</span>
+                  <div class="c-val-box"><strong class="c-val text-amber" id="scB_fatigue">48%</strong> <span class="c-delta delta-up">+10%</span></div>
+                </div>
+                <div class="comp-metric-item">
+                  <span class="c-lbl">Predicted Readiness</span>
+                  <div class="c-val-box"><strong class="c-val text-green" id="scB_readiness">78%</strong> <span class="c-delta delta-down">-7%</span></div>
+                </div>
+                <div class="comp-metric-item">
+                  <span class="c-lbl">Recovery Required</span>
+                  <strong class="c-val" id="scB_rest">24–36 hours</strong>
+                </div>
+              </div>
+              <div class="comp-risk-pill risk-moderate" id="scB_risk">
+                <span>⚡ Controlled Adaptation / Optimal</span>
+              </div>
+              <button type="button" class="btn-apply-scenario" data-apply-dur="60" data-apply-int="Moderate">Apply Scenario B</button>
+            </div>
+
+            <!-- Scenario C -->
+            <div class="scenario-comp-card" id="cardScenarioC">
+              <div class="comp-card-top">
+                <span class="comp-badge badge-low">Scenario C</span>
+                <span class="comp-tag-pill">Active Rec</span>
+              </div>
+              <h4 class="comp-title">Low Intensity / 45 min</h4>
+              <div class="comp-kpi-row">
+                <div><span class="comp-kpi-lbl">Load:</span> <strong class="comp-kpi-val">28 AU</strong></div>
+                <div><span class="comp-kpi-lbl">Est. Burn:</span> <strong class="comp-kpi-val">340 kcal</strong></div>
+              </div>
+              <div class="comp-metrics-list">
+                <div class="comp-metric-item">
+                  <span class="c-lbl">Predicted Fatigue</span>
+                  <div class="c-val-box"><strong class="c-val text-green" id="scC_fatigue">32%</strong> <span class="c-delta delta-down">-6%</span></div>
+                </div>
+                <div class="comp-metric-item">
+                  <span class="c-lbl">Predicted Readiness</span>
+                  <div class="c-val-box"><strong class="c-val text-green" id="scC_readiness">86%</strong> <span class="c-delta delta-up">+1%</span></div>
+                </div>
+                <div class="comp-metric-item">
+                  <span class="c-lbl">Recovery Required</span>
+                  <strong class="c-val" id="scC_rest">18–24 hours</strong>
+                </div>
+              </div>
+              <div class="comp-risk-pill risk-low" id="scC_risk">
+                <span>🟢 Restorative Recovery / Lowest Risk</span>
+              </div>
+              <button type="button" class="btn-apply-scenario" data-apply-dur="45" data-apply-int="Low">Apply Scenario C</button>
+            </div>
+
+            <!-- Custom Scenario Card -->
+            <div class="scenario-comp-card custom-plan-card" id="cardScenarioCustom">
+              <div class="comp-card-top">
+                <span class="comp-badge badge-custom">Custom Plan</span>
+                <span class="comp-tag-pill">Interactive</span>
+              </div>
+              <h4 class="comp-title" id="scCustom_title">Custom Session</h4>
+              <div class="comp-kpi-row">
+                <div><span class="comp-kpi-lbl">Load:</span> <strong class="comp-kpi-val" id="scCustom_load">--</strong></div>
+                <div><span class="comp-kpi-lbl">Est. Burn:</span> <strong class="comp-kpi-val" id="scCustom_burn">--</strong></div>
+              </div>
+              <div class="comp-metrics-list">
+                <div class="comp-metric-item">
+                  <span class="c-lbl">Predicted Fatigue</span>
+                  <div class="c-val-box"><strong class="c-val" id="scCustom_fatigue">--</strong> <span class="c-delta" id="scCustom_dFatigue">--</span></div>
+                </div>
+                <div class="comp-metric-item">
+                  <span class="c-lbl">Predicted Readiness</span>
+                  <div class="c-val-box"><strong class="c-val" id="scCustom_readiness">--</strong> <span class="c-delta" id="scCustom_dReadiness">--</span></div>
+                </div>
+                <div class="comp-metric-item">
+                  <span class="c-lbl">Recovery Required</span>
+                  <strong class="c-val" id="scCustom_rest">--</strong>
+                </div>
+              </div>
+              <div class="comp-risk-pill" id="scCustom_risk">
+                <span id="scCustom_riskText">Synchronized with Sliders Above</span>
+              </div>
+              <button type="button" class="btn-apply-scenario active" id="btnSyncCustomScenario">Re-calculate Custom</button>
+            </div>
+          </div>
         </div>
 
         <!-- Section 2: 7-Day Periodization Microcycle Simulator Card -->
@@ -1793,6 +2198,197 @@ Content-Type: application/json
         <button class="btn-top-action" id="btnModalCloseDone"
           style="background:var(--primary-blue);color:#ffffff;padding:10px 16px;border-radius:8px;font-weight:700;align-self:flex-end;">
           Close Guide
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================================
+       AI COACH MODALS
+       ====================================================================== -->
+
+  <!-- 1. "Why This Recommendation?" Diagnostic Attribution Modal -->
+  <div class="modal-backdrop" id="whyRecModal" style="display: none;">
+    <div class="modal-card" style="max-width: 580px;">
+      <div class="modal-header">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:1.25rem;">🧠</span>
+            <h3 class="modal-title">Why This Recommendation?</h3>
+          </div>
+          <p class="modal-subtitle">Algorithmic Factor Attribution &amp; Weight Breakdown</p>
+        </div>
+        <button class="modal-btn-close" id="btnCloseWhyRecModal">&times;</button>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:16px;font-size:0.86rem;">
+        <div style="background:#F1F6FB;padding:14px 18px;border-radius:12px;">
+          <span style="font-size:0.72rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;display:block;margin-bottom:4px;">Recommended Session</span>
+          <h4 id="modalRecHeadline" style="font-size:1.05rem;font-weight:800;color:var(--text-dark);margin:0 0 6px 0;">High-Intensity Tactical &amp; Power Training</h4>
+          <p id="modalRecQuote" style="margin:0;font-size:0.82rem;color:var(--text-body);line-height:1.45;"></p>
+        </div>
+
+        <div>
+          <h4 style="font-size:0.88rem;font-weight:800;color:var(--text-dark);margin:0 0 10px 0;">Key Determining Factors &amp; Weights:</h4>
+          <div class="why-factors-list" id="modalWhyFactorsList">
+            <!-- Populated via JS -->
+          </div>
+        </div>
+
+        <div style="background:#F8FAFC;border:1px solid var(--border-card);border-radius:10px;padding:12px 14px;font-size:0.78rem;color:var(--text-muted);line-height:1.45;">
+          <strong style="color:var(--text-dark);">Modular Scoring Architecture:</strong>
+          Calculated by the Digital Twin rules engine using weighted multi-objective regression over physiological recovery, acute-to-chronic workload, and sleep debt.
+        </div>
+
+        <button type="button" class="btn-top-action" id="btnUnderstandRec" style="background:var(--primary-blue);color:#ffffff;padding:10px;border-radius:8px;font-weight:700;justify-content:center;">
+          Got It, Thanks!
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Weekly Athlete Report Full Retrospective Modal -->
+  <div class="modal-backdrop" id="weeklyReportModal" style="display: none;">
+    <div class="modal-card" style="max-width: 680px;">
+      <div class="modal-header">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:1.25rem;">📋</span>
+            <h3 class="modal-title">Weekly Athlete Performance Report</h3>
+          </div>
+          <p class="modal-subtitle" id="weeklyReportPeriodSubtitle">Week of 1–7 Oct 2025 • Daniel Saji</p>
+        </div>
+        <button class="modal-btn-close" id="btnCloseWeeklyReportModal">&times;</button>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:18px;font-size:0.86rem;" id="weeklyReportModalBody">
+        <!-- Weekly AI Synthesis Quote -->
+        <div style="background:linear-gradient(135deg, #0F172A 0%, #1E293B 100%);color:#F8FAFC;padding:18px 20px;border-radius:12px;border:1px solid rgba(56,189,248,0.25);">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <span style="font-size:1.1rem;">⚡</span>
+            <strong style="font-size:0.82rem;text-transform:uppercase;letter-spacing:0.05em;color:#38BDF8;">AI Weekly Synthesis</strong>
+          </div>
+          <p id="weeklyModalAiSummary" style="margin:0;font-size:0.88rem;line-height:1.55;color:#E2E8F0;"></p>
+        </div>
+
+        <!-- 4 KPI Blocks -->
+        <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:10px;" id="weeklyModalKpiGrid">
+          <div style="background:#F1F6FB;padding:12px;border-radius:10px;text-align:center;">
+            <span style="font-size:0.7rem;color:var(--text-muted);font-weight:600;display:block;">Avg Performance</span>
+            <strong id="wkAvgPerf" style="font-size:1.15rem;color:var(--text-dark);display:block;margin-top:2px;">86.4</strong>
+            <span style="font-size:0.72rem;color:#10B981;font-weight:700;" id="wkPerfChange">+3.8%</span>
+          </div>
+          <div style="background:#F1F6FB;padding:12px;border-radius:10px;text-align:center;">
+            <span style="font-size:0.7rem;color:var(--text-muted);font-weight:600;display:block;">Total Workload</span>
+            <strong id="wkTotalLoad" style="font-size:1.15rem;color:var(--text-dark);display:block;margin-top:2px;">328.5 AU</strong>
+            <span style="font-size:0.72rem;color:var(--text-muted);" id="wkHours">6.5 hours</span>
+          </div>
+          <div style="background:#F1F6FB;padding:12px;border-radius:10px;text-align:center;">
+            <span style="font-size:0.7rem;color:var(--text-muted);font-weight:600;display:block;">Training Freq</span>
+            <strong id="wkFreq" style="font-size:1.15rem;color:var(--text-dark);display:block;margin-top:2px;">5 Sessions</strong>
+            <span style="font-size:0.72rem;color:var(--text-muted);" id="wkAvgInt">72% avg int</span>
+          </div>
+          <div style="background:#F1F6FB;padding:12px;border-radius:10px;text-align:center;">
+            <span style="font-size:0.7rem;color:var(--text-muted);font-weight:600;display:block;">Avg Recovery</span>
+            <strong id="wkAvgRec" style="font-size:1.15rem;color:#10B981;display:block;margin-top:2px;">76.8%</strong>
+            <span style="font-size:0.72rem;color:var(--text-muted);" id="wkSleep">7.8h sleep</span>
+          </div>
+        </div>
+
+        <!-- Best Session Card -->
+        <div style="background:#F8FAFC;border:1px solid var(--border-card);border-radius:12px;padding:14px 18px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <span style="font-size:0.75rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;">🌟 Star Session of the Week</span>
+            <span class="badge-pill pill-green" id="wkBestSessionTag">Top Performance</span>
+          </div>
+          <h4 id="wkBestSessionTitle" style="font-size:0.95rem;font-weight:800;color:var(--text-dark);margin:0 0 4px 0;">5 Oct • Match vs Rivals</h4>
+          <p id="wkBestSessionKudos" style="margin:0;font-size:0.82rem;color:var(--text-muted);line-height:1.45;"></p>
+        </div>
+
+        <!-- Trends & Warnings Summary -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div style="background:#FFFBEB;border:1px solid #FCD34D;border-radius:10px;padding:12px 14px;">
+            <strong style="font-size:0.82rem;color:#D97706;display:block;margin-bottom:4px;">⚠️ Fatigue Trend</strong>
+            <span id="wkFatigueTrendText" style="font-size:0.8rem;color:#92400E;line-height:1.4;display:block;">Slightly compounding (+16% over 7 days). Deload day indicated.</span>
+          </div>
+          <div style="background:#ECFDF5;border:1px solid #A7F3D0;border-radius:10px;padding:12px 14px;">
+            <strong style="font-size:0.82rem;color:#059669;display:block;margin-bottom:4px;">✓ Readiness Trajectory</strong>
+            <span id="wkReadinessTrendText" style="font-size:0.8rem;color:#065F46;line-height:1.4;display:block;">Stable in optimal range (82–88%). Peak readiness maintained.</span>
+          </div>
+        </div>
+
+        <button type="button" class="btn-top-action" id="btnCloseWeeklyReportBottom"
+          style="background:var(--primary-blue);color:#ffffff;padding:10px;border-radius:8px;font-weight:700;justify-content:center;">
+          Close Weekly Report
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. "How Your Digital Twin Works" 5-Step Concept Stepper Modal -->
+  <div class="modal-backdrop" id="howTwinWorksModal" style="display: none;">
+    <div class="modal-card" style="max-width: 620px;">
+      <div class="modal-header">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:1.25rem;">🌐</span>
+            <h3 class="modal-title">How Your Digital Twin Works</h3>
+          </div>
+          <p class="modal-subtitle">5-Step Continuous Physiological Optimization Pipeline</p>
+        </div>
+        <button class="modal-btn-close" id="btnCloseHowTwinModal">&times;</button>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:16px;font-size:0.86rem;">
+        <p style="margin:0;color:var(--text-muted);line-height:1.5;">
+          The system builds a computational, calibrated version of you that models cardiovascular strain, biomechanical impact, and recovery dynamics in real time:
+        </p>
+
+        <div class="twin-steps-vertical-list">
+          <div class="twin-step-row">
+            <div class="step-num-circle">1</div>
+            <div>
+              <strong class="step-title">Collect</strong>
+              <p class="step-desc">Stream live telemetry (heart rate, SpO<sub>2</sub>, 6-DOF IMU acceleration, cadence) from physical ESP32 wearables and longitudinal training logs.</p>
+            </div>
+          </div>
+
+          <div class="twin-step-row">
+            <div class="step-num-circle">2</div>
+            <div>
+              <strong class="step-title">Understand</strong>
+              <p class="step-desc">Build your persistent athlete model, quantifying individual baseline resting HR, acute:chronic workload ratios (ACWR), and bilateral gait symmetry.</p>
+            </div>
+          </div>
+
+          <div class="twin-step-row">
+            <div class="step-num-circle">3</div>
+            <div>
+              <strong class="step-title">Predict</strong>
+              <p class="step-desc">Use trained machine learning models to forecast future fatigue accumulation, recovery requirements, and readiness before you step onto the pitch.</p>
+            </div>
+          </div>
+
+          <div class="twin-step-row">
+            <div class="step-num-circle">4</div>
+            <div>
+              <strong class="step-title">Recommend</strong>
+              <p class="step-desc">Generate personalized daily training focus, duration, and target intensity zones with transparent factor attribution.</p>
+            </div>
+          </div>
+
+          <div class="twin-step-row">
+            <div class="step-num-circle">5</div>
+            <div>
+              <strong class="step-title">Learn</strong>
+              <p class="step-desc">Continuously calibrate the digital twin models as new session datasets arrive, refining individual tolerance and recovery kinetics over time.</p>
+            </div>
+          </div>
+        </div>
+
+        <button type="button" class="btn-top-action" id="btnCloseHowTwinBottom"
+          style="background:var(--primary-blue);color:#ffffff;padding:10px;border-radius:8px;font-weight:700;justify-content:center;">
+          Explore Cockpit
         </button>
       </div>
     </div>
