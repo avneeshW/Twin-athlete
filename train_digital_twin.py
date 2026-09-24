@@ -84,8 +84,77 @@ joblib.dump(final_model_recovery, "twin_recovery_model.pkl")
 with open("twin_features.json", "w") as f:
     json.dump({"features": features}, f, indent=2)
 
-print("\nDigital Twin models successfully trained and exported:")
+# 7. Generate Comprehensive, Versioned Model Card & Evaluation Artifact
+fatigue_fi = {feat: round(float(imp * 100), 2) for feat, imp in sorted(zip(features, model_fatigue.feature_importances_), key=lambda x: x[1], reverse=True)}
+recovery_fi = {feat: round(float(imp * 100), 2) for feat, imp in sorted(zip(features, model_recovery.feature_importances_), key=lambda x: x[1], reverse=True)}
+
+# Residual standard deviation for empirical uncertainty intervals
+fatigue_res_std = round(float(np.std(yf_test.values - yf_pred)), 2)
+recovery_res_std = round(float(np.std(yr_test.values - yr_pred)), 2)
+
+model_card = {
+    "model_id": "twin-athlete-state-transition-v2.4",
+    "version": "2.4.0",
+    "updated_at": pd.Timestamp.now().isoformat(),
+    "framework": "scikit-learn 1.3+ / Python 3.11",
+    "architecture": "Dual Ensemble Random Forest Regressor (n_estimators=100, random_state=42)",
+    "dataset": {
+        "name": "180-Day Longitudinal Athlete Training & Biometric Dataset",
+        "file": "synthetic_athlete_dataset.csv",
+        "total_days": len(df),
+        "split_method": "Chronological 80/20 holdout split (no future data leakage)",
+        "train_samples": len(X_train),
+        "test_samples": len(X_test),
+        "features": {
+            "prev_fatigue": "Lagged acute neuromuscular fatigue score (t-1, scale 0-100)",
+            "prev_recovery": "Lagged autonomic recovery score (t-1, scale 0-100%)",
+            "sleep_hours": "Duration of nocturnal sleep prior to session (hours)",
+            "workout_duration_min": "Completed session duration (minutes)",
+            "workout_intensity": "Cardiovascular relative intensity (fraction of max HR 0.0 - 1.0)",
+            "daily_load": "Integrated training impulse load (Edwards TRIMP proxy)"
+        }
+    },
+    "targets": {
+        "fatigue_level": "Acute neuromuscular fatigue level on subsequent day (0 - 100)",
+        "recovery_score": "Autonomic & parasympathetic recovery score on subsequent day (0 - 100%)"
+    },
+    "metrics": {
+        "fatigue_model": {
+            "r2_score": round(float(r2_f), 3),
+            "mae": round(float(mae_f), 2),
+            "rmse": round(float(rmse_f), 2),
+            "residual_std": fatigue_res_std,
+            "feature_importance_pct": fatigue_fi
+        },
+        "recovery_model": {
+            "r2_score": round(float(r2_r), 3),
+            "mae": round(float(mae_r), 2),
+            "rmse": round(float(rmse_r), 2),
+            "residual_std": recovery_res_std,
+            "feature_importance_pct": recovery_fi
+        }
+    },
+    "uncertainty_estimation": {
+        "method": "Empirical Test-Set Residual Standard Error (95% Confidence Interval ~ +/- 1.96 * std)",
+        "fatigue_ci_95": f"+/- {round(1.96 * fatigue_res_std, 1)} pts",
+        "recovery_ci_95": f"+/- {round(1.96 * recovery_res_std, 1)} pts"
+    },
+    "known_limitations": [
+        "Calibrated on 180-day longitudinal running & soccer training dataset; requires calibration for cycling or swimming.",
+        "Assumes standard circadian rhythm; shift workers or extreme jet lag require sleep adjustment.",
+        "Non-linear infection or febrile illness is not modeled by the mechanical fatigue equation.",
+        "Predictions represent baseline expected adaptation; individual genetic or psychological stress factors may induce variance."
+    ],
+    "intended_use": "Decision support for coaches and athletes to optimize training microcycles, avoid non-functional overreaching, and plan deload periods.",
+    "non_intended_use": "Clinical diagnosis, medical evaluation of pathology, or replacing qualified medical personnel."
+}
+
+with open("model_card.json", "w") as f:
+    json.dump(model_card, f, indent=2)
+
+print("\nDigital Twin models and Model Card successfully trained and exported:")
 print("  -> 'twin_fatigue_model.pkl'")
 print("  -> 'twin_recovery_model.pkl'")
 print("  -> 'twin_features.json'")
+print("  -> 'model_card.json'")
 print("=" * 60)

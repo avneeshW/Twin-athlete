@@ -23,8 +23,10 @@
   <header class="top-nav">
     <div class="nav-left-group">
       <!-- Mobile Drawer Hamburger Toggle Button -->
-      <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="appSidebar">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+      <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle navigation menu" aria-expanded="false"
+        aria-controls="appSidebar">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.3"
+          stroke-linecap="round" stroke-linejoin="round">
           <line x1="3" y1="12" x2="21" y2="12"></line>
           <line x1="3" y1="6" x2="21" y2="6"></line>
           <line x1="3" y1="18" x2="21" y2="18"></line>
@@ -45,6 +47,18 @@
 
     <!-- Top Right Actions & Athlete Profile -->
     <div class="nav-right-group">
+
+      <!-- Quick Action Buttons for Transparency -->
+      <div class="header-transparency-actions">
+        <button class="btn-header-pill" id="btnOpenDataQualityModal" title="Live Sensor Quality & Diagnostics">
+          <span class="pulse-dot green" id="headerQualityDot"></span>
+          <span id="headerQualityLabel">Quality: 96%</span>
+        </button>
+        <button class="btn-header-pill" id="btnOpenModelCardModal" title="View Versioned ML Model Card & Metrics">
+          <span>Model Card v2.4</span>
+        </button>
+      </div>
+
       <!-- User Profile & Time Display -->
       <div class="user-profile-widget">
         <div class="user-profile-menu" id="userProfileBtn" tabindex="0" role="button" aria-haspopup="true">
@@ -56,7 +70,7 @@
                 <polyline points="6 9 12 15 18 9" />
               </svg>
             </div>
-            <span class="user-role-label">Football Player</span>
+            <span class="user-role-label" id="userRoleBadge">Football Player</span>
           </div>
         </div>
 
@@ -67,6 +81,11 @@
       </div>
     </div>
   </header>
+
+  <!-- Non-Diagnostic Prototype Notice Banner (Phase 10) -->
+  <div class="medical-disclaimer-banner" role="note">
+    <span>🛡️ <strong>Decision-Support Prototype:</strong> TwinAthlete is an experimental sports-science system for training load management and periodization. It does not provide medical diagnoses or replace licensed clinical practitioners.</span>
+  </div>
 
   <!-- Mobile Navigation Drawer Backdrop Overlay -->
   <div class="mobile-nav-backdrop" id="mobileNavBackdrop"></div>
@@ -306,7 +325,8 @@
 
                 <div class="ai-rec-reason-box">
                   <span class="reason-title">AI Rationale:</span>
-                  <p class="reason-text" id="recReason">Your readiness is high (82%) with optimal recovery (78%) and low neuromuscular fatigue. Your digital twin indicates peak capacity for neuromuscular strain.</p>
+                  <p class="reason-text" id="recReason">Your readiness is high (82%) with optimal recovery (78%) and low
+                    neuromuscular fatigue. Your digital twin indicates peak capacity for neuromuscular strain.</p>
                 </div>
               </div>
             </div>
@@ -959,7 +979,8 @@
               </div>
             </div>
 
-            <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border-card);display:flex;justify-content:space-between;align-items:center;font-size:0.75rem;color:var(--text-muted);">
+            <div
+              style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border-card);display:flex;justify-content:space-between;align-items:center;font-size:0.75rem;color:var(--text-muted);">
               <span>Report Generated: <strong id="weeklyReportGenDate">Today</strong></span>
               <span style="color:#10B981;font-weight:700;">✓ Ready for Physio Review</span>
             </div>
@@ -1081,7 +1102,8 @@
               <span style="font-size:1.25rem;">⚡</span>
               <div>
                 <h3 class="flow-title">Physiological State Transition Simulation</h3>
-                <span class="flow-subtitle">Current Baseline &rarr; Prospective Training Load &rarr; Predicted Future State</span>
+                <span class="flow-subtitle">Current Baseline &rarr; Prospective Training Load &rarr; Predicted Future
+                  State</span>
               </div>
             </div>
             <span class="disclaimer-badge">Deterministic &amp; ML Regression Flow</span>
@@ -1092,7 +1114,8 @@
             <div class="flow-node node-current">
               <div class="flow-node-badge">1. Current State</div>
               <div class="flow-node-metric"><strong id="flowCurrReadiness">85%</strong> <span>Readiness</span></div>
-              <div class="flow-node-sub">Fatigue: <span id="flowCurrFatigue">38%</span> &bull; Rec: <span id="flowCurrRec">78%</span></div>
+              <div class="flow-node-sub">Fatigue: <span id="flowCurrFatigue">38%</span> &bull; Rec: <span
+                  id="flowCurrRec">78%</span></div>
             </div>
 
             <div class="flow-connector">
@@ -1106,8 +1129,10 @@
             <!-- Step 2: Training Exertion -->
             <div class="flow-node node-training">
               <div class="flow-node-badge">2. Planned Session</div>
-              <div class="flow-node-metric"><strong id="flowPlannedDur">60 min</strong> <span id="flowPlannedInt">@ Moderate (65%)</span></div>
-              <div class="flow-node-sub">Est. Burn: <span id="flowPlannedCals">680 kcal</span> &bull; Strain: <span id="flowPlannedZone">Zone 3</span></div>
+              <div class="flow-node-metric"><strong id="flowPlannedDur">60 min</strong> <span id="flowPlannedInt">@
+                  Moderate (65%)</span></div>
+              <div class="flow-node-sub">Est. Burn: <span id="flowPlannedCals">680 kcal</span> &bull; Strain: <span
+                  id="flowPlannedZone">Zone 3</span></div>
             </div>
 
             <div class="flow-connector">
@@ -1122,7 +1147,8 @@
             <div class="flow-node node-predicted">
               <div class="flow-node-badge">3. Predicted Future State</div>
               <div class="flow-node-metric"><strong id="flowPredReadiness">74%</strong> <span>Readiness</span></div>
-              <div class="flow-node-sub">Fatigue: <span id="flowPredFatigue">52%</span> &bull; Rest: <span id="flowPredRecoveryHours">24–36h</span></div>
+              <div class="flow-node-sub">Fatigue: <span id="flowPredFatigue">52%</span> &bull; Rest: <span
+                  id="flowPredRecoveryHours">24–36h</span></div>
             </div>
           </div>
         </div>
@@ -1352,13 +1378,15 @@
 
         <!-- Section 1B: Multi-Scenario Comparative Analysis (Scenario A vs B vs C vs Custom) -->
         <div class="card whatif-scenarios-comparison-card" style="margin-bottom:24px;padding:22px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:12px;">
+          <div
+            style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:12px;">
             <div>
               <div style="display:flex;align-items:center;gap:8px;">
                 <span style="font-size:1.2rem;">⚖️</span>
                 <h3 style="font-size:1.1rem;font-weight:800;color:var(--text-dark);">What-If Scenario Comparison</h3>
               </div>
-              <p style="font-size:0.82rem;color:var(--text-muted);margin-top:2px;">Compare how prospective session options alter fatigue accumulation, recovery window, and readiness</p>
+              <p style="font-size:0.82rem;color:var(--text-muted);margin-top:2px;">Compare how prospective session
+                options alter fatigue accumulation, recovery window, and readiness</p>
             </div>
             <div style="display:flex;align-items:center;gap:8px;">
               <span class="disclaimer-badge">Scikit-Learn ML Model Estimates</span>
@@ -1381,11 +1409,13 @@
               <div class="comp-metrics-list">
                 <div class="comp-metric-item">
                   <span class="c-lbl">Predicted Fatigue</span>
-                  <div class="c-val-box"><strong class="c-val text-red" id="scA_fatigue">64%</strong> <span class="c-delta delta-up">+26%</span></div>
+                  <div class="c-val-box"><strong class="c-val text-red" id="scA_fatigue">64%</strong> <span
+                      class="c-delta delta-up">+26%</span></div>
                 </div>
                 <div class="comp-metric-item">
                   <span class="c-lbl">Predicted Readiness</span>
-                  <div class="c-val-box"><strong class="c-val text-amber" id="scA_readiness">68%</strong> <span class="c-delta delta-down">-17%</span></div>
+                  <div class="c-val-box"><strong class="c-val text-amber" id="scA_readiness">68%</strong> <span
+                      class="c-delta delta-down">-17%</span></div>
                 </div>
                 <div class="comp-metric-item">
                   <span class="c-lbl">Recovery Required</span>
@@ -1395,7 +1425,8 @@
               <div class="comp-risk-pill risk-elevated" id="scA_risk">
                 <span>⚠️ Elevated Injury-Risk Indicator</span>
               </div>
-              <button type="button" class="btn-apply-scenario" data-apply-dur="90" data-apply-int="High">Apply Scenario A</button>
+              <button type="button" class="btn-apply-scenario" data-apply-dur="90" data-apply-int="High">Apply Scenario
+                A</button>
             </div>
 
             <!-- Scenario B -->
@@ -1412,11 +1443,13 @@
               <div class="comp-metrics-list">
                 <div class="comp-metric-item">
                   <span class="c-lbl">Predicted Fatigue</span>
-                  <div class="c-val-box"><strong class="c-val text-amber" id="scB_fatigue">48%</strong> <span class="c-delta delta-up">+10%</span></div>
+                  <div class="c-val-box"><strong class="c-val text-amber" id="scB_fatigue">48%</strong> <span
+                      class="c-delta delta-up">+10%</span></div>
                 </div>
                 <div class="comp-metric-item">
                   <span class="c-lbl">Predicted Readiness</span>
-                  <div class="c-val-box"><strong class="c-val text-green" id="scB_readiness">78%</strong> <span class="c-delta delta-down">-7%</span></div>
+                  <div class="c-val-box"><strong class="c-val text-green" id="scB_readiness">78%</strong> <span
+                      class="c-delta delta-down">-7%</span></div>
                 </div>
                 <div class="comp-metric-item">
                   <span class="c-lbl">Recovery Required</span>
@@ -1426,7 +1459,8 @@
               <div class="comp-risk-pill risk-moderate" id="scB_risk">
                 <span>⚡ Controlled Adaptation / Optimal</span>
               </div>
-              <button type="button" class="btn-apply-scenario" data-apply-dur="60" data-apply-int="Moderate">Apply Scenario B</button>
+              <button type="button" class="btn-apply-scenario" data-apply-dur="60" data-apply-int="Moderate">Apply
+                Scenario B</button>
             </div>
 
             <!-- Scenario C -->
@@ -1443,11 +1477,13 @@
               <div class="comp-metrics-list">
                 <div class="comp-metric-item">
                   <span class="c-lbl">Predicted Fatigue</span>
-                  <div class="c-val-box"><strong class="c-val text-green" id="scC_fatigue">32%</strong> <span class="c-delta delta-down">-6%</span></div>
+                  <div class="c-val-box"><strong class="c-val text-green" id="scC_fatigue">32%</strong> <span
+                      class="c-delta delta-down">-6%</span></div>
                 </div>
                 <div class="comp-metric-item">
                   <span class="c-lbl">Predicted Readiness</span>
-                  <div class="c-val-box"><strong class="c-val text-green" id="scC_readiness">86%</strong> <span class="c-delta delta-up">+1%</span></div>
+                  <div class="c-val-box"><strong class="c-val text-green" id="scC_readiness">86%</strong> <span
+                      class="c-delta delta-up">+1%</span></div>
                 </div>
                 <div class="comp-metric-item">
                   <span class="c-lbl">Recovery Required</span>
@@ -1457,7 +1493,8 @@
               <div class="comp-risk-pill risk-low" id="scC_risk">
                 <span>🟢 Restorative Recovery / Lowest Risk</span>
               </div>
-              <button type="button" class="btn-apply-scenario" data-apply-dur="45" data-apply-int="Low">Apply Scenario C</button>
+              <button type="button" class="btn-apply-scenario" data-apply-dur="45" data-apply-int="Low">Apply Scenario
+                C</button>
             </div>
 
             <!-- Custom Scenario Card -->
@@ -1468,17 +1505,21 @@
               </div>
               <h4 class="comp-title" id="scCustom_title">Custom Session</h4>
               <div class="comp-kpi-row">
-                <div><span class="comp-kpi-lbl">Load:</span> <strong class="comp-kpi-val" id="scCustom_load">--</strong></div>
-                <div><span class="comp-kpi-lbl">Est. Burn:</span> <strong class="comp-kpi-val" id="scCustom_burn">--</strong></div>
+                <div><span class="comp-kpi-lbl">Load:</span> <strong class="comp-kpi-val" id="scCustom_load">--</strong>
+                </div>
+                <div><span class="comp-kpi-lbl">Est. Burn:</span> <strong class="comp-kpi-val"
+                    id="scCustom_burn">--</strong></div>
               </div>
               <div class="comp-metrics-list">
                 <div class="comp-metric-item">
                   <span class="c-lbl">Predicted Fatigue</span>
-                  <div class="c-val-box"><strong class="c-val" id="scCustom_fatigue">--</strong> <span class="c-delta" id="scCustom_dFatigue">--</span></div>
+                  <div class="c-val-box"><strong class="c-val" id="scCustom_fatigue">--</strong> <span class="c-delta"
+                      id="scCustom_dFatigue">--</span></div>
                 </div>
                 <div class="comp-metric-item">
                   <span class="c-lbl">Predicted Readiness</span>
-                  <div class="c-val-box"><strong class="c-val" id="scCustom_readiness">--</strong> <span class="c-delta" id="scCustom_dReadiness">--</span></div>
+                  <div class="c-val-box"><strong class="c-val" id="scCustom_readiness">--</strong> <span class="c-delta"
+                      id="scCustom_dReadiness">--</span></div>
                 </div>
                 <div class="comp-metric-item">
                   <span class="c-lbl">Recovery Required</span>
@@ -1494,9 +1535,11 @@
                 <div class="custom-adjust-row">
                   <span class="custom-adjust-lbl">Duration</span>
                   <div class="custom-stepper-box">
-                    <button type="button" class="btn-step-dur" id="btnStepDurMinus" title="Decrease duration by 5 min">−</button>
+                    <button type="button" class="btn-step-dur" id="btnStepDurMinus"
+                      title="Decrease duration by 5 min">−</button>
                     <span class="custom-step-val" id="customStepDurVal">60m</span>
-                    <button type="button" class="btn-step-dur" id="btnStepDurPlus" title="Increase duration by 5 min">+</button>
+                    <button type="button" class="btn-step-dur" id="btnStepDurPlus"
+                      title="Increase duration by 5 min">+</button>
                   </div>
                 </div>
                 <div class="custom-adjust-row">
@@ -1837,6 +1880,181 @@
         </div>
       </section>
 
+      <!-- ======================================================================
+           VIEW 7: PREDICTION VS ACTUAL FEEDBACK LOOP (Phase 9)
+           ====================================================================== -->
+      <section class="view-panel" id="view-accuracy">
+        <div class="view-header-bar">
+          <div class="view-header-left">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <h2>Prediction vs. Actual Feedback Loop</h2>
+              <span class="badge-pill pill-green" id="modelDriftBadge">Drift: Stable</span>
+            </div>
+            <p>Empirical verification tracking: Matching prospective digital twin forecasts with subsequent observed ground-truth outcomes.</p>
+          </div>
+          <div class="view-header-actions">
+            <button class="btn-top-action" id="btnRefreshAccuracy">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              <span>Refresh Metrics</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Metric KPI Cards -->
+        <div class="kpi-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px;">
+          <div class="card" style="padding:16px;text-align:center;">
+            <span style="font-size:0.75rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;">Overall MAE</span>
+            <strong id="kpiAccuracyMae" style="font-size:1.6rem;display:block;margin:6px 0;color:var(--primary-blue);">1.38 pts</strong>
+            <span style="font-size:0.75rem;color:#10B981;font-weight:600;">Test-set target: &lt; 2.0 pts</span>
+          </div>
+          <div class="card" style="padding:16px;text-align:center;">
+            <span style="font-size:0.75rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;">Tolerance Rate (≤3 pts)</span>
+            <strong id="kpiAccuracyRate" style="font-size:1.6rem;display:block;margin:6px 0;color:#10B981;">92.9%</strong>
+            <span style="font-size:0.75rem;color:var(--text-muted);">Empirically validated</span>
+          </div>
+          <div class="card" style="padding:16px;text-align:center;">
+            <span style="font-size:0.75rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;">Tracked Forecasts</span>
+            <strong id="kpiTotalTracked" style="font-size:1.6rem;display:block;margin:6px 0;color:var(--text-dark);">14 Verified</strong>
+            <span style="font-size:0.75rem;color:#38BDF8;" id="kpiPendingCount">0 pending outcome</span>
+          </div>
+          <div class="card" style="padding:16px;text-align:center;">
+            <span style="font-size:0.75rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;">Model Architecture</span>
+            <strong style="font-size:1.15rem;display:block;margin:10px 0 6px 0;color:var(--text-dark);">Dual Ensemble RF</strong>
+            <span style="font-size:0.75rem;color:var(--text-muted);">v2.4-rf-impulse</span>
+          </div>
+        </div>
+
+        <!-- Verification Ledger Table -->
+        <div class="card" style="padding:20px;overflow-x:auto;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+            <h3 style="font-size:1.05rem;font-weight:800;color:var(--text-dark);margin:0;">Historical Forecast Ledger &amp; Residual Tracking</h3>
+            <span style="font-size:0.78rem;color:var(--text-muted);">Source: 180-Day Chronological Athlete Cohort</span>
+          </div>
+          <table class="accuracy-table" style="width:100%;border-collapse:collapse;font-size:0.84rem;text-align:left;">
+            <thead>
+              <tr style="border-bottom:2px solid var(--border-card);color:var(--text-muted);">
+                <th style="padding:10px 12px;">Forecast ID</th>
+                <th style="padding:10px 12px;">Session Date</th>
+                <th style="padding:10px 12px;">Target Metric</th>
+                <th style="padding:10px 12px;">Training Scenario</th>
+                <th style="padding:10px 12px;">Predicted</th>
+                <th style="padding:10px 12px;">Observed</th>
+                <th style="padding:10px 12px;">Residual Error (Δ)</th>
+                <th style="padding:10px 12px;">Status</th>
+              </tr>
+            </thead>
+            <tbody id="accuracyTableBody">
+              <!-- Dynamically populated by app.js -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ======================================================================
+           VIEW 8: COACH SQUAD OVERVIEW (Phase 12)
+           ====================================================================== -->
+      <section class="view-panel" id="view-coach-squad">
+        <div class="view-header-bar">
+          <div class="view-header-left">
+            <h2>Coach Squad Management &amp; Workload Matrix</h2>
+            <p>Roster readiness monitoring, Acute:Chronic Workload Ratio (ACWR) safety screening, and team load balancing.</p>
+          </div>
+          <div class="view-header-actions">
+            <button class="btn-top-action" id="btnExportSquadReport">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Export Squad Summary</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Squad Roster Grid -->
+        <div class="squad-grid" id="squadRosterGrid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(320px, 1fr));gap:18px;">
+          <!-- Dynamically populated by app.js -->
+        </div>
+      </section>
+
+      <!-- ======================================================================
+           VIEW 9: SPORTS SCIENTIST & AUDITOR CENTER (Phase 6, 15, 23)
+           ====================================================================== -->
+      <section class="view-panel" id="view-auditor-center">
+        <div class="view-header-bar">
+          <div class="view-header-left">
+            <h2>Model Governance &amp; Forensic Audit Center</h2>
+            <p>Technical transparency: Verifiable ML model cards, data contract schemas, sensor calibration, and security audit logs.</p>
+          </div>
+          <div class="view-header-actions">
+            <button class="btn-top-action" id="btnDownloadModelCard">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download model_card.json</span>
+            </button>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+          <!-- Model Card Overview Card -->
+          <div class="card" style="padding:20px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+              <h3 style="font-size:1rem;font-weight:800;color:var(--text-dark);margin:0;">ML Model Card v2.4 (Dual Ensemble RF)</h3>
+              <span class="badge-pill pill-green" id="auditorModelVersionBadge">v2.4.0 • Verified</span>
+            </div>
+            <div style="font-size:0.83rem;color:var(--text-body);line-height:1.5;display:flex;flex-direction:column;gap:8px;">
+              <div><strong>Architecture:</strong> Dual Ensemble Random Forest (100 Estimators per Target)</div>
+              <div><strong>Dataset:</strong> 180-Day Longitudinal Athlete Training &amp; Telemetry</div>
+              <div><strong>Evaluation Split:</strong> Chronological 80/20 Holdout (No Data Leakage)</div>
+              <div style="margin-top:6px;background:#F8FAFC;padding:10px;border-radius:8px;">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                  <div>
+                    <span style="font-size:0.72rem;color:var(--text-muted);display:block;">Fatigue Model R²</span>
+                    <strong style="color:#10B981;font-size:1.1rem;" id="auditorFatigueR2">0.902</strong>
+                    <span style="font-size:0.7rem;color:var(--text-muted);display:block;">MAE: 1.33 pts</span>
+                  </div>
+                  <div>
+                    <span style="font-size:0.72rem;color:var(--text-muted);display:block;">Recovery Model R²</span>
+                    <strong style="color:#10B981;font-size:1.1rem;" id="auditorRecoveryR2">0.943</strong>
+                    <span style="font-size:0.7rem;color:var(--text-muted);display:block;">MAE: 1.77 pts</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sensor Health & Calibration Card -->
+          <div class="card" style="padding:20px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+              <h3 style="font-size:1rem;font-weight:800;color:var(--text-dark);margin:0;">Hardware Sensor Science &amp; Calibration</h3>
+              <span class="badge-pill pill-green" id="auditorQualityBadge">Quality Grade: EXCELLENT</span>
+            </div>
+            <div style="font-size:0.83rem;color:var(--text-body);line-height:1.5;display:flex;flex-direction:column;gap:8px;">
+              <div><strong>MAX30102 PPG:</strong> Optical pulse oximetry via 660nm Red / 880nm IR absorption.</div>
+              <div><strong>MPU6050 IMU:</strong> 6-DOF Tri-axial accelerometer (+/- 2g scaling, 16384 LSB/g).</div>
+              <div><strong>Signal Integrity:</strong> Zero-bias calibrated; gravity component compensated.</div>
+              <div style="margin-top:6px;background:#F8FAFC;padding:10px;border-radius:8px;display:flex;justify-content:space-between;">
+                <div>
+                  <span style="font-size:0.72rem;color:var(--text-muted);display:block;">Jitter (Std Dev)</span>
+                  <strong id="auditorJitter" style="font-size:0.95rem;color:var(--text-dark);">12 ms</strong>
+                </div>
+                <div>
+                  <span style="font-size:0.72rem;color:var(--text-muted);display:block;">Sample Rate</span>
+                  <strong id="auditorSampleRate" style="font-size:0.95rem;color:var(--text-dark);">1.0 Hz</strong>
+                </div>
+                <div>
+                  <span style="font-size:0.72rem;color:var(--text-muted);display:block;">Packet Drop Rate</span>
+                  <strong id="auditorDropRate" style="font-size:0.95rem;color:#10B981;">0.0%</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Audit Event Stream -->
+        <div class="card" style="padding:20px;">
+          <h3 style="font-size:1.05rem;font-weight:800;color:var(--text-dark);margin:0 0 12px 0;">System Audit Trail &amp; Verification Events</h3>
+          <div id="auditorEventList" style="display:flex;flex-direction:column;gap:10px;">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+      </section>
+
     </main>
   </div>
 
@@ -2115,24 +2333,31 @@ Content-Type: application/json
 
       <div style="display:flex;flex-direction:column;gap:16px;font-size:0.86rem;">
         <div style="background:#F1F6FB;padding:14px 18px;border-radius:12px;">
-          <span style="font-size:0.72rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;display:block;margin-bottom:4px;">Recommended Session</span>
-          <h4 id="modalRecHeadline" style="font-size:1.05rem;font-weight:800;color:var(--text-dark);margin:0 0 6px 0;">High-Intensity Tactical &amp; Power Training</h4>
+          <span
+            style="font-size:0.72rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;display:block;margin-bottom:4px;">Recommended
+            Session</span>
+          <h4 id="modalRecHeadline" style="font-size:1.05rem;font-weight:800;color:var(--text-dark);margin:0 0 6px 0;">
+            High-Intensity Tactical &amp; Power Training</h4>
           <p id="modalRecQuote" style="margin:0;font-size:0.82rem;color:var(--text-body);line-height:1.45;"></p>
         </div>
 
         <div>
-          <h4 style="font-size:0.88rem;font-weight:800;color:var(--text-dark);margin:0 0 10px 0;">Key Determining Factors &amp; Weights:</h4>
+          <h4 style="font-size:0.88rem;font-weight:800;color:var(--text-dark);margin:0 0 10px 0;">Key Determining
+            Factors &amp; Weights:</h4>
           <div class="why-factors-list" id="modalWhyFactorsList">
             <!-- Populated via JS -->
           </div>
         </div>
 
-        <div style="background:#F8FAFC;border:1px solid var(--border-card);border-radius:10px;padding:12px 14px;font-size:0.78rem;color:var(--text-muted);line-height:1.45;">
+        <div
+          style="background:#F8FAFC;border:1px solid var(--border-card);border-radius:10px;padding:12px 14px;font-size:0.78rem;color:var(--text-muted);line-height:1.45;">
           <strong style="color:var(--text-dark);">Modular Scoring Architecture:</strong>
-          Calculated by the Digital Twin rules engine using weighted multi-objective regression over physiological recovery, acute-to-chronic workload, and sleep debt.
+          Calculated by the Digital Twin rules engine using weighted multi-objective regression over physiological
+          recovery, acute-to-chronic workload, and sleep debt.
         </div>
 
-        <button type="button" class="btn-top-action" id="btnUnderstandRec" style="background:var(--primary-blue);color:#ffffff;padding:10px;border-radius:8px;font-weight:700;justify-content:center;">
+        <button type="button" class="btn-top-action" id="btnUnderstandRec"
+          style="background:var(--primary-blue);color:#ffffff;padding:10px;border-radius:8px;font-weight:700;justify-content:center;">
           Got It, Thanks!
         </button>
       </div>
@@ -2155,10 +2380,12 @@ Content-Type: application/json
 
       <div style="display:flex;flex-direction:column;gap:18px;font-size:0.86rem;" id="weeklyReportModalBody">
         <!-- Weekly AI Synthesis Quote -->
-        <div style="background:linear-gradient(135deg, #0F172A 0%, #1E293B 100%);color:#F8FAFC;padding:18px 20px;border-radius:12px;border:1px solid rgba(56,189,248,0.25);">
+        <div
+          style="background:linear-gradient(135deg, #0F172A 0%, #1E293B 100%);color:#F8FAFC;padding:18px 20px;border-radius:12px;border:1px solid rgba(56,189,248,0.25);">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
             <span style="font-size:1.1rem;">⚡</span>
-            <strong style="font-size:0.82rem;text-transform:uppercase;letter-spacing:0.05em;color:#38BDF8;">AI Weekly Synthesis</strong>
+            <strong style="font-size:0.82rem;text-transform:uppercase;letter-spacing:0.05em;color:#38BDF8;">AI Weekly
+              Synthesis</strong>
           </div>
           <p id="weeklyModalAiSummary" style="margin:0;font-size:0.88rem;line-height:1.55;color:#E2E8F0;"></p>
         </div>
@@ -2167,17 +2394,20 @@ Content-Type: application/json
         <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:10px;" id="weeklyModalKpiGrid">
           <div style="background:#F1F6FB;padding:12px;border-radius:10px;text-align:center;">
             <span style="font-size:0.7rem;color:var(--text-muted);font-weight:600;display:block;">Avg Performance</span>
-            <strong id="wkAvgPerf" style="font-size:1.15rem;color:var(--text-dark);display:block;margin-top:2px;">86.4</strong>
+            <strong id="wkAvgPerf"
+              style="font-size:1.15rem;color:var(--text-dark);display:block;margin-top:2px;">86.4</strong>
             <span style="font-size:0.72rem;color:#10B981;font-weight:700;" id="wkPerfChange">+3.8%</span>
           </div>
           <div style="background:#F1F6FB;padding:12px;border-radius:10px;text-align:center;">
             <span style="font-size:0.7rem;color:var(--text-muted);font-weight:600;display:block;">Total Workload</span>
-            <strong id="wkTotalLoad" style="font-size:1.15rem;color:var(--text-dark);display:block;margin-top:2px;">328.5 AU</strong>
+            <strong id="wkTotalLoad"
+              style="font-size:1.15rem;color:var(--text-dark);display:block;margin-top:2px;">328.5 AU</strong>
             <span style="font-size:0.72rem;color:var(--text-muted);" id="wkHours">6.5 hours</span>
           </div>
           <div style="background:#F1F6FB;padding:12px;border-radius:10px;text-align:center;">
             <span style="font-size:0.7rem;color:var(--text-muted);font-weight:600;display:block;">Training Freq</span>
-            <strong id="wkFreq" style="font-size:1.15rem;color:var(--text-dark);display:block;margin-top:2px;">5 Sessions</strong>
+            <strong id="wkFreq" style="font-size:1.15rem;color:var(--text-dark);display:block;margin-top:2px;">5
+              Sessions</strong>
             <span style="font-size:0.72rem;color:var(--text-muted);" id="wkAvgInt">72% avg int</span>
           </div>
           <div style="background:#F1F6FB;padding:12px;border-radius:10px;text-align:center;">
@@ -2190,10 +2420,13 @@ Content-Type: application/json
         <!-- Best Session Card -->
         <div style="background:#F8FAFC;border:1px solid var(--border-card);border-radius:12px;padding:14px 18px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-            <span style="font-size:0.75rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;">🌟 Star Session of the Week</span>
+            <span style="font-size:0.75rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;">🌟 Star
+              Session of the Week</span>
             <span class="badge-pill pill-green" id="wkBestSessionTag">Top Performance</span>
           </div>
-          <h4 id="wkBestSessionTitle" style="font-size:0.95rem;font-weight:800;color:var(--text-dark);margin:0 0 4px 0;">5 Oct • Match vs Rivals</h4>
+          <h4 id="wkBestSessionTitle"
+            style="font-size:0.95rem;font-weight:800;color:var(--text-dark);margin:0 0 4px 0;">5 Oct • Match vs Rivals
+          </h4>
           <p id="wkBestSessionKudos" style="margin:0;font-size:0.82rem;color:var(--text-muted);line-height:1.45;"></p>
         </div>
 
@@ -2201,11 +2434,14 @@ Content-Type: application/json
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
           <div style="background:#FFFBEB;border:1px solid #FCD34D;border-radius:10px;padding:12px 14px;">
             <strong style="font-size:0.82rem;color:#D97706;display:block;margin-bottom:4px;">⚠️ Fatigue Trend</strong>
-            <span id="wkFatigueTrendText" style="font-size:0.8rem;color:#92400E;line-height:1.4;display:block;">Slightly compounding (+16% over 7 days). Deload day indicated.</span>
+            <span id="wkFatigueTrendText" style="font-size:0.8rem;color:#92400E;line-height:1.4;display:block;">Slightly
+              compounding (+16% over 7 days). Deload day indicated.</span>
           </div>
           <div style="background:#ECFDF5;border:1px solid #A7F3D0;border-radius:10px;padding:12px 14px;">
-            <strong style="font-size:0.82rem;color:#059669;display:block;margin-bottom:4px;">✓ Readiness Trajectory</strong>
-            <span id="wkReadinessTrendText" style="font-size:0.8rem;color:#065F46;line-height:1.4;display:block;">Stable in optimal range (82–88%). Peak readiness maintained.</span>
+            <strong style="font-size:0.82rem;color:#059669;display:block;margin-bottom:4px;">✓ Readiness
+              Trajectory</strong>
+            <span id="wkReadinessTrendText" style="font-size:0.8rem;color:#065F46;line-height:1.4;display:block;">Stable
+              in optimal range (82–88%). Peak readiness maintained.</span>
           </div>
         </div>
 
@@ -2233,7 +2469,8 @@ Content-Type: application/json
 
       <div style="display:flex;flex-direction:column;gap:16px;font-size:0.86rem;">
         <p style="margin:0;color:var(--text-muted);line-height:1.5;">
-          The system builds a computational, calibrated version of you that models cardiovascular strain, biomechanical impact, and recovery dynamics in real time:
+          The system builds a computational, calibrated version of you that models cardiovascular strain, biomechanical
+          impact, and recovery dynamics in real time:
         </p>
 
         <div class="twin-steps-vertical-list">
@@ -2241,7 +2478,8 @@ Content-Type: application/json
             <div class="step-num-circle">1</div>
             <div>
               <strong class="step-title">Collect</strong>
-              <p class="step-desc">Stream live telemetry (heart rate, SpO<sub>2</sub>, 6-DOF IMU acceleration, cadence) from physical ESP32 wearables and longitudinal training logs.</p>
+              <p class="step-desc">Stream live telemetry (heart rate, SpO<sub>2</sub>, 6-DOF IMU acceleration, cadence)
+                from physical ESP32 wearables and longitudinal training logs.</p>
             </div>
           </div>
 
@@ -2249,7 +2487,8 @@ Content-Type: application/json
             <div class="step-num-circle">2</div>
             <div>
               <strong class="step-title">Understand</strong>
-              <p class="step-desc">Build your persistent athlete model, quantifying individual baseline resting HR, acute:chronic workload ratios (ACWR), and bilateral gait symmetry.</p>
+              <p class="step-desc">Build your persistent athlete model, quantifying individual baseline resting HR,
+                acute:chronic workload ratios (ACWR), and bilateral gait symmetry.</p>
             </div>
           </div>
 
@@ -2257,7 +2496,8 @@ Content-Type: application/json
             <div class="step-num-circle">3</div>
             <div>
               <strong class="step-title">Predict</strong>
-              <p class="step-desc">Use trained machine learning models to forecast future fatigue accumulation, recovery requirements, and readiness before you step onto the pitch.</p>
+              <p class="step-desc">Use trained machine learning models to forecast future fatigue accumulation, recovery
+                requirements, and readiness before you step onto the pitch.</p>
             </div>
           </div>
 
@@ -2265,7 +2505,8 @@ Content-Type: application/json
             <div class="step-num-circle">4</div>
             <div>
               <strong class="step-title">Recommend</strong>
-              <p class="step-desc">Generate personalized daily training focus, duration, and target intensity zones with transparent factor attribution.</p>
+              <p class="step-desc">Generate personalized daily training focus, duration, and target intensity zones with
+                transparent factor attribution.</p>
             </div>
           </div>
 
@@ -2273,10 +2514,165 @@ Content-Type: application/json
             <div class="step-num-circle">5</div>
             <div>
               <strong class="step-title">Learn</strong>
-              <p class="step-desc">Continuously calibrate the digital twin models as new session datasets arrive, refining individual tolerance and recovery kinetics over time.</p>
+              <p class="step-desc">Continuously calibrate the digital twin models as new session datasets arrive,
+                refining individual tolerance and recovery kinetics over time.</p>
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Sensor Health & Data Quality Center Modal (Phase 15) -->
+  <div class="modal-backdrop" id="dataQualityModal" style="display: none;">
+    <div class="modal-card" style="max-width: 640px;">
+      <div class="modal-header">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:1.25rem;">📡</span>
+            <h3 class="modal-title">Live Sensor Health &amp; Data Quality Center</h3>
+          </div>
+          <p class="modal-subtitle">Sub-second packet continuity, signal jitter, and hardware calibration</p>
+        </div>
+        <button class="modal-btn-close" id="btnCloseDataQualityModal">&times;</button>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:16px;font-size:0.86rem;">
+        <!-- Top Status Banner -->
+        <div style="display:flex;justify-content:space-between;align-items:center;background:#F1F6FB;padding:12px 16px;border-radius:12px;">
+          <div>
+            <span style="font-size:0.72rem;color:var(--text-muted);display:block;">Data Quality Index</span>
+            <strong style="font-size:1.4rem;color:var(--primary-blue);" id="modalDqIndex">96.0%</strong>
+          </div>
+          <div>
+            <span style="font-size:0.72rem;color:var(--text-muted);display:block;">Stream Provenance</span>
+            <span class="badge-pill pill-green" id="modalDqProvenance">LIVE ESP32</span>
+          </div>
+          <div>
+            <span style="font-size:0.72rem;color:var(--text-muted);display:block;">Quality Grade</span>
+            <span class="badge-pill pill-green" id="modalDqGrade">EXCELLENT</span>
+          </div>
+        </div>
+
+        <!-- Telemetry Diagnostics Grid -->
+        <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:12px;">
+          <div style="background:#F8FAFC;padding:12px;border-radius:10px;border:1px solid var(--border-card);text-align:center;">
+            <span style="font-size:0.7rem;color:var(--text-muted);display:block;">Sample Rate</span>
+            <strong id="modalDqRate" style="font-size:1.15rem;color:var(--text-dark);">1.0 Hz</strong>
+            <span style="font-size:0.68rem;color:var(--text-muted);">Target: 1.0 - 2.0 Hz</span>
+          </div>
+          <div style="background:#F8FAFC;padding:12px;border-radius:10px;border:1px solid var(--border-card);text-align:center;">
+            <span style="font-size:0.7rem;color:var(--text-muted);display:block;">Sample Latency</span>
+            <strong id="modalDqLatency" style="font-size:1.15rem;color:var(--text-dark);">12 ms</strong>
+            <span style="font-size:0.68rem;color:#10B981;">Sub-second live</span>
+          </div>
+          <div style="background:#F8FAFC;padding:12px;border-radius:10px;border:1px solid var(--border-card);text-align:center;">
+            <span style="font-size:0.7rem;color:var(--text-muted);display:block;">Packet Drop Rate</span>
+            <strong id="modalDqDropRate" style="font-size:1.15rem;color:#10B981;">0.0%</strong>
+            <span style="font-size:0.68rem;color:var(--text-muted);" id="modalDqDropCount">0 rejected</span>
+          </div>
+        </div>
+
+        <!-- Sensor Science & Calibration Details -->
+        <div style="background:#FFFFFF;border:1px solid var(--border-card);border-radius:12px;padding:14px 16px;">
+          <h4 style="margin:0 0 8px 0;font-size:0.9rem;font-weight:800;color:var(--text-dark);">Sensor Signal Processing &amp; Bounds</h4>
+          <div style="display:flex;flex-direction:column;gap:6px;font-size:0.8rem;color:var(--text-muted);">
+            <div>• <strong>MAX30102 Optical PPG:</strong> Dual-wavelength (Red 660nm / IR 880nm) photoplethysmography with ambient background subtraction. Operating bounds: 30–240 BPM, 70–100% SpO<sub>2</sub>.</div>
+            <div>• <strong>MPU6050 6-DOF IMU:</strong> 3-axis accelerometer configured to +/- 2g scale (16,384 LSB/g) with dynamic gravity compensation.</div>
+            <div>• <strong>Packet Contract:</strong> Schema v2.4 strict runtime verification. Out-of-bounds readings are safely quarantined.</div>
+          </div>
+        </div>
+
+        <button type="button" class="btn-top-action" id="btnCloseDataQualityBottom"
+          style="background:var(--primary-blue);color:#ffffff;padding:10px;border-radius:8px;font-weight:700;justify-content:center;">
+          Close Quality Center
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. ML Model Card & Evaluation Transparency Modal (Phase 6) -->
+  <div class="modal-backdrop" id="modelCardModal" style="display: none;">
+    <div class="modal-card" style="max-width: 680px;">
+      <div class="modal-header">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:1.25rem;">📄</span>
+            <h3 class="modal-title">Machine Learning Model Card</h3>
+          </div>
+          <p class="modal-subtitle">Dual Ensemble Random Forest Regressors • Version 2.4.0 (Verified)</p>
+        </div>
+        <button class="modal-btn-close" id="btnCloseModelCardModal">&times;</button>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:14px;font-size:0.85rem;max-height:68vh;overflow-y:auto;padding-right:4px;">
+        <div style="background:#F1F6FB;padding:12px 16px;border-radius:10px;">
+          <strong style="color:var(--primary-blue);display:block;margin-bottom:4px;">Architecture &amp; Methodology</strong>
+          <span style="color:var(--text-body);font-size:0.82rem;">Dual Ensemble Random Forest models (100 estimators each) trained on 180-day longitudinal training and recovery telemetry using chronological 80/20 holdout splits to prevent temporal leakage.</span>
+        </div>
+
+        <!-- Empirical Metrics Table -->
+        <table style="width:100%;border-collapse:collapse;font-size:0.82rem;text-align:left;border:1px solid var(--border-card);border-radius:8px;overflow:hidden;">
+          <thead style="background:#F8FAFC;">
+            <tr style="border-bottom:1px solid var(--border-card);">
+              <th style="padding:8px 12px;">Model Target</th>
+              <th style="padding:8px 12px;">R² Score</th>
+              <th style="padding:8px 12px;">Test MAE</th>
+              <th style="padding:8px 12px;">Test RMSE</th>
+              <th style="padding:8px 12px;">95% Uncertainty CI</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--border-card);">
+              <td style="padding:8px 12px;font-weight:700;">Fatigue Level (0–100)</td>
+              <td style="padding:8px 12px;color:#10B981;font-weight:800;" id="mcFatigueR2">0.902</td>
+              <td style="padding:8px 12px;" id="mcFatigueMae">1.33 pts</td>
+              <td style="padding:8px 12px;" id="mcFatigueRmse">2.25 pts</td>
+              <td style="padding:8px 12px;">+/- 4.3 pts</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 12px;font-weight:700;">Recovery Score (0–100%)</td>
+              <td style="padding:8px 12px;color:#10B981;font-weight:800;" id="mcRecoveryR2">0.943</td>
+              <td style="padding:8px 12px;" id="mcRecoveryMae">1.77 pts</td>
+              <td style="padding:8px 12px;" id="mcRecoveryRmse">2.30 pts</td>
+              <td style="padding:8px 12px;">+/- 4.5 pts</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Top Feature Importances -->
+        <div style="background:#F8FAFC;border:1px solid var(--border-card);border-radius:10px;padding:12px 14px;">
+          <strong style="font-size:0.84rem;color:var(--text-dark);display:block;margin-bottom:6px;">Empirical Feature Importances</strong>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:0.78rem;">
+            <div>
+              <span style="font-weight:700;color:var(--text-dark);display:block;margin-bottom:3px;">Fatigue Regressor:</span>
+              <div>• Daily Training Load: <strong>58.2%</strong></div>
+              <div>• Prior Fatigue (t-1): <strong>33.0%</strong></div>
+              <div>• Sleep Duration: <strong>3.0%</strong></div>
+              <div>• Workout Intensity: <strong>2.9%</strong></div>
+            </div>
+            <div>
+              <span style="font-weight:700;color:var(--text-dark);display:block;margin-bottom:3px;">Recovery Regressor:</span>
+              <div>• Sleep Duration: <strong>89.8%</strong></div>
+              <div>• Prior Fatigue (t-1): <strong>4.6%</strong></div>
+              <div>• Prior Recovery (t-1): <strong>2.3%</strong></div>
+              <div>• Daily Load: <strong>1.4%</strong></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Known Limitations & Safe Use -->
+        <div style="background:#FFFBEB;border:1px solid #FCD34D;border-radius:10px;padding:12px 14px;font-size:0.78rem;color:#92400E;">
+          <strong style="display:block;margin-bottom:4px;">⚠️ Scientific &amp; Operational Limitations</strong>
+          <div>1. Calibrated for football and endurance running; cycling and rowing require baseline re-parameterization.</div>
+          <div>2. Does not diagnose soft-tissue tears or cardiac pathology. Prototype decision-support use only.</div>
+          <div>3. Febrile illness or extreme travel circadian disruptions are not modeled by the mechanical TRIMP equation.</div>
+        </div>
+
+        <button type="button" class="btn-top-action" id="btnCloseModelCardBottom"
+          style="background:var(--primary-blue);color:#ffffff;padding:10px;border-radius:8px;font-weight:700;justify-content:center;">
+          Close Model Card
+        </button>
       </div>
     </div>
   </div>

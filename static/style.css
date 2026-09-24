@@ -4033,3 +4033,182 @@ a,
     grid-template-columns: 1fr;
   }
 }
+
+/* ==============================================================================
+   COMPETITION MODERNIZATION & TRANSPARENCY STYLES (Phases 9, 10, 12, 15)
+   ============================================================================== */
+
+/* Non-Diagnostic Prototype Notice Banner */
+.medical-disclaimer-banner {
+  background: #EFF6FF;
+  border-bottom: 1px solid #BFDBFE;
+  color: #1E40AF;
+  font-size: 0.76rem;
+  font-weight: 500;
+  padding: 6px 20px;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  line-height: 1.4;
+}
+
+.medical-disclaimer-banner strong {
+  color: #1E3A8A;
+}
+
+/* Role Selector Segmented Control */
+.role-selector-group {
+  display: flex;
+  background: #F1F5F9;
+  border: 1px solid var(--border-card);
+  border-radius: 20px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.role-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: none;
+  border-radius: 16px;
+  padding: 5px 12px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.role-btn:hover {
+  color: var(--text-dark);
+}
+
+.role-btn.active {
+  background: #FFFFFF;
+  color: var(--primary-blue);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+/* Header Transparency Action Pills */
+.header-transparency-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-header-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #F8FAFC;
+  border: 1px solid var(--border-card);
+  border-radius: 16px;
+  padding: 5px 12px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--text-dark);
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.btn-header-pill:hover {
+  background: #F1F5F9;
+  border-color: #CBD5E1;
+}
+
+.pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.pulse-dot.green {
+  background: #10B981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
+}
+
+.pulse-dot.amber {
+  background: #F59E0B;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25);
+}
+
+/* Accuracy Ledger Table */
+.accuracy-table th {
+  background: #F8FAFC;
+  font-weight: 700;
+}
+
+.accuracy-table tr {
+  border-bottom: 1px solid #F1F5F9;
+  transition: background 0.15s ease;
+}
+
+.accuracy-table tr:hover {
+  background: #F8FAFC;
+}
+
+.accuracy-table td {
+  padding: 10px 12px;
+  color: var(--text-dark);
+}
+
+/* Squad Roster Cards */
+.squad-card {
+  background: #FFFFFF;
+  border: 1px solid var(--border-card);
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.squad-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.07);
+}
+
+.squad-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.squad-athlete-name {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--text-dark);
+}
+
+.squad-athlete-pos {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.squad-stats-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  background: #F8FAFC;
+  padding: 10px;
+  border-radius: 10px;
+  text-align: center;
+}
+
+.squad-stat-val {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text-dark);
+}
+
+.squad-stat-lbl {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}

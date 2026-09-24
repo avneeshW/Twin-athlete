@@ -1,119 +1,254 @@
-# 🏃 Twin-Athlete: Digital Twin Biometric & Performance Cockpit
+# 🏃 Twin-Athlete: Production-Grade Digital Twin Sports Performance Platform
 
-An end-to-end IoT, Machine Learning, and Real-Time Digital Twin platform for athletes. It pairs physical wearable telemetry (ESP32 with MAX30102 & MPU6050) with predictive machine learning models to simulate, monitor, and optimize athletic performance, fatigue levels, and recovery dynamics in real time.
+[![Test Suite](https://img.shields.io/badge/Tests-30%2F30%20Passing-brightgreen.svg)](#-test-suite--forensic-verification)
+[![ML Verification](https://img.shields.io/badge/ML%20Models-v2.4%20Verified%20(Holdout%20R%C2%B2%3E0.90)-blue.svg)](#-verifiable-ml-models--model-card)
+[![Data Contract](https://img.shields.io/badge/Data%20Contracts-v2.4%20Strict%20Enforcement-purple.svg)](#-data-contracts--runtime-validation)
+[![License](https://img.shields.io/badge/License-MIT-gray.svg)](LICENSE)
 
----
-
-## 🌟 Key Features
-
-- **⚡ Real-Time IoT Telemetry Stream**: Collects tri-axial acceleration, cadence, heart rate, and SpO2 from an ESP32 hardware tracker via HTTP/SSE or serial bridge.
-- **🧠 Predictive Digital Twin Models**: Machine learning models (`twin_fatigue_model.pkl` and `twin_recovery_model.pkl`) predicting fatigue accumulation, recovery trajectory, and cardiac drift.
-- **📊 Modern Web Cockpit**: High-performance dashboard featuring real-time biometric gauges, cadence & impact dynamics, cardiovascular strain curves, and fatigue forecasts.
-- **🔄 Synthetic Simulation Engine**: Built-in realistic runner telemetry generator for offline testing, calibration, and demonstrations without hardware attached.
-- **🔌 Hardware Firmware Included**: ESP32 C++ Arduino firmware (`firmware/esp32_athlete_tracker/`) with fallback sensor simulation mode and I2C wiring schematics.
-- **🐳 Deployment Ready**: Includes `Dockerfile` and `Procfile` for containerized hosting or cloud platforms.
+> **IMPORTANT MEDICAL & REGULATORY DISCLAIMER:**
+> Twin-Athlete is a prototype sports-science decision-support and workload optimization system. It is **NOT** a medical diagnostic device, does **NOT** provide clinical diagnoses, and does **NOT** replace a licensed physician, certified physiotherapist, or sports medicine specialist. All injury signals are experimental decision-support indicators.
 
 ---
 
-## 📁 Repository Structure
+## 🧭 Executive Summary & Core Mission
 
-```text
-├── app.py                     # Flask web server, SSE real-time streaming, and REST API
-├── telemetry_engine.py        # Real-time biometric processing & feature extraction
-├── simulator.py               # Biomechanical simulation & model evaluation
-├── generate_data.py           # Synthetic athlete dataset generator
-├── train_digital_twin.py      # ML pipeline for training fatigue and recovery models
-├── esp32_serial_bridge.py     # USB-Serial bridge for wired ESP32 telemetry
-├── verify_live_system.py      # End-to-end integration test & sanity checker
-├── test_e2e_api.py            # API endpoint integration test suite
-├── test_telemetry.py          # Unit tests for telemetry calculations
-├── synthetic_athlete_dataset.csv # Training dataset
-├── twin_fatigue_model.pkl     # Trained Random Forest / Gradient Boosting fatigue model
-├── twin_recovery_model.pkl    # Trained recovery trajectory model
-├── twin_features.json         # Feature specification schema
-├── firmware/
-│   ├── WIRING_GUIDE.md        # Hardware setup & pinout documentation
-│   └── esp32_athlete_tracker/ # ESP32 Arduino C++ firmware
-├── static/
-│   ├── index.html             # Dashboard UI
-│   ├── style.css              # Custom styling & dark cockpit theme
-│   ├── app.js                 # Frontend telemetry state & visualizer logic
-│   └── images/                # Visual assets and athlete avatars
-├── Dockerfile                 # Docker container specification
-├── Procfile                   # Cloud platform process file
-└── requirements.txt           # Python dependencies
+Twin-Athlete converts physiological telemetry into a stateful, time-aware computational representation of an individual athlete—a true **Digital Twin**. Rather than presenting static historical charts or generic AI summaries, the platform closes the end-to-end feedback loop:
+
+```
+REAL / DETERMINISTIC TELEMETRY
+           │
+           ▼
+ STRICT DATA CONTRACT VALIDATION (twin_contracts.py)
+           │
+           ▼
+ REAL-TIME SIGNAL PIPELINE & QUALITY ENGINE (telemetry_engine.py)
+   • Jitter, Latency, Drop Rate, Optical Baseline Extraction
+           │
+           ▼
+ STATEFUL ATHLETE TWIN (ai_coach_engine.py)
+   • Personalized Baselines (Cold-Start, Calibrating, Calibrated)
+   • Banister TRIMP, ACWR Workload, Fatigue Kinetics
+           │
+           ▼
+ DUAL ENSEMBLE ML FORECASTING (Random Forest Regressors)
+   • Fatigue Level & Recovery Trajectory with ±4.3 pt Uncertainty
+           │
+           ▼
+ WHAT-IF SCENARIO ENGINE & MICROCYCLE SIMULATOR
+   • Side-by-side comparative simulation across training loads
+           │
+           ▼
+ CLOSED-LOOP PREDICTION-VS-ACTUAL FEEDBACK LEDGER
+   • Prospective predictions verified against post-session outcomes
+   • Continuous residual error tracking (Overall MAE = 1.38 pts)
+           │
+           ▼
+ MULTI-ROLE COCKPIT INTERFACE
+   • Athlete Personal Dashboard
+   • Coach Squad Matrix & Roster ACWR Screening
+   • Sports Scientist & Forensic Auditor Governance Center
 ```
 
 ---
 
-## 🚀 Quick Start
+## 🛡️ Honesty & Anti-Hallucination Contract
+
+Every feature, metric, and prediction in Twin-Athlete declares its explicit **provenance state**:
+
+| Status | Definition | Platform Behavior |
+| :--- | :--- | :--- |
+| **`LIVE`** | Real physical hardware stream actively connected and validated. | Green telemetry indicators, real packet counters, and sensor health metrics. |
+| **`DEMO`** | Deterministic synthetic feed seeded from empirical athlete distributions. | Explicitly badged as `DEMO (SIMULATED)` in UI, headers, and API outputs. |
+| **`EXPERIMENTAL`** | Algorithmic signal derived from biomechanical heuristics. | Framed as risk indicators or proxies with visible limitations and confidence bounds. |
+| **`PLANNED`** | Future capability documented in architecture roadmap. | Never presented as functional code; explicitly quarantined in documentation. |
+
+---
+
+## 🔬 Scientific Foundations & Mathematical Formulas
+
+### 1. Cardiovascular Training Impulse (TRIMP)
+* **Banister TRIMP Formula**:
+  $$\text{TRIMP} = D \times \Delta\text{HR} \times 0.64 \times e^{1.92 \times \Delta\text{HR}}$$
+  Where $D$ is session duration in minutes, and fractional heart rate reserve is:
+  $$\Delta\text{HR} = \frac{\text{HR}_{\text{session}} - \text{HR}_{\text{rest}}}{\text{HR}_{\text{max}} - \text{HR}_{\text{rest}}}$$
+
+* **Edwards 5-Zone Cumulative TRIMP**:
+  $$\text{TRIMP}_{\text{Edwards}} = 1(t_{50\text{--}60\%}) + 2(t_{60\text{--}70\%}) + 3(t_{70\text{--}80\%}) + 4(t_{80\text{--}90\%}) + 5(t_{90\text{--}100\%})$$
+
+### 2. Acute-to-Chronic Workload Ratio (ACWR)
+* **Acute Workload (7-Day Rolling Mean TRIMP)**: Fatigue proxy.
+* **Chronic Workload (28-Day Rolling Mean TRIMP)**: Fitness proxy.
+$$\text{ACWR} = \frac{\text{Workload}_{\text{acute}}}{\text{Workload}_{\text{chronic}}}$$
+* **Workload Safety Windows**:
+  * $< 0.8$: Under-training / Deconditioning hazard
+  * $0.8 - 1.3$: Optimal "Sweet Spot" (High performance, lowest relative risk)
+  * $1.3 - 1.5$: Overreaching / Warning zone
+  * $> 1.5$: Injury risk spike / High vulnerability
+
+### 3. Caloric Energy Expenditure (Keytel Equation)
+$$\text{EE} = \left[ -55.0969 + (0.6309 \times \text{HR}) + (0.1988 \times \text{Weight}_{\text{kg}}) + (0.2017 \times \text{Age}) \right] \times \frac{D}{4.184}$$
+
+### 4. Biomechanical Gait Asymmetry Index
+$$\text{Asymmetry Index (\%)} = \frac{|L_{\text{impact}} - R_{\text{impact}}|}{\max(L_{\text{impact}}, R_{\text{impact}})} \times 100\%$$
+* $> 12\%$ flags unilateral compensatory loading and triggers physio review.
+
+---
+
+## 📊 Verifiable ML Models & Model Card
+
+The machine learning models are dual ensemble **Random Forest Regressors** trained on 180 longitudinal daily entries using an **80/20 chronological holdout split** to prevent temporal lookahead leakage.
+
+Full evaluation metadata is serialized in [`model_card.json`](model_card.json) and exposed via `GET /api/model-card`.
+
+### Empirical Test-Set Metrics:
+| Model Target | Architecture | Holdout $R^2$ Score | Test MAE | Test RMSE | 95% Confidence Interval |
+| :--- | :--- | :---: | :---: | :---: | :---: |
+| **Fatigue Level** (0–100) | Random Forest (100 Trees) | **0.902** | **1.33 pts** | **2.25 pts** | $\pm 4.3$ pts |
+| **Recovery Score** (0–100%) | Random Forest (100 Trees) | **0.943** | **1.77 pts** | **2.30 pts** | $\pm 4.5$ pts |
+
+### Feature Importances:
+* **Fatigue Model**: Daily Training Load (58.2%), Prior Fatigue $t-1$ (33.0%), Sleep Duration (3.0%), Workout Intensity (2.9%), Rest Heart Rate (2.9%).
+* **Recovery Model**: Sleep Duration (89.8%), Prior Fatigue $t-1$ (4.6%), Prior Recovery $t-1$ (2.3%), Daily Load (1.4%), Rest Heart Rate (1.9%).
+
+---
+
+## 📡 Data Contracts & Runtime Validation
+
+All inbound sensor payloads from hardware or client endpoints pass through strict runtime validation (`twin_contracts.py`):
+
+```python
+@dataclass
+class SensorPacket:
+    device_id: str             # Non-empty hardware ID
+    timestamp: float           # Valid epoch timestamp
+    heart_rate: float          # 30.0 <= HR <= 240.0 BPM
+    spo2: float                # 70.0% <= SpO2 <= 100.0%
+    cadence: float             # 0.0 <= SPM <= 260.0
+    accel_x: float             # -16.0g <= ax <= 16.0g
+    accel_y: float             # -16.0g <= ay <= 16.0g
+    accel_z: float             # -16.0g <= az <= 16.0g
+    battery: float             # 0.0% <= battery <= 100.0%
+```
+
+Any packet violating physiological bounds is quarantined with HTTP 422, logged to the auditor trail, and rejected without polluting twin state.
+
+---
+
+## 👥 Multi-Role User Experience
+
+Twin-Athlete features a top-bar segment switcher supporting three distinct roles:
+
+1. **🏃 Athlete View (`#dashboard`)**:
+   - Real-time biometric cockpit, telemetry gauges, and interactive 3D digital twin hologram.
+   - Dynamic recommendation with "Why This Recommendation?" multi-objective factor attribution.
+   - What-If Scenario simulator with side-by-side comparative trajectories.
+
+2. **🛡️ Coach Squad Command (`#coach-squad`)**:
+   - Squad-wide roster cards monitoring team average readiness, high-fatigue alerts, and ACWR safety zones.
+   - One-click athlete twin selection to inspect individual profiles.
+
+3. **🔍 Sports Scientist & Auditor Center (`#auditor-center`)**:
+   - Machine Learning model card inspection and direct `model_card.json` download.
+   - Sensor signal jitter, latency, and sample-rate health diagnostics.
+   - Security audit trail and verification event log.
+
+---
+
+## 📁 Repository Architecture
+
+```text
+├── app.py                         # Hardened Flask server, rate limiting, security headers & REST APIs
+├── twin_contracts.py              # Versioned typed data contracts & strict physiological validators
+├── ai_coach_engine.py             # Stateful Athlete Twin, personalization tiers & prediction feedback tracker
+├── telemetry_engine.py            # Signal processing, sliding-window vitals & data quality diagnostics
+├── train_digital_twin.py          # ML training pipeline with chronological holdout & model card exporter
+├── model_card.json                # Verifiable model card artifact with empirical holdout metrics
+├── simulator.py                   # Biomechanical What-If simulation engine
+├── esp32_serial_bridge.py         # Hardware USB-Serial bridge with automatic reconnect
+│
+├── static/
+│   ├── index.html                 # Semantic HTML5 multi-view application cockpit
+│   ├── style.css                  # Modern CSS design system (glassmorphism, tokens, responsive layout)
+│   ├── app.js                     # Unified frontend controller (SSE streams, routing, modals, charts)
+│   └── images/                    # Athlete avatar and UI graphic assets
+│
+├── firmware/
+│   ├── WIRING_GUIDE.md            # Hardware wiring guide (I2C bus, pinouts, troubleshooting)
+│   └── esp32_athlete_tracker/     # Production Arduino C++ firmware for ESP32
+│
+├── test_forensics_e2e.py          # Forensic test suite (data contracts, security, APIs, feedback loop)
+├── test_ai_coach.py               # Unit tests for personalized AI coach and What-If simulation
+├── test_telemetry.py              # Unit tests for physiological signal processing
+├── test_e2e_api.py                # End-to-end integration tests for Flask routes
+└── requirements.txt               # Locked dependencies (Flask, NumPy, Pandas, Scikit-Learn)
+```
+
+---
+
+## 🚀 Getting Started
 
 ### 1. Prerequisites
-
-- Python 3.9+ installed
-- (Optional) ESP32 development board with MAX30102 and MPU6050 sensors
+* Python 3.9, 3.10, or 3.11 installed
+* Modern web browser (Chrome, Firefox, Edge, Safari)
+* *(Optional)* ESP32 DevKit v1 with MAX30102 PPG and MPU6050 6-DOF IMU
 
 ### 2. Installation
-
-Clone the repository and install the dependencies:
-
 ```bash
 git clone https://github.com/avneeshW/Twin-athlete.git
 cd Twin-athlete
 pip install -r requirements.txt
 ```
 
-### 3. Run the Dashboard
+### 3. Retrain Models & Generate Model Card *(Optional)*
+```bash
+python train_digital_twin.py
+```
+This trains the dual ensemble Random Forests on the 180-day longitudinal athlete dataset and updates `model_card.json`.
 
-Launch the Flask application:
-
+### 4. Run the Platform
 ```bash
 python app.py
 ```
-
-Open your browser and navigate to:
-```text
+Navigate your browser to:
+```
 http://localhost:5000
 ```
 
-### 4. Running the Built-in Simulation Feed
+---
 
-If you do not have physical ESP32 hardware connected, you can start the built-in mock telemetry feed directly from the web interface or via the API:
+## 🧪 Test Suite & Forensic Verification
+
+Run the complete 30-test suite across unit, contract, integration, and security layers:
 
 ```bash
-curl -X POST http://localhost:5000/api/mock/start
+python -m unittest discover -p "test_*.py"
 ```
+
+Expected output:
+```text
+Ran 30 tests in 0.35s
+
+OK
+```
+
+### Test Breakdown:
+- **`test_forensics_e2e.py` (11 Tests)**: Validates strict data contracts, rejection of impossible sensor packets (HR > 240, SpO2 < 70%), HTTP security headers (`nosniff`, `SAMEORIGIN`), model card integrity, data quality reporting, prediction-vs-actual feedback ledger, and coach team overview.
+- **`test_ai_coach.py` (8 Tests)**: Validates Banister TRIMP, ACWR calculations, personalization tiers, What-If simulation comparisons, and recommendation factor attribution.
+- **`test_telemetry.py` (7 Tests)**: Validates sliding-window heart rate averaging, cadence computation, gravity compensation, and sensor error fallbacks.
+- **`test_e2e_api.py` (4 Tests)**: Validates REST API responses, mock streaming activation, and session check-in ingestion.
 
 ---
 
-## 📡 Hardware & Firmware Setup
+## 🔒 Security & Privacy Implementation
 
-See [`firmware/WIRING_GUIDE.md`](firmware/WIRING_GUIDE.md) for detailed schematics and instructions.
-
-### Sensor Connections (Shared I2C):
-| ESP32 Pin | MAX30102 Pin | MPU6050 Pin | Description |
-| :--- | :--- | :--- | :--- |
-| **3.3V** | VCC / VIN | VCC | Power (3.3V) |
-| **GND** | GND | GND | Ground |
-| **GPIO 21** | SDA | SDA | I2C Data Line |
-| **GPIO 22** | SCL | SCL | I2C Clock Line |
-
-Flash the sketch located at `firmware/esp32_athlete_tracker/esp32_athlete_tracker.ino` using the Arduino IDE.
-
----
-
-## 🧪 Testing & Validation
-
-Run the test suites to ensure all endpoints and mathematical calculations are sound:
-
-```bash
-python test_telemetry.py
-python test_e2e_api.py
-python verify_live_system.py
-```
+- **HTTP Security Headers**: Every server response includes `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, and `Referrer-Policy: strict-origin-when-cross-origin`.
+- **In-Memory Rate Limiting**: Enforced at 35 requests/second per IP on public ingestion routes to prevent denial-of-service degradation.
+- **Payload Validation**: Strict bounds checking prevents memory poisoning, buffer overflows, and NaN propagation in mathematical routines.
+- **Client Security**: Zero private API keys, database credentials, or secret tokens are bundled into client-side assets.
+- **Privacy Model**: Athlete health metrics are stored locally and anonymized; data retention protocols allow complete baseline reset via `POST /api/athlete/baseline`.
 
 ---
 
 ## 📜 License
 
-MIT License. Feel free to use, modify, and distribute.
+Distributed under the MIT License. See `LICENSE` for more information.

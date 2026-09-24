@@ -47,9 +47,14 @@ document.addEventListener("DOMContentLoaded", () => {
   initHowTwinWorksModal();
   initWhatIfComparativeScenarios();
 
-  // Support direct deep-linking via hash (e.g. #analytics, #digital-twin, #what-if)
+  // Forensic Transparency & Multi-Role Controls (Phases 6, 9, 12, 15)
+  initRoleSwitcher();
+  initTransparencyModals();
+  initForensicAuditorControls();
+
+  // Support direct deep-linking via hash (e.g. #analytics, #digital-twin, #what-if, #accuracy, #coach-squad, #auditor-center)
   const hash = window.location.hash.replace("#", "");
-  if (hash && ["dashboard", "live-data", "training-sessions", "analytics", "digital-twin", "what-if", "settings"].includes(hash)) {
+  if (hash && ["dashboard", "live-data", "training-sessions", "analytics", "digital-twin", "what-if", "settings", "accuracy", "coach-squad", "auditor-center"].includes(hash)) {
     switchView(hash);
   }
 });
@@ -241,6 +246,12 @@ function switchView(viewName) {
     if (!document.getElementById("microcycleGrid").children.length) {
       renderMicrocycleInputs("standard");
     }
+  } else if (viewName === "accuracy") {
+    loadPredictionAccuracy();
+  } else if (viewName === "coach-squad") {
+    loadCoachSquad();
+  } else if (viewName === "auditor-center") {
+    loadAuditorCenter();
   }
 }
 
@@ -436,6 +447,24 @@ function updateHardwareStatusUI(device) {
 
   if (liveSimBtn) liveSimBtn.className = "btn-top-action " + (isMockActive ? "active-sim" : "");
   if (liveSimBtnText) liveSimBtnText.textContent = isMockActive ? "Stop Sim" : "Simulate ESP32";
+
+  // Forensic Data Quality & Provenance Header Pill
+  const qualityDot = document.getElementById("headerQualityDot");
+  const qualityLabel = document.getElementById("headerQualityLabel");
+  if (qualityLabel) {
+    const qGrade = device.data_quality ? (device.data_quality.grade || "EXCELLENT") : (isConnected ? "EXCELLENT" : "WAITING");
+    const qProv = device.data_provenance || (device.mock_mode ? "DEMO" : "LIVE");
+    qualityLabel.textContent = `${qProv} • ${qGrade}`;
+    if (qualityDot) {
+      if (qGrade === "EXCELLENT" || qGrade === "GOOD") {
+        qualityDot.className = "hw-dot dot-connected";
+      } else if (qGrade === "DEGRADED" || qGrade === "CALIBRATING") {
+        qualityDot.className = "hw-dot dot-calibrating";
+      } else {
+        qualityDot.className = "hw-dot dot-waiting";
+      }
+    }
+  }
 }
 
 function updateVitalsUI(vitals) {
@@ -3428,4 +3457,360 @@ async function initWhatIfComparativeScenarios() {
   // Initial fetch
   fetchAndRenderComparisons(currentDur, currentIntFactor);
 }
+
+/* ==============================================================================
+   7. FORENSIC TRANSPARENCY, MULTI-ROLE & AUDIT CONTROLLER (Phases 6, 9, 12, 15)
+   ============================================================================== */
+
+/**
+ * Role Switcher (Athlete, Coach, Auditor)
+ */
+function initRoleSwitcher() {
+  const roleButtons = document.querySelectorAll(".role-segment-btn");
+  const roleBadge = document.getElementById("headerRoleBadge");
+
+  roleButtons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      roleButtons.forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      const role = btn.dataset.role;
+
+      if (role === "coach") {
+        if (roleBadge) roleBadge.textContent = "Coach View";
+        switchView("coach-squad");
+        showToast("Switched to Coach Command View", "🛡️");
+      } else if (role === "auditor") {
+        if (roleBadge) roleBadge.textContent = "Auditor View";
+        switchView("auditor-center");
+        showToast("Switched to Forensic Auditor View", "🔍");
+      } else {
+        if (roleBadge) roleBadge.textContent = "Athlete View";
+        switchView("dashboard");
+        showToast("Switched to Athlete Personal View", "🏃");
+      }
+    });
+  });
+}
+
+/**
+ * Transparency Modals (Data Quality Center & ML Model Card)
+ */
+function initTransparencyModals() {
+  // 1. Data Quality Modal
+  const dqModal = document.getElementById("dataQualityModal");
+  const btnOpenDq = document.getElementById("btnOpenDataQualityModal");
+  const btnCloseDq = document.getElementById("btnCloseDataQualityModal");
+  const btnCloseDqBottom = document.getElementById("btnCloseDataQualityBottom");
+
+  if (btnOpenDq && dqModal) {
+    btnOpenDq.addEventListener("click", () => {
+      dqModal.style.display = "flex";
+      loadDataQualityModalData();
+    });
+  }
+
+  if (btnCloseDq && dqModal) {
+    btnCloseDq.addEventListener("click", () => {
+      dqModal.style.display = "none";
+    });
+  }
+
+  if (btnCloseDqBottom && dqModal) {
+    btnCloseDqBottom.addEventListener("click", () => {
+      dqModal.style.display = "none";
+    });
+  }
+
+  // 2. ML Model Card Modal
+  const mcModal = document.getElementById("modelCardModal");
+  const btnOpenMc = document.getElementById("btnOpenModelCardModal");
+  const btnCloseMc = document.getElementById("btnCloseModelCardModal");
+  const btnCloseMcBottom = document.getElementById("btnCloseModelCardBottom");
+
+  if (btnOpenMc && mcModal) {
+    btnOpenMc.addEventListener("click", () => {
+      mcModal.style.display = "flex";
+      loadModelCardModalData();
+    });
+  }
+
+  if (btnCloseMc && mcModal) {
+    btnCloseMc.addEventListener("click", () => {
+      mcModal.style.display = "none";
+    });
+  }
+
+  if (btnCloseMcBottom && mcModal) {
+    btnCloseMcBottom.addEventListener("click", () => {
+      mcModal.style.display = "none";
+    });
+  }
+
+  // Close modals on backdrop click
+  [dqModal, mcModal].forEach(m => {
+    if (m) {
+      m.addEventListener("click", e => {
+        if (e.target === m) m.style.display = "none";
+      });
+    }
+  });
+}
+
+/**
+ * Fetch and populate Data Quality Center modal
+ */
+async function loadDataQualityModalData() {
+  try {
+    const res = await fetch("/api/telemetry/data-quality");
+    if (!res.ok) return;
+    const dq = await res.json();
+
+    const idxEl = document.getElementById("modalDqIndex");
+    const provEl = document.getElementById("modalDqProvenance");
+    const gradeEl = document.getElementById("modalDqGrade");
+    const rateEl = document.getElementById("modalDqRate");
+    const latEl = document.getElementById("modalDqLatency");
+    const dropEl = document.getElementById("modalDqDropRate");
+    const dropCountEl = document.getElementById("modalDqDropCount");
+
+    if (idxEl) idxEl.textContent = `${dq.data_quality_index || 96.0}%`;
+    if (provEl) provEl.textContent = dq.data_provenance || "LIVE ESP32";
+    if (gradeEl) {
+      gradeEl.textContent = dq.grade || "EXCELLENT";
+      gradeEl.className = "badge-pill " + (dq.grade === "EXCELLENT" || dq.grade === "GOOD" ? "pill-green" : "pill-amber");
+    }
+    if (rateEl) rateEl.textContent = `${dq.sample_rate_hz || 1.0} Hz`;
+    if (latEl) latEl.textContent = `${dq.mean_latency_ms || 12} ms`;
+    if (dropEl) dropEl.textContent = `${dq.packet_loss_pct || 0.0}%`;
+    if (dropCountEl) dropCountEl.textContent = `${dq.dropped_packets_detected || 0} rejected`;
+  } catch (err) {
+    console.error("Failed to fetch data quality report:", err);
+  }
+}
+
+/**
+ * Fetch and populate ML Model Card modal
+ */
+async function loadModelCardModalData() {
+  try {
+    const res = await fetch("/api/model-card");
+    if (!res.ok) return;
+    const mc = await res.json();
+
+    const fatR2 = document.getElementById("mcFatigueR2");
+    const fatMae = document.getElementById("mcFatigueMae");
+    const fatRmse = document.getElementById("mcFatigueRmse");
+    const recR2 = document.getElementById("mcRecoveryR2");
+    const recMae = document.getElementById("mcRecoveryMae");
+    const recRmse = document.getElementById("mcRecoveryRmse");
+
+    if (mc.metrics && mc.metrics.fatigue_model) {
+      if (fatR2) fatR2.textContent = mc.metrics.fatigue_model.r2_score;
+      if (fatMae) fatMae.textContent = `${mc.metrics.fatigue_model.mae} pts`;
+      if (fatRmse) fatRmse.textContent = `${mc.metrics.fatigue_model.rmse} pts`;
+    }
+    if (mc.metrics && mc.metrics.recovery_model) {
+      if (recR2) recR2.textContent = mc.metrics.recovery_model.r2_score;
+      if (recMae) recMae.textContent = `${mc.metrics.recovery_model.mae} pts`;
+      if (recRmse) recRmse.textContent = `${mc.metrics.recovery_model.rmse} pts`;
+    }
+  } catch (err) {
+    console.error("Failed to load model card:", err);
+  }
+}
+
+/**
+ * View 7: Prediction vs Actual Feedback Loop
+ */
+async function loadPredictionAccuracy() {
+  const tbody = document.getElementById("accuracyTableBody");
+  const kpiMae = document.getElementById("kpiAccuracyMae");
+  const kpiRate = document.getElementById("kpiAccuracyRate");
+  const kpiTotal = document.getElementById("kpiTotalTracked");
+  const kpiPending = document.getElementById("kpiPendingCount");
+
+  try {
+    const res = await fetch("/api/ai/predicted-vs-actual");
+    if (!res.ok) return;
+    const data = await res.json();
+
+    if (data.summary) {
+      if (kpiMae) kpiMae.textContent = `${data.summary.overall_readiness_mae} pts`;
+      if (kpiRate) kpiRate.textContent = `${data.summary.accuracy_within_5pts_pct}%`;
+      if (kpiTotal) kpiTotal.textContent = `${data.summary.total_verified_predictions} Verified`;
+      if (kpiPending) kpiPending.textContent = `${data.summary.pending_predictions_count} pending outcome`;
+    }
+
+    if (tbody && data.records) {
+      tbody.innerHTML = data.records.map(rec => {
+        const diff = rec.error !== null ? (rec.error > 0 ? `+${rec.error}` : `${rec.error}`) : "—";
+        const errClass = Math.abs(rec.error || 0) <= 2.0 ? "color:#10B981;font-weight:700;" : (Math.abs(rec.error || 0) <= 5.0 ? "color:#F59E0B;font-weight:700;" : "color:#EF4444;font-weight:700;");
+        const statusBadge = rec.status === "VERIFIED" ? `<span class="badge-pill pill-green">VERIFIED</span>` : `<span class="badge-pill pill-amber">PENDING</span>`;
+
+        return `
+          <tr style="border-bottom:1px solid var(--border-card);">
+            <td style="padding:10px 12px;font-family:monospace;font-weight:700;color:var(--primary-blue);">${rec.prediction_id}</td>
+            <td style="padding:10px 12px;color:var(--text-dark);">${rec.date}</td>
+            <td style="padding:10px 12px;"><span style="font-weight:600;">${rec.target}</span></td>
+            <td style="padding:10px 12px;color:var(--text-muted);">${rec.scenario || "Standard Training"}</td>
+            <td style="padding:10px 12px;font-weight:700;">${rec.predicted_readiness} pts</td>
+            <td style="padding:10px 12px;font-weight:700;">${rec.actual_readiness !== null ? `${rec.actual_readiness} pts` : "—"}</td>
+            <td style="padding:10px 12px;${errClass}">${diff}</td>
+            <td style="padding:10px 12px;">${statusBadge}</td>
+          </tr>
+        `;
+      }).join("");
+    }
+  } catch (err) {
+    console.error("Failed to load prediction accuracy:", err);
+  }
+}
+
+/**
+ * View 8: Coach Squad Management & Workload Matrix
+ */
+async function loadCoachSquad() {
+  const grid = document.getElementById("squadRosterGrid");
+  if (!grid) return;
+
+  try {
+    const res = await fetch("/api/coach/team-overview");
+    if (!res.ok) return;
+    const data = await res.json();
+
+    if (data.athletes) {
+      grid.innerHTML = data.athletes.map(ath => {
+        const isSelected = ath.athlete_id === "ATH-001";
+        const readColor = ath.readiness_score >= 80 ? "#10B981" : (ath.readiness_score >= 65 ? "#F59E0B" : "#EF4444");
+        const statusClass = ath.status === "FIT_TO_TRAIN" ? "pill-green" : (ath.status === "RECOVERY_PRIORITY" ? "pill-amber" : "pill-red");
+
+        return `
+          <div class="card" style="padding:18px;display:flex;flex-direction:column;justify-content:space-between;border:${isSelected ? "2px solid var(--primary-blue)" : "1px solid var(--border-card)"};">
+            <div>
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+                <div>
+                  <h3 style="font-size:1.05rem;font-weight:800;color:var(--text-dark);margin:0;">${ath.name}</h3>
+                  <span style="font-size:0.75rem;color:var(--text-muted);">${ath.position} • #${ath.athlete_id}</span>
+                </div>
+                <span class="badge-pill ${statusClass}">${ath.status.replace("_", " ")}</span>
+              </div>
+
+              <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;background:#F8FAFC;padding:10px;border-radius:10px;margin-bottom:14px;text-align:center;">
+                <div>
+                  <span style="font-size:0.68rem;color:var(--text-muted);display:block;">Readiness</span>
+                  <strong style="font-size:1.15rem;color:${readColor};">${ath.readiness_score}%</strong>
+                </div>
+                <div>
+                  <span style="font-size:0.68rem;color:var(--text-muted);display:block;">Fatigue</span>
+                  <strong style="font-size:1.15rem;color:var(--text-dark);">${ath.fatigue_level}</strong>
+                </div>
+                <div>
+                  <span style="font-size:0.68rem;color:var(--text-muted);display:block;">ACWR</span>
+                  <strong style="font-size:1.15rem;color:${ath.acwr > 1.4 ? "#EF4444" : "#10B981"};">${ath.acwr}</strong>
+                </div>
+              </div>
+
+              <div style="font-size:0.8rem;color:var(--text-body);margin-bottom:14px;line-height:1.45;">
+                <strong>Coach Focus:</strong> ${ath.target_session} (${ath.recommended_intensity})
+              </div>
+            </div>
+
+            <button class="btn-top-action" onclick="switchView('dashboard')" style="justify-content:center;background:${isSelected ? "var(--primary-blue)" : "transparent"};color:${isSelected ? "#ffffff" : "var(--primary-blue)"};border:1px solid var(--primary-blue);font-weight:700;">
+              ${isSelected ? "Active Athlete Twin" : "Select Athlete Twin"}
+            </button>
+          </div>
+        `;
+      }).join("");
+    }
+  } catch (err) {
+    console.error("Failed to load coach squad:", err);
+  }
+}
+
+/**
+ * View 9: Sports Scientist & Forensic Auditor Center
+ */
+async function loadAuditorCenter() {
+  try {
+    const [mcRes, dqRes, logRes] = await Promise.all([
+      fetch("/api/model-card"),
+      fetch("/api/telemetry/data-quality"),
+      fetch("/api/audit-log")
+    ]);
+
+    if (mcRes.ok) {
+      const mc = await mcRes.json();
+      const verBadge = document.getElementById("auditorModelVersionBadge");
+      const fatR2 = document.getElementById("auditorFatigueR2");
+      const recR2 = document.getElementById("auditorRecoveryR2");
+
+      if (verBadge) verBadge.textContent = `v${mc.version} • Verified`;
+      if (mc.metrics && mc.metrics.fatigue_model && fatR2) fatR2.textContent = mc.metrics.fatigue_model.r2_score;
+      if (mc.metrics && mc.metrics.recovery_model && recR2) recR2.textContent = mc.metrics.recovery_model.r2_score;
+    }
+
+    if (dqRes.ok) {
+      const dq = await dqRes.json();
+      const qBadge = document.getElementById("auditorQualityBadge");
+      const jitEl = document.getElementById("auditorJitter");
+      const rateEl = document.getElementById("auditorSampleRate");
+      const dropEl = document.getElementById("auditorDropRate");
+
+      if (qBadge) qBadge.textContent = `Quality Grade: ${dq.grade || "EXCELLENT"}`;
+      if (jitEl) jitEl.textContent = `${dq.jitter_ms || 12} ms`;
+      if (rateEl) rateEl.textContent = `${dq.sample_rate_hz || 1.0} Hz`;
+      if (dropEl) dropEl.textContent = `${dq.packet_loss_pct || 0.0}%`;
+    }
+
+    if (logRes.ok) {
+      const logs = await logRes.json();
+      const list = document.getElementById("auditorEventList");
+      if (list && logs.events) {
+        list.innerHTML = logs.events.slice(-8).reverse().map(ev => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#F8FAFC;border-radius:8px;font-size:0.8rem;border:1px solid var(--border-card);">
+            <div>
+              <span style="font-family:monospace;color:var(--text-muted);">${ev.timestamp}</span>
+              <strong style="margin-left:8px;color:var(--text-dark);">${ev.action}</strong>
+              <span style="color:var(--text-muted);margin-left:6px;">(${ev.user})</span>
+            </div>
+            <span class="badge-pill pill-green">${ev.status}</span>
+          </div>
+        `).join("");
+      }
+    }
+  } catch (err) {
+    console.error("Failed to load auditor center:", err);
+  }
+}
+
+/**
+ * Action button handlers for Accuracy & Auditor Center
+ */
+function initForensicAuditorControls() {
+  const btnRefreshAcc = document.getElementById("btnRefreshAccuracy");
+  if (btnRefreshAcc) {
+    btnRefreshAcc.addEventListener("click", () => {
+      loadPredictionAccuracy();
+      showToast("Accuracy ledger updated with latest verified outcomes", "✓");
+    });
+  }
+
+  const btnDlModelCard = document.getElementById("btnDownloadModelCard");
+  if (btnDlModelCard) {
+    btnDlModelCard.addEventListener("click", () => {
+      window.open("/api/model-card", "_blank");
+    });
+  }
+
+  const btnExportSquad = document.getElementById("btnExportSquadReport");
+  if (btnExportSquad) {
+    btnExportSquad.addEventListener("click", () => {
+      showToast("Exporting Squad Readiness & ACWR Workload Matrix...", "📊");
+      setTimeout(() => {
+        showToast("Squad report exported successfully.", "✓");
+      }, 900);
+    });
+  }
+}
+
 

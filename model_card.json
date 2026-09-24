@@ -1,0 +1,70 @@
+{
+  "model_id": "twin-athlete-state-transition-v2.4",
+  "version": "2.4.0",
+  "updated_at": "2026-09-23T23:04:41.242053",
+  "framework": "scikit-learn 1.3+ / Python 3.11",
+  "architecture": "Dual Ensemble Random Forest Regressor (n_estimators=100, random_state=42)",
+  "dataset": {
+    "name": "180-Day Longitudinal Athlete Training & Biometric Dataset",
+    "file": "synthetic_athlete_dataset.csv",
+    "total_days": 180,
+    "split_method": "Chronological 80/20 holdout split (no future data leakage)",
+    "train_samples": 144,
+    "test_samples": 36,
+    "features": {
+      "prev_fatigue": "Lagged acute neuromuscular fatigue score (t-1, scale 0-100)",
+      "prev_recovery": "Lagged autonomic recovery score (t-1, scale 0-100%)",
+      "sleep_hours": "Duration of nocturnal sleep prior to session (hours)",
+      "workout_duration_min": "Completed session duration (minutes)",
+      "workout_intensity": "Cardiovascular relative intensity (fraction of max HR 0.0 - 1.0)",
+      "daily_load": "Integrated training impulse load (Edwards TRIMP proxy)"
+    }
+  },
+  "targets": {
+    "fatigue_level": "Acute neuromuscular fatigue level on subsequent day (0 - 100)",
+    "recovery_score": "Autonomic & parasympathetic recovery score on subsequent day (0 - 100%)"
+  },
+  "metrics": {
+    "fatigue_model": {
+      "r2_score": 0.902,
+      "mae": 1.33,
+      "rmse": 2.25,
+      "residual_std": 2.18,
+      "feature_importance_pct": {
+        "daily_load": 58.24,
+        "prev_fatigue": 33.01,
+        "sleep_hours": 3.01,
+        "workout_intensity": 2.86,
+        "prev_recovery": 1.69,
+        "workout_duration_min": 1.19
+      }
+    },
+    "recovery_model": {
+      "r2_score": 0.943,
+      "mae": 1.77,
+      "rmse": 2.3,
+      "residual_std": 2.28,
+      "feature_importance_pct": {
+        "sleep_hours": 89.75,
+        "prev_fatigue": 4.55,
+        "prev_recovery": 2.3,
+        "daily_load": 1.36,
+        "workout_intensity": 1.23,
+        "workout_duration_min": 0.81
+      }
+    }
+  },
+  "uncertainty_estimation": {
+    "method": "Empirical Test-Set Residual Standard Error (95% Confidence Interval ~ +/- 1.96 * std)",
+    "fatigue_ci_95": "+/- 4.3 pts",
+    "recovery_ci_95": "+/- 4.5 pts"
+  },
+  "known_limitations": [
+    "Calibrated on 180-day longitudinal running & soccer training dataset; requires calibration for cycling or swimming.",
+    "Assumes standard circadian rhythm; shift workers or extreme jet lag require sleep adjustment.",
+    "Non-linear infection or febrile illness is not modeled by the mechanical fatigue equation.",
+    "Predictions represent baseline expected adaptation; individual genetic or psychological stress factors may induce variance."
+  ],
+  "intended_use": "Decision support for coaches and athletes to optimize training microcycles, avoid non-functional overreaching, and plan deload periods.",
+  "non_intended_use": "Clinical diagnosis, medical evaluation of pathology, or replacing qualified medical personnel."
+}
