@@ -5,24 +5,101 @@ import time
 import queue
 import threading
 import subprocess
-import numpy as np
-import pandas as pd
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_FATIGUE_PATH = os.path.join(BASE_DIR, "twin_fatigue_model.pkl")
+if not os.path.exists(MODEL_FATIGUE_PATH):
+    _alt_f = os.path.join(BASE_DIR, "ml", "models", "twin_fatigue_model.pkl")
+    if os.path.exists(_alt_f):
+        MODEL_FATIGUE_PATH = _alt_f
+
+MODEL_RECOVERY_PATH = os.path.join(BASE_DIR, "twin_recovery_model.pkl")
+if not os.path.exists(MODEL_RECOVERY_PATH):
+    _alt_r = os.path.join(BASE_DIR, "ml", "models", "twin_recovery_model.pkl")
+    if os.path.exists(_alt_r):
+        MODEL_RECOVERY_PATH = _alt_r
+
+try:
+    import numpy as np
+except Exception as e:
+    np = None
+    print(f"[app] Notice: numpy import error: {e}")
+
+try:
+    import pandas as pd
+except Exception as e:
+    pd = None
+    print(f"[app] Notice: pandas import error: {e}")
+
 from flask import Flask, jsonify, request, send_from_directory, Response
 
-from twin import simulator
-from ml import generate_data
-from twin import coach as ai_coach_engine
-from twin import contracts as twin_contracts
-from twin.telemetry import engine
-from twin.registry import registry
+try:
+    from twin import simulator
+except Exception:
+    try:
+        import simulator
+    except Exception as e:
+        simulator = None
+        print(f"[app] Notice: simulator import error: {e}")
+
+try:
+    from ml import generate_data
+except Exception:
+    try:
+        import generate_data
+    except Exception as e:
+        generate_data = None
+        print(f"[app] Notice: generate_data import error: {e}")
+
+try:
+    from twin import coach as ai_coach_engine
+except Exception:
+    try:
+        import ai_coach_engine
+    except Exception as e:
+        ai_coach_engine = None
+        print(f"[app] Notice: ai_coach_engine import error: {e}")
+
+try:
+    from twin import contracts as twin_contracts
+except Exception:
+    try:
+        import twin_contracts
+    except Exception as e:
+        twin_contracts = None
+        print(f"[app] Notice: twin_contracts import error: {e}")
+
+try:
+    from twin.telemetry import engine
+except Exception:
+    try:
+        from telemetry_engine import engine
+    except Exception as e:
+        engine = None
+        print(f"[app] Notice: telemetry engine import error: {e}")
+
+try:
+    from twin.registry import registry
+except Exception:
+    try:
+        import registry_engine
+        registry = registry_engine.registry
+    except Exception as e:
+        registry = None
+        print(f"[app] Notice: registry import error: {e}")
 
 try:
     from twin.storage import vault
 except Exception:
-    vault = None
+    try:
+        from storage import vault
+    except Exception:
+        vault = None
 
 def get_dataset_path() -> str:
     candidates = [
+        os.path.join(BASE_DIR, "ml", "data", "synthetic_athlete_dataset.csv"),
+        os.path.join(BASE_DIR, "synthetic_athlete_dataset.csv"),
         os.path.join("ml", "data", "synthetic_athlete_dataset.csv"),
         "synthetic_athlete_dataset.csv",
     ]
@@ -33,6 +110,8 @@ def get_dataset_path() -> str:
 
 def get_model_card_path() -> str:
     candidates = [
+        os.path.join(BASE_DIR, "ml", "model_card.json"),
+        os.path.join(BASE_DIR, "model_card.json"),
         os.path.join("ml", "model_card.json"),
         "model_card.json",
     ]
@@ -770,7 +849,8 @@ def reset_session():
         except Exception:
             pass
 
-    engine.reset_session()
+    if engine:
+        engine.reset_session()
     return jsonify({
         "success": True,
         "message": "Workout session has been reset."
@@ -780,27 +860,30 @@ def reset_session():
 @app.route("/api/status", methods=["GET"])
 def get_status():
     models_ready = (
-        (os.path.exists(os.path.join("ml", "models", "twin_fatigue_model.pkl")) and os.path.exists(os.path.join("ml", "models", "twin_recovery_model.pkl"))) or
+        (os.path.exists(MODEL_FATIGUE_PATH) and os.path.exists(MODEL_RECOVERY_PATH)) or
+        (os.path.exists(os.path.join(BASE_DIR, "ml", "models", "twin_fatigue_model.pkl")) and os.path.exists(os.path.join(BASE_DIR, "ml", "models", "twin_recovery_model.pkl"))) or
         (os.path.exists("twin_fatigue_model.pkl") and os.path.exists("twin_recovery_model.pkl"))
     )
     dataset_exists = (
-        os.path.exists(os.path.join("ml", "data", "synthetic_athlete_dataset.csv")) or
-        os.path.exists("synthetic_athlete_dataset.csv")
+        os.path.exists(os.path.join(BASE_DIR, "ml", "data", "synthetic_athlete_dataset.csv")) or
+        os.path.exists(os.path.join(BASE_DIR, "synthetic_athlete_dataset.csv")) or
+        os.path.exists(get_dataset_path())
     )
     card_exists = (
-        os.path.exists(os.path.join("ml", "model_card.json")) or
-        os.path.exists("model_card.json")
+        os.path.exists(os.path.join(BASE_DIR, "ml", "model_card.json")) or
+        os.path.exists(os.path.join(BASE_DIR, "model_card.json")) or
+        os.path.exists(get_model_card_path())
     )
     return jsonify({
         "status": "online",
         "models_ready": models_ready,
         "dataset_ready": dataset_exists,
         "model_card_ready": card_exists,
-        "schema_version": twin_contracts.SCHEMA_VERSION,
+        "schema_version": getattr(twin_contracts, "SCHEMA_VERSION", "2.4.0") if twin_contracts else "2.4.0",
         "athlete": "Daniel Saji",
-        "esp32_connected": (engine.last_packet_time is not None and (time.time() - engine.last_packet_time < 4.0)),
-        "data_provenance": engine.data_provenance,
-        "data_quality_grade": engine.last_quality_grade,
+        "esp32_connected": bool(engine and engine.last_packet_time is not None and (time.time() - engine.last_packet_time < 4.0)),
+        "data_provenance": getattr(engine, "data_provenance", "DEMO") if engine else "DEMO",
+        "data_quality_grade": getattr(engine, "last_quality_grade", "EXCELLENT") if engine else "EXCELLENT",
         "mock_feed_running": mock_feed_running
     })
 

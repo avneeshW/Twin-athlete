@@ -1,11 +1,32 @@
 import os
 import json
-import numpy as np
-import pandas as pd
+
+try:
+    import numpy as np
+except Exception as e:
+    np = None
+
+try:
+    import pandas as pd
+except Exception as e:
+    pd = None
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.abspath(os.path.join(BASE_DIR, ".."))
+
+MODEL_FATIGUE_PATH = os.path.join(ROOT_DIR, "ml", "models", "twin_fatigue_model.pkl")
+if not os.path.exists(MODEL_FATIGUE_PATH):
+    MODEL_FATIGUE_PATH = os.path.join(ROOT_DIR, "twin_fatigue_model.pkl")
+
+MODEL_RECOVERY_PATH = os.path.join(ROOT_DIR, "ml", "models", "twin_recovery_model.pkl")
+if not os.path.exists(MODEL_RECOVERY_PATH):
+    MODEL_RECOVERY_PATH = os.path.join(ROOT_DIR, "twin_recovery_model.pkl")
 
 def _find_model_file(filename: str):
     candidates = [
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "ml", "models", filename),
+        os.path.join(ROOT_DIR, "ml", "models", filename),
+        os.path.join(ROOT_DIR, filename),
+        os.path.join(BASE_DIR, filename),
         os.path.join("ml", "models", filename),
         filename,
     ]
@@ -17,33 +38,42 @@ def _find_model_file(filename: str):
 # 1. Load Trained Twin Models & Feature Definitions with Graceful Fallback
 MODEL_FATIGUE = None
 MODEL_RECOVERY = None
+model_fatigue = None
+model_recovery = None
+_MODEL_LOAD_TRIED = False
 
 def reload_models():
-    global MODEL_FATIGUE, MODEL_RECOVERY, model_fatigue, model_recovery
+    """Safely loads or reloads ML models without crashing the process."""
+    global MODEL_FATIGUE, MODEL_RECOVERY, model_fatigue, model_recovery, _MODEL_LOAD_TRIED
+    _MODEL_LOAD_TRIED = True
     try:
         import joblib
-        f_path = _find_model_file("twin_fatigue_model.pkl")
-        r_path = _find_model_file("twin_recovery_model.pkl")
-        if f_path:
+        f_path = _find_model_file("twin_fatigue_model.pkl") or MODEL_FATIGUE_PATH
+        r_path = _find_model_file("twin_recovery_model.pkl") or MODEL_RECOVERY_PATH
+        if f_path and os.path.exists(f_path):
             MODEL_FATIGUE = joblib.load(f_path)
-        if r_path:
+        if r_path and os.path.exists(r_path):
             MODEL_RECOVERY = joblib.load(r_path)
         model_fatigue = MODEL_FATIGUE
         model_recovery = MODEL_RECOVERY
     except Exception as e:
-        print(f"[Simulator] Warning: ML models could not be loaded ({e}). Using deterministic Banister impulse-response kinetics.")
+        MODEL_FATIGUE = None
+        MODEL_RECOVERY = None
+        model_fatigue = None
+        model_recovery = None
+        print(f"[Simulator] Notice: ML models not loaded ({e}). Using deterministic Banister kinetics.")
 
-reload_models()
-
-# Backward compatibility references
-model_fatigue = MODEL_FATIGUE
-model_recovery = MODEL_RECOVERY
+# Safe initial load attempt wrapped in try/except
+try:
+    reload_models()
+except Exception as e:
+    print(f"[Simulator] Initial load suppressed: {e}")
 
 try:
     feat_file = _find_model_file("twin_features.json")
-    if feat_file:
+    if feat_file and os.path.exists(feat_file):
         with open(feat_file) as f:
-            FEATURES = json.load(f)["features"]
+            FEATURES = json.load(f).get("features", [])
     else:
         FEATURES = ["prev_fatigue", "prev_recovery", "sleep_hours", "workout_duration_min", "workout_intensity", "daily_load"]
 except Exception:

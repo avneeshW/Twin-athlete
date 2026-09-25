@@ -1,16 +1,29 @@
 import time
 import math
 from collections import deque
-import numpy as np
+
+try:
+    import numpy as np
+except Exception:
+    np = None
 
 try:
     from . import simulator
     from . import contracts as twin_contracts
     from .contracts import HR_MIN_BPM, HR_MAX_BPM, SPO2_MIN_PCT, SPO2_MAX_PCT, MAX_ACCEL_G
 except Exception:
-    from twin import simulator
-    from twin import contracts as twin_contracts
-    from twin.contracts import HR_MIN_BPM, HR_MAX_BPM, SPO2_MIN_PCT, SPO2_MAX_PCT, MAX_ACCEL_G
+    try:
+        from twin import simulator
+        from twin import contracts as twin_contracts
+        from twin.contracts import HR_MIN_BPM, HR_MAX_BPM, SPO2_MIN_PCT, SPO2_MAX_PCT, MAX_ACCEL_G
+    except Exception:
+        simulator = None
+        twin_contracts = None
+        HR_MIN_BPM = 30.0
+        HR_MAX_BPM = 240.0
+        SPO2_MIN_PCT = 70.0
+        SPO2_MAX_PCT = 100.0
+        MAX_ACCEL_G = 16.0
 
 
 class TelemetryEngine:

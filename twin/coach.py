@@ -13,13 +13,33 @@ import os
 import json
 import time
 import math
-import numpy as np
-import pandas as pd
-import joblib
+
+try:
+    import numpy as np
+except Exception as e:
+    np = None
+
+try:
+    import pandas as pd
+except Exception as e:
+    pd = None
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.abspath(os.path.join(BASE_DIR, ".."))
+
+MODEL_FATIGUE_PATH = os.path.join(ROOT_DIR, "ml", "models", "twin_fatigue_model.pkl")
+if not os.path.exists(MODEL_FATIGUE_PATH):
+    MODEL_FATIGUE_PATH = os.path.join(ROOT_DIR, "twin_fatigue_model.pkl")
+
+MODEL_RECOVERY_PATH = os.path.join(ROOT_DIR, "ml", "models", "twin_recovery_model.pkl")
+if not os.path.exists(MODEL_RECOVERY_PATH):
+    MODEL_RECOVERY_PATH = os.path.join(ROOT_DIR, "twin_recovery_model.pkl")
 
 def _find_model_file(filename: str):
     candidates = [
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "ml", "models", filename),
+        os.path.join(ROOT_DIR, "ml", "models", filename),
+        os.path.join(ROOT_DIR, filename),
+        os.path.join(BASE_DIR, filename),
         os.path.join("ml", "models", filename),
         filename,
     ]
@@ -32,15 +52,25 @@ def _find_model_file(filename: str):
 MODEL_FATIGUE = None
 MODEL_RECOVERY = None
 
+def reload_coach_models():
+    global MODEL_FATIGUE, MODEL_RECOVERY
+    try:
+        import joblib
+        f_path = _find_model_file("twin_fatigue_model.pkl") or MODEL_FATIGUE_PATH
+        r_path = _find_model_file("twin_recovery_model.pkl") or MODEL_RECOVERY_PATH
+        if f_path and os.path.exists(f_path):
+            MODEL_FATIGUE = joblib.load(f_path)
+        if r_path and os.path.exists(r_path):
+            MODEL_RECOVERY = joblib.load(r_path)
+    except Exception as e:
+        MODEL_FATIGUE = None
+        MODEL_RECOVERY = None
+        print(f"[AI Coach Engine] Notice: ML models not loaded ({e}). Using deterministic kinetics.")
+
 try:
-    f_path = _find_model_file("twin_fatigue_model.pkl")
-    r_path = _find_model_file("twin_recovery_model.pkl")
-    if f_path:
-        MODEL_FATIGUE = joblib.load(f_path)
-    if r_path:
-        MODEL_RECOVERY = joblib.load(r_path)
+    reload_coach_models()
 except Exception as e:
-    print(f"[AI Coach Engine] Warning: ML models could not be loaded: {e}")
+    print(f"[AI Coach Engine] Initial load suppressed: {e}")
 
 # Zero-dependency persistent SQLite storage vault
 try:
