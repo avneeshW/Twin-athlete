@@ -27,10 +27,10 @@ Twin-Athlete implements both the exponential **Banister TRIMP** formulation (pri
     $$y = 0.64 \cdot e^{1.92 \cdot \Delta\text{HR}_{\text{ratio}}} \quad (\text{Men})$$
     $$y = 0.86 \cdot e^{1.67 \cdot \Delta\text{HR}_{\text{ratio}}} \quad (\text{Women})$$
 * **Physiological Meaning:** Prevents high-intensity intervals from being under-scored compared to prolonged low-intensity recovery runs by modeling exponential exponential glycolytic and cardiovascular stress.
-* **Code Reference:** `ai_coach_engine.py -> calculate_training_load()`
+* **Code Reference:** `twin/coach.py -> calculate_training_load()`
 
 ```python
-# Code Implementation (ai_coach_engine.py)
+# Code Implementation (twin/coach.py)
 hr_ratio = (hr_avg - hr_rest) / max(1.0, (hr_max - hr_rest))
 intensity_curve = 0.64 * math.exp(1.92 * hr_ratio)
 trimp = duration_min * hr_ratio * intensity_curve
@@ -51,7 +51,7 @@ trimp = duration_min * hr_ratio * intensity_curve
 | **Zone 4** | Lactate Threshold | $80\% - 90\%$ | 4 | High-intensity sustained power |
 | **Zone 5** | Neuromuscular / VO2 Max | $90\% - 100\%$ | 5 | Peak anaerobic power, maximum cardiac output |
 
-* **Code Reference:** `telemetry_engine.py -> get_hr_zone()`
+* **Code Reference:** `twin/telemetry.py -> get_hr_zone()`
 
 ---
 
@@ -78,7 +78,7 @@ ACWR Range           Risk Classification       Coaching Action
 ─────────────────────────────────────────────────────────────────────────────
 ```
 
-* **Code Reference:** `ai_coach_engine.py -> detect_anomalies()`
+* **Code Reference:** `twin/coach.py -> detect_anomalies()`
 
 ---
 
@@ -95,7 +95,7 @@ ACWR Range           Risk Classification       Coaching Action
   - $A$ is athlete age in years.
   - $D$ is duration in minutes.
   - $4.184$ converts kilojoules to kilocalories (kcal).
-* **Code Reference:** `telemetry_engine.py -> calculate_calories_burned()`
+* **Code Reference:** `twin/telemetry.py -> calculate_calories_burned()`
 
 ---
 
@@ -136,7 +136,7 @@ $$\text{Performance}_{t+1} = (\text{Recovery}_{t+1} \times 0.60) + ((100.0 - \te
   - $\text{Asymmetry} < 10\%$: Normal biological biomechanical variation.
   - $10\% \le \text{Asymmetry} < 18\%$: Mild compensatory loading (flagged in insights).
   - $\text{Asymmetry} \ge 18\%$: Significant eccentric imbalance; elevated musculoskeletal risk.
-* **Code Reference:** `ai_coach_engine.py -> detect_anomalies()`
+* **Code Reference:** `twin/coach.py -> detect_anomalies()`
 
 ---
 
@@ -153,7 +153,7 @@ $$\text{Readiness} = w_{\text{rec}} \cdot R + w_{\text{fat}} \cdot (100 - F) + w
 | $S_{\text{norm}}$ | **Sleep Adequacy** | $12\%$ | Actual sleep duration normalized against athlete's personalized baseline ($\text{Sleep} / \text{Baseline}$). |
 | $H_{\text{autonomic}}$ | **Cardiovascular Stability** | $8\%$ | Resting heart rate drift compared to athlete's 28-day baseline ($\Delta\text{RHR}$). |
 
-* **Code Reference:** `ai_coach_engine.py -> calculate_readiness()`
+* **Code Reference:** `twin/coach.py -> calculate_readiness()`
 
 ---
 
@@ -183,4 +183,4 @@ stateDiagram-v2
         desc9: Uncertainty: ±3.5 pts
     }
 ```
-* **Code Reference:** `ai_coach_engine.py -> AthleteProfile.personalization_tier`
+* **Code Reference:** `twin/coach.py -> AthleteProfile.personalization_tier`

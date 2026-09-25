@@ -10,10 +10,14 @@ Verifies:
 7. Full Flask API Endpoint Responses
 """
 
+import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 import unittest
 import json
 import pandas as pd
-import ai_coach_engine
+from twin import coach as ai_coach_engine
 import app
 
 

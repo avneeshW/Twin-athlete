@@ -8,11 +8,15 @@ Verifies:
 5. Preset scenario execution and multi-day periodization microcycles.
 """
 
+import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 import unittest
 from unittest.mock import MagicMock
 import numpy as np
 import pandas as pd
-import simulator
+from twin import simulator
 
 
 class TestSimulatorResilience(unittest.TestCase):

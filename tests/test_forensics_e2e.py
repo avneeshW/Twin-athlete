@@ -13,12 +13,15 @@ Validates:
 10. What-If Counterfactual Scenarios with Empirical Uncertainty (Phase 8)
 """
 
+import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 import unittest
 import json
-import os
-import twin_contracts
+from twin import contracts as twin_contracts
 import app
-import ai_coach_engine
+from twin import coach as ai_coach_engine
 
 
 class TestForensicsE2E(unittest.TestCase):

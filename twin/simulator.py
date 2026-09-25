@@ -3,26 +3,49 @@ import json
 import numpy as np
 import pandas as pd
 
+def _find_model_file(filename: str):
+    candidates = [
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "ml", "models", filename),
+        os.path.join("ml", "models", filename),
+        filename,
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            return p
+    return None
+
 # 1. Load Trained Twin Models & Feature Definitions with Graceful Fallback
 MODEL_FATIGUE = None
 MODEL_RECOVERY = None
 
-try:
-    import joblib
-    if os.path.exists("twin_fatigue_model.pkl"):
-        MODEL_FATIGUE = joblib.load("twin_fatigue_model.pkl")
-    if os.path.exists("twin_recovery_model.pkl"):
-        MODEL_RECOVERY = joblib.load("twin_recovery_model.pkl")
-except Exception as e:
-    print(f"[Simulator] Warning: ML models could not be loaded ({e}). Using deterministic Banister impulse-response kinetics.")
+def reload_models():
+    global MODEL_FATIGUE, MODEL_RECOVERY, model_fatigue, model_recovery
+    try:
+        import joblib
+        f_path = _find_model_file("twin_fatigue_model.pkl")
+        r_path = _find_model_file("twin_recovery_model.pkl")
+        if f_path:
+            MODEL_FATIGUE = joblib.load(f_path)
+        if r_path:
+            MODEL_RECOVERY = joblib.load(r_path)
+        model_fatigue = MODEL_FATIGUE
+        model_recovery = MODEL_RECOVERY
+    except Exception as e:
+        print(f"[Simulator] Warning: ML models could not be loaded ({e}). Using deterministic Banister impulse-response kinetics.")
+
+reload_models()
 
 # Backward compatibility references
 model_fatigue = MODEL_FATIGUE
 model_recovery = MODEL_RECOVERY
 
 try:
-    with open("twin_features.json") as f:
-        FEATURES = json.load(f)["features"]
+    feat_file = _find_model_file("twin_features.json")
+    if feat_file:
+        with open(feat_file) as f:
+            FEATURES = json.load(f)["features"]
+    else:
+        FEATURES = ["prev_fatigue", "prev_recovery", "sleep_hours", "workout_duration_min", "workout_intensity", "daily_load"]
 except Exception:
     FEATURES = ["prev_fatigue", "prev_recovery", "sleep_hours", "workout_duration_min", "workout_intensity", "daily_load"]
 

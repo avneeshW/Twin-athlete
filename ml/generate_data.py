@@ -14,11 +14,15 @@ DEFAULT_SLEEP_VARIABILITY = 0.9     # Realistic day-to-day fluctuation (+/- hour
 # ==============================================================================
 
 
+DEFAULT_DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+DEFAULT_OUTPUT_CSV = os.path.join(DEFAULT_DATA_DIR, "synthetic_athlete_dataset.csv")
+
+
 def generate_athlete_dataset(
     days: int = DEFAULT_DAYS,
     sleep_hours: float | list | str | None = DEFAULT_USER_SLEEP_HOURS,
     sleep_variability: float = DEFAULT_SLEEP_VARIABILITY,
-    output_csv: str = "synthetic_athlete_dataset.csv",
+    output_csv: str = DEFAULT_OUTPUT_CSV,
     seed: int = 42,
     **kwargs
 ) -> pd.DataFrame:
@@ -197,7 +201,7 @@ if __name__ == "__main__":
                         help=f"Total days to generate (default: {DEFAULT_DAYS})")
     parser.add_argument("--variability", type=float, default=DEFAULT_SLEEP_VARIABILITY,
                         help=f"Sleep standard deviation (default: {DEFAULT_SLEEP_VARIABILITY})")
-    parser.add_argument("--output", type=str, default="synthetic_athlete_dataset.csv",
+    parser.add_argument("--output", type=str, default=DEFAULT_OUTPUT_CSV,
                         help="Output CSV file path")
 
     args = parser.parse_args()

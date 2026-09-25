@@ -66,7 +66,7 @@ Both the **MAX30102** and **MPU6050** sensors communicate over the shared I2C bu
 If you are away from Wi-Fi or testing at your desk, you can stream telemetry directly over the USB cable using the included Python bridge:
 
 ```bash
-python esp32_serial_bridge.py
+python -m twin.bridge
 ```
 
 This utility automatically connects to your ESP32 COM port and forwards every JSON packet directly to `http://localhost:5000/api/esp32/telemetry`.

@@ -17,23 +17,39 @@ import numpy as np
 import pandas as pd
 import joblib
 
+def _find_model_file(filename: str):
+    candidates = [
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "ml", "models", filename),
+        os.path.join("ml", "models", filename),
+        filename,
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            return p
+    return None
+
 # Load ML models if available for high-fidelity state transitions
 MODEL_FATIGUE = None
 MODEL_RECOVERY = None
 
 try:
-    if os.path.exists("twin_fatigue_model.pkl"):
-        MODEL_FATIGUE = joblib.load("twin_fatigue_model.pkl")
-    if os.path.exists("twin_recovery_model.pkl"):
-        MODEL_RECOVERY = joblib.load("twin_recovery_model.pkl")
+    f_path = _find_model_file("twin_fatigue_model.pkl")
+    r_path = _find_model_file("twin_recovery_model.pkl")
+    if f_path:
+        MODEL_FATIGUE = joblib.load(f_path)
+    if r_path:
+        MODEL_RECOVERY = joblib.load(r_path)
 except Exception as e:
     print(f"[AI Coach Engine] Warning: ML models could not be loaded: {e}")
 
 # Zero-dependency persistent SQLite storage vault
 try:
-    from storage import vault
-except Exception as e:
-    vault = None
+    from .storage import vault
+except Exception:
+    try:
+        from twin.storage import vault
+    except Exception:
+        vault = None
 
 
 
@@ -861,7 +877,10 @@ prediction_tracker = PredictionOutcomeTracker()
 
 def get_registry():
     """Lazy-loader for AthleteRegistry singleton to avoid circular dependencies."""
-    import registry_engine
+    try:
+        from . import registry as registry_engine
+    except Exception:
+        from twin import registry as registry_engine
     return registry_engine.registry
 
 

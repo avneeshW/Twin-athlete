@@ -97,44 +97,50 @@ twin-athlete/
 │   ├── images/
 │   │   └── digital_twin_logo.png       # Brand assets
 │   └── index.html                      # Semantic HTML5 cockpit template
-├── tests/                              # 40-Test Forensic Verification Suite
-│   ├── test_contracts.py               # Data contract validation & rejection tests
-│   ├── test_telemetry.py               # Sliding window, cadence, impact g tests
+├── app.py                              # Application entry point & hardened Flask server
+├── twin/                               # Core application package
+│   ├── __init__.py                     # Package initialization
+│   ├── contracts.py                    # Data contracts & validation schemas
+│   ├── coach.py                        # Athlete baseline, TRIMP, ACWR kinetics & prediction tracker
+│   ├── telemetry.py                    # Signal quality, sliding-window filters & vitals
+│   ├── simulator.py                    # Forward step & counterfactual simulation engine
+│   ├── registry.py                     # Multi-athlete squad registry
+│   ├── bridge.py                       # UART serial-to-HTTP ESP32 bridge
+│   └── storage.py                      # Zero-dependency SQLite WAL persistence vault
+├── ml/                                 # Training, evaluation & synthetic data
+│   ├── train.py                        # Model training pipeline & model card exporter
+│   ├── generate_data.py                # Parametric longitudinal dataset generator
+│   ├── model_card.json                 # Verifiable model card evaluation artifact
+│   ├── models/                         # Serialized Random Forest models & feature metadata
+│   │   ├── twin_fatigue_model.pkl
+│   │   ├── twin_recovery_model.pkl
+│   │   └── twin_features.json
+│   └── data/
+│       └── synthetic_athlete_dataset.csv
+├── tests/                              # 47-Test Forensic Verification Suite
+│   ├── __init__.py
 │   ├── test_ai_coach.py                # TRIMP, ACWR, readiness scoring tests
+│   ├── test_telemetry.py               # Sliding window, cadence, impact g tests
 │   ├── test_simulator.py               # Dual-path (ML + Mechanistic fallback) tests
+│   ├── test_registry.py                # Multi-athlete registry and squad state tests
 │   ├── test_storage.py                 # SQLite WAL persistence & ledger tests
 │   ├── test_e2e_api.py                 # Flask REST endpoints & SSE streaming tests
-│   └── test_forensics_e2e.py           # Rate limiting & security header tests
-├── twin_athlete/                       # Core Modular Python Package
-│   ├── __init__.py                     # Package metadata (v2.5.0)
-│   ├── contracts/                      # Data contracts & validation schemas
-│   │   ├── __init__.py
-│   │   ├── schemas.py                  # Dataclasses: SensorPacket, TwinState
-│   │   └── validators.py               # Physiological range enforcement
-│   ├── engines/                        # Stateful computational engines
-│   │   ├── __init__.py
-│   │   ├── telemetry_engine.py         # Signal quality & sliding-window filters
-│   │   ├── twin_engine.py              # Athlete baseline, TRIMP, ACWR kinetics
-│   │   ├── simulator_engine.py         # Forward step & counterfactual simulation
-│   │   └── registry_engine.py          # [STEP 3] Multi-athlete squad registry
-│   ├── storage/                        # Persistence Layer
-│   │   ├── __init__.py
-│   │   └── vault.py                    # SQLite with WAL mode & connection manager
-│   ├── ingestion/                      # Inbound ingestion services
-│   │   ├── __init__.py
-│   │   ├── serial_bridge.py            # UART serial-to-HTTP ESP32 bridge
-│   │   └── replay_service.py           # [STEP 4] CSV/FIT/GPX activity file replay
-│   └── web/                            # Web Presentation Layer
-│       ├── __init__.py
-│       ├── routes.py                   # REST routes & SSE stream endpoint
-│       └── middleware.py               # Security headers & rate limiter
-├── app.py                              # Application entry point & backward-compat shim
-├── storage.py                          # Zero-dependency SQLite WAL vault (current root)
-├── simulator.py                        # Resilient simulation engine (current root)
+│   └── test_forensics_e2e.py           # Contract validation, security & feedback tests
+├── scripts/                            # Operational utility scripts
+│   └── verify_live_system.py           # Live server & hardware verification script
+├── static/                             # Web presentation cockpit
+│   ├── index.html                      # Semantic HTML5 cockpit template
+│   ├── app.js                          # Reactive frontend controller
+│   ├── style.css                       # Modern CSS design system
+│   └── images/                         # Graphic assets
+├── firmware/                           # Hardware edge firmware
+│   ├── WIRING_GUIDE.md                 # Hardware wiring & setup guide
+│   └── esp32_athlete_tracker/          # Production Arduino C++ firmware
+├── docs/                               # Architecture and scientific documentation
 ├── Dockerfile                          # Multi-stage python:3.11-slim container
 ├── Procfile                            # Gunicorn production worker configuration
 ├── requirements.txt                    # Pinned production dependencies
-└── synthetic_athlete_dataset.csv       # 180-day empirical athlete dataset
+└── README.md
 ```
 
 ---
@@ -143,11 +149,11 @@ twin-athlete/
 
 | Component | Primary File | Responsibilities | Key Design Patterns |
 | :--- | :--- | :--- | :--- |
-| **Data Contracts** | `twin_contracts.py` | Validates sensor payloads, enforces bounds, tags provenance (`LIVE`/`DEMO`), clamps noise. | Data Transfer Object (DTO), Boundary Validator |
-| **Telemetry Engine** | `telemetry_engine.py` | Sliding-window buffering ($N=60$), packet jitter, drop rate, cadence zero-crossings, impact magnitude. | Sliding Window Buffer, Observer |
-| **Digital Twin** | `ai_coach_engine.py` | Computes Banister TRIMP, ACWR, Keytel EE, gait asymmetry, and manages personalized baselines. | Stateful Digital Twin, Strategy Pattern |
-| **Simulator** | `simulator.py` | 1-day forward transitions, What-If counterfactuals, multi-day periodization, overtraining risk. | Dual-Mode Execution (ML with Mechanistic Fallback) |
-| **Storage Vault** | `storage.py` | Persists baselines, feedback records, completed sessions, and audit events locally in SQLite WAL mode. | Repository Pattern, Thread-Safe Connection Pool |
+| **Data Contracts** | `twin/contracts.py` | Validates sensor payloads, enforces bounds, tags provenance (`LIVE`/`DEMO`), clamps noise. | Data Transfer Object (DTO), Boundary Validator |
+| **Telemetry Engine** | `twin/telemetry.py` | Sliding-window buffering ($N=60$), packet jitter, drop rate, cadence zero-crossings, impact magnitude. | Sliding Window Buffer, Observer |
+| **Digital Twin** | `twin/coach.py` | Computes Banister TRIMP, ACWR, Keytel EE, gait asymmetry, and manages personalized baselines. | Stateful Digital Twin, Strategy Pattern |
+| **Simulator** | `twin/simulator.py` | 1-day forward transitions, What-If counterfactuals, multi-day periodization, overtraining risk. | Dual-Mode Execution (ML with Mechanistic Fallback) |
+| **Storage Vault** | `twin/storage.py` | Persists baselines, feedback records, completed sessions, and audit events locally in SQLite WAL mode. | Repository Pattern, Thread-Safe Connection Pool |
 | **Cockpit UI** | `static/` | Renders Athlete, Coach, and Auditor cockpits, listens to SSE stream, updates real-time SVG charts. | Zero-Build Component Architecture, Reactive Event Bus |
 
 ---
@@ -162,26 +168,26 @@ twin-athlete/
 [Security Middleware & Rate Limiting]
            │ Checks 35 req/sec limit; adds X-Content-Type-Options & SAMEORIGIN headers
            ▼
-[twin_contracts.py: validate_sensor_packet()]
+[twin/contracts.py: validate_sensor_packet()]
            │ Rejects out-of-bounds payloads (HR > 240, SpO2 < 70) with HTTP 422
            │ Clamps accelerometer readings to [-16g, +16g]; attaches arrival timestamp
            ▼
-[telemetry_engine.py: process_telemetry()]
+[twin/telemetry.py: process_telemetry()]
            │ Updates 60-sample rolling deques for HR, SpO2, and IMU
            │ Computes packet jitter σ(Δt) and drop-rate percentage
            │ Detects steps via ay zero-crossings; computes cadence (SPM) and peak impact (g)
            ▼
-[ai_coach_engine.py: Stateful Twin Update]
+[twin/coach.py: Stateful Twin Update]
            │ Computes incremental Banister TRIMP cardiovascular dose
            │ Evaluates Acute (7d) vs Chronic (28d) ACWR workload safety bands (0.8 - 1.3)
            │ Calculates bilateral gait asymmetry percentage
            │ Calibrates readiness against personalized baseline tier (Cold-Start / Calibrated)
            ▼
-[simulator.py: Forward Step Simulation]
+[twin/simulator.py: Forward Step Simulation]
            │ Predicts next-day fatigue and recovery via Dual Random Forests (±4.3 pts)
            │ Falls back to Banister impulse-response differential kinetics if models unavailable
            ▼
-[storage.py: StorageVault Commit]
+[twin/storage.py: StorageVault Commit]
            │ Logs prospective prediction record (PRED-XXXX) as PENDING_VERIFICATION
            │ Updates athlete baseline parameters in SQLite
            ▼

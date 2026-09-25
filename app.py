@@ -9,17 +9,37 @@ import numpy as np
 import pandas as pd
 from flask import Flask, jsonify, request, send_from_directory, Response
 
-import simulator
-import generate_data
-import ai_coach_engine
-import twin_contracts
-from telemetry_engine import engine
-from registry_engine import registry
+from twin import simulator
+from ml import generate_data
+from twin import coach as ai_coach_engine
+from twin import contracts as twin_contracts
+from twin.telemetry import engine
+from twin.registry import registry
 
 try:
-    from storage import vault
+    from twin.storage import vault
 except Exception:
     vault = None
+
+def get_dataset_path() -> str:
+    candidates = [
+        os.path.join("ml", "data", "synthetic_athlete_dataset.csv"),
+        "synthetic_athlete_dataset.csv",
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            return p
+    return candidates[0]
+
+def get_model_card_path() -> str:
+    candidates = [
+        os.path.join("ml", "model_card.json"),
+        "model_card.json",
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            return p
+    return candidates[0]
 
 app = Flask(__name__, static_folder="static", static_url_path="")
 
@@ -403,9 +423,10 @@ def get_ai_coach_overview():
     is_live = (engine.last_packet_time is not None and (time.time() - engine.last_packet_time < 4.0)) or mock_feed_running
 
     history_df = None
-    if os.path.exists("synthetic_athlete_dataset.csv"):
+    ds_path = get_dataset_path()
+    if os.path.exists(ds_path):
         try:
-            history_df = pd.read_csv("synthetic_athlete_dataset.csv")
+            history_df = pd.read_csv(ds_path)
         except Exception:
             pass
 
@@ -515,9 +536,10 @@ def api_why_recommendation():
 def api_weekly_report():
     """Returns the full 7-day retrospective summary and AI natural language synthesis."""
     history_df = None
-    if os.path.exists("synthetic_athlete_dataset.csv"):
+    ds_path = get_dataset_path()
+    if os.path.exists(ds_path):
         try:
-            history_df = pd.read_csv("synthetic_athlete_dataset.csv")
+            history_df = pd.read_csv(ds_path)
         except Exception:
             pass
     report = ai_coach_engine.generate_weekly_report(history_df)
@@ -527,11 +549,12 @@ def api_weekly_report():
 @app.route("/api/history", methods=["GET"])
 def get_history():
     """Returns historical 180-day longitudinal data."""
-    if not os.path.exists("synthetic_athlete_dataset.csv"):
+    ds_path = get_dataset_path()
+    if not os.path.exists(ds_path):
         return jsonify({"error": "Dataset not found"}), 404
 
     try:
-        df = pd.read_csv("synthetic_athlete_dataset.csv")
+        df = pd.read_csv(ds_path)
     except Exception as e:
         return jsonify({"error": f"Failed to read dataset: {str(e)}"}), 500
 
@@ -567,18 +590,20 @@ def configure_sleep():
         return jsonify({"success": False, "error": f"Invalid parameter: {e}"}), 400
 
     try:
+        ds_path = get_dataset_path()
         df = generate_data.generate_athlete_dataset(
             days=days,
             sleep_hours=sleep_hours,
             sleep_variability=variability,
-            output_csv="synthetic_athlete_dataset.csv"
+            output_csv=ds_path
         )
 
-        subprocess.run([sys.executable, "train_digital_twin.py"], check=True)
+        train_script = os.path.join("ml", "train.py")
+        if not os.path.exists(train_script):
+            train_script = "train_digital_twin.py"
+        subprocess.run([sys.executable, train_script], check=True)
 
-        import joblib
-        simulator.model_fatigue = joblib.load("twin_fatigue_model.pkl")
-        simulator.model_recovery = joblib.load("twin_recovery_model.pkl")
+        simulator.reload_models()
 
         return jsonify({
             "success": True,
@@ -754,9 +779,18 @@ def reset_session():
 
 @app.route("/api/status", methods=["GET"])
 def get_status():
-    models_ready = os.path.exists("twin_fatigue_model.pkl") and os.path.exists("twin_recovery_model.pkl")
-    dataset_exists = os.path.exists("synthetic_athlete_dataset.csv")
-    card_exists = os.path.exists("model_card.json")
+    models_ready = (
+        (os.path.exists(os.path.join("ml", "models", "twin_fatigue_model.pkl")) and os.path.exists(os.path.join("ml", "models", "twin_recovery_model.pkl"))) or
+        (os.path.exists("twin_fatigue_model.pkl") and os.path.exists("twin_recovery_model.pkl"))
+    )
+    dataset_exists = (
+        os.path.exists(os.path.join("ml", "data", "synthetic_athlete_dataset.csv")) or
+        os.path.exists("synthetic_athlete_dataset.csv")
+    )
+    card_exists = (
+        os.path.exists(os.path.join("ml", "model_card.json")) or
+        os.path.exists("model_card.json")
+    )
     return jsonify({
         "status": "online",
         "models_ready": models_ready,
@@ -778,14 +812,15 @@ def get_status():
 @app.route("/api/model-card", methods=["GET"])
 def get_model_card():
     """Serves the versioned model evaluation artifact."""
-    if os.path.exists("model_card.json"):
+    card_path = get_model_card_path()
+    if os.path.exists(card_path):
         try:
-            with open("model_card.json", "r") as f:
+            with open(card_path, "r") as f:
                 card = json.load(f)
             return jsonify(card), 200
         except Exception as e:
             return jsonify({"error": f"Failed to read model card: {e}"}), 500
-    return jsonify({"error": "model_card.json not found. Run train_digital_twin.py."}), 404
+    return jsonify({"error": "model_card.json not found. Run python ml/train.py."}), 404
 
 
 @app.route("/api/telemetry/data-quality", methods=["GET"])

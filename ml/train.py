@@ -1,12 +1,24 @@
-import pandas as pd
+import os
+import sys
+import json
 import numpy as np
+import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import joblib
-import json
+
+ML_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(ML_DIR, "data")
+MODELS_DIR = os.path.join(ML_DIR, "models")
+os.makedirs(DATA_DIR, exist_ok=True)
+os.makedirs(MODELS_DIR, exist_ok=True)
 
 # 1. Load the synthetic dataset
-df = pd.read_csv("synthetic_athlete_dataset.csv")
+dataset_path = os.path.join(DATA_DIR, "synthetic_athlete_dataset.csv")
+if not os.path.exists(dataset_path) and os.path.exists("synthetic_athlete_dataset.csv"):
+    dataset_path = "synthetic_athlete_dataset.csv"
+
+df = pd.read_csv(dataset_path)
 
 # 2. State-Transition Feature Engineering
 # Prior physiological state (S_{t-1}) enables multi-day fatigue compounding
@@ -77,11 +89,15 @@ print("\nFitting final models on full 180-day history...")
 final_model_fatigue = RandomForestRegressor(n_estimators=100, random_state=42).fit(X, y_fatigue)
 final_model_recovery = RandomForestRegressor(n_estimators=100, random_state=42).fit(X, y_recovery)
 
-joblib.dump(final_model_fatigue, "twin_fatigue_model.pkl")
-joblib.dump(final_model_recovery, "twin_recovery_model.pkl")
+fatigue_model_path = os.path.join(MODELS_DIR, "twin_fatigue_model.pkl")
+recovery_model_path = os.path.join(MODELS_DIR, "twin_recovery_model.pkl")
+features_path = os.path.join(MODELS_DIR, "twin_features.json")
+
+joblib.dump(final_model_fatigue, fatigue_model_path)
+joblib.dump(final_model_recovery, recovery_model_path)
 
 # Save feature metadata for the simulator
-with open("twin_features.json", "w") as f:
+with open(features_path, "w") as f:
     json.dump({"features": features}, f, indent=2)
 
 # 7. Generate Comprehensive, Versioned Model Card & Evaluation Artifact
@@ -149,12 +165,13 @@ model_card = {
     "non_intended_use": "Clinical diagnosis, medical evaluation of pathology, or replacing qualified medical personnel."
 }
 
-with open("model_card.json", "w") as f:
+model_card_path = os.path.join(ML_DIR, "model_card.json")
+with open(model_card_path, "w") as f:
     json.dump(model_card, f, indent=2)
 
 print("\nDigital Twin models and Model Card successfully trained and exported:")
-print("  -> 'twin_fatigue_model.pkl'")
-print("  -> 'twin_recovery_model.pkl'")
-print("  -> 'twin_features.json'")
-print("  -> 'model_card.json'")
+print(f"  -> '{fatigue_model_path}'")
+print(f"  -> '{recovery_model_path}'")
+print(f"  -> '{features_path}'")
+print(f"  -> '{model_card_path}'")
 print("=" * 60)

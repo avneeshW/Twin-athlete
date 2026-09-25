@@ -18,14 +18,14 @@ Twin-Athlete converts physiological telemetry into a stateful, time-aware comput
 REAL / DETERMINISTIC TELEMETRY
            │
            ▼
- STRICT DATA CONTRACT VALIDATION (twin_contracts.py)
+ STRICT DATA CONTRACT VALIDATION (twin/contracts.py)
            │
            ▼
- REAL-TIME SIGNAL PIPELINE & QUALITY ENGINE (telemetry_engine.py)
+ REAL-TIME SIGNAL PIPELINE & QUALITY ENGINE (twin/telemetry.py)
    • Jitter, Latency, Drop Rate, Optical Baseline Extraction
            │
            ▼
- STATEFUL ATHLETE TWIN (ai_coach_engine.py)
+ STATEFUL ATHLETE TWIN (twin/coach.py)
    • Personalized Baselines (Cold-Start, Calibrating, Calibrated)
    • Banister TRIMP, ACWR Workload, Fatigue Kinetics
            │
@@ -98,7 +98,7 @@ $$\text{Asymmetry Index (\%)} = \frac{|L_{\text{impact}} - R_{\text{impact}}|}{\
 
 The machine learning models are dual ensemble **Random Forest Regressors** trained on 180 longitudinal daily entries using an **80/20 chronological holdout split** to prevent temporal lookahead leakage.
 
-Full evaluation metadata is serialized in [`model_card.json`](model_card.json) and exposed via `GET /api/model-card`.
+Full evaluation metadata is serialized in [`model_card.json`](ml/model_card.json) and exposed via `GET /api/model-card`.
 
 ### Empirical Test-Set Metrics:
 | Model Target | Architecture | Holdout $R^2$ Score | Test MAE | Test RMSE | 95% Confidence Interval |
@@ -114,7 +114,7 @@ Full evaluation metadata is serialized in [`model_card.json`](model_card.json) a
 
 ## 📡 Data Contracts & Runtime Validation
 
-All inbound sensor payloads from hardware or client endpoints pass through strict runtime validation (`twin_contracts.py`):
+All inbound sensor payloads from hardware or client endpoints pass through strict runtime validation (`twin/contracts.py`):
 
 ```python
 @dataclass
@@ -157,30 +157,62 @@ Twin-Athlete features a top-bar segment switcher supporting three distinct roles
 ## 📁 Repository Architecture
 
 ```text
-├── app.py                         # Hardened Flask server, rate limiting, security headers & REST APIs
-├── twin_contracts.py              # Versioned typed data contracts & strict physiological validators
-├── ai_coach_engine.py             # Stateful Athlete Twin, personalization tiers & prediction feedback tracker
-├── telemetry_engine.py            # Signal processing, sliding-window vitals & data quality diagnostics
-├── train_digital_twin.py          # ML training pipeline with chronological holdout & model card exporter
-├── model_card.json                # Verifiable model card artifact with empirical holdout metrics
-├── simulator.py                   # Biomechanical What-If simulation engine
-├── esp32_serial_bridge.py         # Hardware USB-Serial bridge with automatic reconnect
+Twin-athlete/
+├── README.md
+├── requirements.txt
+├── Dockerfile
+├── Procfile
+├── .gitignore
+├── .dockerignore
 │
-├── static/
-│   ├── index.html                 # Semantic HTML5 multi-view application cockpit
-│   ├── style.css                  # Modern CSS design system (glassmorphism, tokens, responsive layout)
-│   ├── app.js                     # Unified frontend controller (SSE streams, routing, modals, charts)
-│   └── images/                    # Athlete avatar and UI graphic assets
+├── app.py                          # Hardened Flask server, rate limiting, security headers & REST APIs
 │
-├── firmware/
-│   ├── WIRING_GUIDE.md            # Hardware wiring guide (I2C bus, pinouts, troubleshooting)
-│   └── esp32_athlete_tracker/     # Production Arduino C++ firmware for ESP32
+├── twin/                           # Core application package
+│   ├── __init__.py
+│   ├── contracts.py                # Versioned typed data contracts & physiological validators
+│   ├── coach.py                    # Stateful Athlete Twin, personalization & prediction tracker
+│   ├── telemetry.py                # Signal processing, sliding-window vitals & data quality diagnostics
+│   ├── simulator.py                # Biomechanical What-If simulation engine
+│   ├── registry.py                 # Multi-athlete squad registry
+│   ├── bridge.py                   # Hardware USB-Serial bridge with automatic reconnect
+│   └── storage.py                  # Zero-dependency SQLite WAL persistence vault
 │
-├── test_forensics_e2e.py          # Forensic test suite (data contracts, security, APIs, feedback loop)
-├── test_ai_coach.py               # Unit tests for personalized AI coach and What-If simulation
-├── test_telemetry.py              # Unit tests for physiological signal processing
-├── test_e2e_api.py                # End-to-end integration tests for Flask routes
-└── requirements.txt               # Locked dependencies (Flask, NumPy, Pandas, Scikit-Learn)
+├── ml/                             # Training & models
+│   ├── train.py                    # ML training pipeline with chronological holdout & model card exporter
+│   ├── generate_data.py            # Parametric longitudinal synthetic dataset generator
+│   ├── model_card.json             # Verifiable model card artifact with empirical holdout metrics
+│   ├── models/                     # Serialized machine learning models & feature contracts
+│   │   ├── twin_fatigue_model.pkl
+│   │   ├── twin_recovery_model.pkl
+│   │   └── twin_features.json
+│   └── data/
+│       └── synthetic_athlete_dataset.csv
+│
+├── static/                         # Frontend presentation cockpit
+│   ├── index.html                  # Semantic HTML5 multi-view application cockpit
+│   ├── app.js                      # Unified frontend controller (SSE streams, routing, modals, charts)
+│   ├── style.css                   # Modern CSS design system (glassmorphism, tokens, responsive layout)
+│   └── images/                     # Athlete avatar and UI graphic assets
+│
+├── firmware/                       # Hardware edge firmware
+│   ├── WIRING_GUIDE.md             # Hardware wiring guide (I2C bus, pinouts, troubleshooting)
+│   └── esp32_athlete_tracker/      # Production Arduino C++ firmware for ESP32
+│       └── esp32_athlete_tracker.ino
+│
+├── tests/                          # Automated verification test suite
+│   ├── __init__.py
+│   ├── test_ai_coach.py            # Unit tests for personalized AI coach and What-If simulation
+│   ├── test_telemetry.py           # Unit tests for physiological signal processing
+│   ├── test_e2e_api.py             # End-to-end integration tests for Flask routes
+│   ├── test_forensics_e2e.py       # Forensic test suite (data contracts, security, feedback loop)
+│   ├── test_registry.py            # Multi-athlete registry and squad state tests
+│   ├── test_simulator.py           # Biomechanical simulation resilience & mechanistic fallback tests
+│   └── test_storage.py             # SQLite WAL persistence & ledger tests
+│
+├── scripts/                        # Operational utility scripts
+│   └── verify_live_system.py       # End-to-end live server & hardware verification script
+│
+└── docs/                           # Architecture notes and scientific specifications
 ```
 
 ---
@@ -201,9 +233,9 @@ pip install -r requirements.txt
 
 ### 3. Retrain Models & Generate Model Card *(Optional)*
 ```bash
-python train_digital_twin.py
+python ml/train.py
 ```
-This trains the dual ensemble Random Forests on the 180-day longitudinal athlete dataset and updates `model_card.json`.
+This trains the dual ensemble Random Forests on the 180-day longitudinal athlete dataset and updates `ml/model_card.json`.
 
 ### 4. Run the Platform
 ```bash
@@ -218,15 +250,16 @@ http://localhost:5000
 
 ## 🧪 Test Suite & Forensic Verification
 
-Run the complete 30-test suite across unit, contract, integration, and security layers:
+Run the complete 47-test suite across unit, contract, integration, and security layers:
 
 ```bash
 python -m unittest discover -p "test_*.py"
 ```
+*(or explicitly specify test directory: `python -m unittest discover -s tests -p "test_*.py"`)*
 
 Expected output:
 ```text
-Ran 30 tests in 0.35s
+Ran 47 tests in 0.95s
 
 OK
 ```
@@ -235,6 +268,9 @@ OK
 - **`test_forensics_e2e.py` (11 Tests)**: Validates strict data contracts, rejection of impossible sensor packets (HR > 240, SpO2 < 70%), HTTP security headers (`nosniff`, `SAMEORIGIN`), model card integrity, data quality reporting, prediction-vs-actual feedback ledger, and coach team overview.
 - **`test_ai_coach.py` (8 Tests)**: Validates Banister TRIMP, ACWR calculations, personalization tiers, What-If simulation comparisons, and recommendation factor attribution.
 - **`test_telemetry.py` (7 Tests)**: Validates sliding-window heart rate averaging, cadence computation, gravity compensation, and sensor error fallbacks.
+- **`test_storage.py` (6 Tests)**: Validates SQLite WAL mode, schema initialization, baseline profiles, feedback ledger, session history, and audit logging.
+- **`test_registry.py` (6 Tests)**: Validates multi-athlete registry, squad overview, active athlete routing, and hardware device mapping.
+- **`test_simulator.py` (5 Tests)**: Validates biomechanical What-If forward simulation, mechanistic Banister fallback, ML inference, and overtraining risk assessment.
 - **`test_e2e_api.py` (4 Tests)**: Validates REST API responses, mock streaming activation, and session check-in ingestion.
 
 ---

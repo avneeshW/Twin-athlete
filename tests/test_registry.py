@@ -9,12 +9,15 @@ Verifies:
 6. Squad-level ACWR, risk distribution, and squad summary computation.
 """
 
+import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 import unittest
 import tempfile
-import os
-from storage import StorageVault
-from registry_engine import AthleteRegistry, DigitalTwin
-import ai_coach_engine
+from twin.storage import StorageVault
+from twin.registry import AthleteRegistry, DigitalTwin
+from twin import coach as ai_coach_engine
 
 
 class TestAthleteRegistry(unittest.TestCase):

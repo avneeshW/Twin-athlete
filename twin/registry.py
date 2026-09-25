@@ -12,8 +12,12 @@ import math
 from typing import Dict, Any, List, Optional, Tuple
 import numpy as np
 
-import ai_coach_engine
-from storage import vault
+try:
+    from . import coach as ai_coach_engine
+    from .storage import vault
+except Exception:
+    from twin import coach as ai_coach_engine
+    from twin.storage import vault
 
 
 class DigitalTwin:

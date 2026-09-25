@@ -3,9 +3,14 @@ import math
 from collections import deque
 import numpy as np
 
-import simulator
-import twin_contracts
-from twin_contracts import HR_MIN_BPM, HR_MAX_BPM, SPO2_MIN_PCT, SPO2_MAX_PCT, MAX_ACCEL_G
+try:
+    from . import simulator
+    from . import contracts as twin_contracts
+    from .contracts import HR_MIN_BPM, HR_MAX_BPM, SPO2_MIN_PCT, SPO2_MAX_PCT, MAX_ACCEL_G
+except Exception:
+    from twin import simulator
+    from twin import contracts as twin_contracts
+    from twin.contracts import HR_MIN_BPM, HR_MAX_BPM, SPO2_MIN_PCT, SPO2_MAX_PCT, MAX_ACCEL_G
 
 
 class TelemetryEngine:
