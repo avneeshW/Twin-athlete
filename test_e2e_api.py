@@ -72,6 +72,47 @@ class TestE2EIntegration(unittest.TestCase):
         self.assertIn("twin_status", data)
         self.assertIn("device", data)
 
+    def test_multi_athlete_api_endpoints(self):
+        # 1. List athletes
+        res = self.client.get("/api/athletes")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertIn("athletes", data)
+        self.assertGreaterEqual(len(data["athletes"]), 5)
+        self.assertEqual(data["active_athlete_id"], "ATH-0824")
+
+        # 2. Coach squad overview
+        res_coach = self.client.get("/api/coach/team-overview")
+        self.assertEqual(res_coach.status_code, 200)
+        coach_data = res_coach.get_json()
+        self.assertIn("roster", coach_data)
+        self.assertIn("average_readiness", coach_data)
+        self.assertGreaterEqual(coach_data["squad_size"], 5)
+
+        # 3. Switch active athlete
+        res_switch = self.client.post("/api/athlete/switch", json={"athlete_id": "ATH-0102"})
+        self.assertEqual(res_switch.status_code, 200)
+        switch_data = res_switch.get_json()
+        self.assertTrue(switch_data["success"])
+        self.assertEqual(switch_data["active_athlete_id"], "ATH-0102")
+
+        # 4. Map hardware device
+        res_map = self.client.post("/api/devices/map", json={
+            "device_id": "ESP32-ATH-TEST",
+            "athlete_id": "ATH-0102"
+        })
+        self.assertEqual(res_map.status_code, 200)
+        self.assertTrue(res_map.get_json()["success"])
+
+        # 5. Check device mappings
+        res_mappings = self.client.get("/api/devices/mappings")
+        self.assertEqual(res_mappings.status_code, 200)
+        self.assertEqual(res_mappings.get_json()["mappings"].get("ESP32-ATH-TEST"), "ATH-0102")
+
+        # 6. Switch back to ATH-0824 for test isolation
+        self.client.post("/api/athlete/switch", json={"athlete_id": "ATH-0824"})
+
 
 if __name__ == "__main__":
     unittest.main()
+

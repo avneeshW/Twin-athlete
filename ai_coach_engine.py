@@ -29,16 +29,24 @@ try:
 except Exception as e:
     print(f"[AI Coach Engine] Warning: ML models could not be loaded: {e}")
 
+# Zero-dependency persistent SQLite storage vault
+try:
+    from storage import vault
+except Exception as e:
+    vault = None
+
+
 
 # ==============================================================================
 # 1. PERSISTENT ATHLETE PROFILE MODEL
 # ==============================================================================
 class AthleteProfile:
     """Persistent physiological and bio-demographic model of the individual athlete."""
-    def __init__(self):
-        self.athlete_id = "ATH-0824"
+    def __init__(self, athlete_id: str = "ATH-0824"):
+        self.athlete_id = athlete_id
         self.name = "Daniel Saji"
         self.sport = "Football / Midfield Runner"
+        self.position = "Midfield / Box-to-Box"
         self.age = 24
         self.height_cm = 182
         self.weight_kg = 75.5
@@ -49,6 +57,29 @@ class AthleteProfile:
         self.typical_sleep_baseline = 7.8   # hours
         self.dominant_leg = "Right"
         self.history_days = 180
+
+        # Load persisted baseline from SQLite if available
+        if vault is not None:
+            try:
+                saved = vault.get_athlete_profile(self.athlete_id)
+                if saved:
+                    self.name = saved.get("name", self.name)
+                    self.sport = saved.get("sport", self.sport)
+                    self.position = saved.get("position", self.position)
+                    self.age = int(saved.get("age", self.age))
+                    self.height_cm = float(saved.get("height_cm", self.height_cm))
+                    self.weight_kg = float(saved.get("weight_kg", self.weight_kg))
+                    self.resting_hr_baseline = float(saved.get("resting_hr_baseline", self.resting_hr_baseline))
+                    self.max_hr = float(saved.get("max_hr", self.max_hr))
+                    self.vo2_max = float(saved.get("vo2_max", self.vo2_max))
+                    self.chronic_load_baseline = float(saved.get("chronic_load_baseline", self.chronic_load_baseline))
+                    self.typical_sleep_baseline = float(saved.get("typical_sleep_baseline", self.typical_sleep_baseline))
+                    self.history_days = int(saved.get("history_days", self.history_days))
+                    self.dominant_leg = saved.get("dominant_leg", self.dominant_leg)
+                else:
+                    vault.save_athlete_profile(self.to_dict())
+            except Exception as e:
+                print(f"[AthleteProfile] Warning loading from storage: {e}")
 
     @property
     def personalization_tier(self) -> str:
@@ -77,17 +108,30 @@ class AthleteProfile:
         if new_chronic_load is not None and new_chronic_load > 0:
             self.chronic_load_baseline = round(float(new_chronic_load), 1)
 
+        if vault is not None:
+            try:
+                vault.save_athlete_profile(self.to_dict())
+            except Exception:
+                pass
+
     def reset_baseline(self):
         """Resets baseline to factory sport defaults."""
         self.resting_hr_baseline = 54.0
         self.typical_sleep_baseline = 7.8
         self.chronic_load_baseline = 42.0
 
+        if vault is not None:
+            try:
+                vault.save_athlete_profile(self.to_dict())
+            except Exception:
+                pass
+
     def to_dict(self):
         return {
             "athlete_id": self.athlete_id,
             "name": self.name,
             "sport": self.sport,
+            "position": getattr(self, "position", "Midfield Runner"),
             "age": self.age,
             "height_cm": self.height_cm,
             "weight_kg": self.weight_kg,
@@ -663,10 +707,28 @@ class PredictionOutcomeTracker:
     """
     Closes the Digital Twin feedback loop by tracking prospective predictions,
     recording subsequent ground-truth observed outcomes, and monitoring MAE drift over time.
+    Persisted via SQLite with WAL mode.
     """
-    def __init__(self):
+    def __init__(self, athlete_id: str = "ATH-0824"):
+        self.athlete_id = athlete_id
         self.records: list[dict] = []
-        self._seed_historical_outcomes()
+        if vault is not None:
+            try:
+                stored_count = vault.count_feedback_records(athlete_id=self.athlete_id)
+                if stored_count > 0:
+                    self.records = vault.get_all_feedback_records(athlete_id=self.athlete_id)
+                elif self.athlete_id == "ATH-0824":
+                    self._seed_historical_outcomes()
+                    for r in self.records:
+                        vault.save_feedback_record(r)
+                else:
+                    self.records = []
+            except Exception as e:
+                print(f"[PredictionOutcomeTracker] Storage fallback: {e}")
+                if self.athlete_id == "ATH-0824":
+                    self._seed_historical_outcomes()
+        elif self.athlete_id == "ATH-0824":
+            self._seed_historical_outcomes()
 
     def _seed_historical_outcomes(self):
         """
@@ -706,14 +768,17 @@ class PredictionOutcomeTracker:
                 "error": err,
                 "percentage_error": pct_err,
                 "status": "VERIFIED",
-                "status_color": "green" if err <= 3.0 else "amber"
+                "status_color": "green" if err <= 3.0 else "amber",
+                "created_at": time.time() - (14 - i) * 86400,
+                "verified_at": time.time() - (14 - i) * 86400 + 3600
             })
 
     def record_prediction(self, target_metric: str, predicted_val: float, scenario_name: str = "What-If Simulation") -> str:
         """Logs a new prospective prediction into the tracking ledger."""
         pred_id = f"PRED-{len(self.records) + 1001}"
-        self.records.append({
+        rec = {
             "id": pred_id,
+            "athlete_id": self.athlete_id,
             "date": time.strftime("%d %b %Y • %I:%M %p"),
             "metric": target_metric,
             "scenario": scenario_name,
@@ -723,12 +788,21 @@ class PredictionOutcomeTracker:
             "error": None,
             "percentage_error": None,
             "status": "PENDING_VERIFICATION",
-            "status_color": "cyan"
-        })
+            "status_color": "cyan",
+            "created_at": time.time(),
+            "verified_at": None
+        }
+        self.records.append(rec)
+        if vault is not None:
+            try:
+                vault.save_feedback_record(rec)
+            except Exception:
+                pass
         return pred_id
 
     def record_outcome(self, prediction_id: str, observed_val: float) -> bool:
         """Closes the loop by matching an observed value to a previously logged prediction."""
+        now = time.time()
         for rec in self.records:
             if rec["id"] == prediction_id and rec["status"] == "PENDING_VERIFICATION":
                 rec["observed"] = round(float(observed_val), 1)
@@ -736,7 +810,21 @@ class PredictionOutcomeTracker:
                 rec["error"] = err
                 rec["percentage_error"] = round((err / rec["observed"]) * 100.0, 1) if rec["observed"] > 0 else 0.0
                 rec["status"] = "VERIFIED"
-                rec["status_color"] = "green" if err <= 3.0 else ("amber" if err <= 6.0 else "red")
+                status_color = "green" if err <= 3.0 else ("amber" if err <= 6.0 else "red")
+                rec["status_color"] = status_color
+                rec["verified_at"] = now
+                if vault is not None:
+                    try:
+                        vault.update_feedback_outcome(
+                            pred_id=prediction_id,
+                            observed=rec["observed"],
+                            error=err,
+                            pct_error=rec["percentage_error"],
+                            status_color=status_color,
+                            verified_at=now
+                        )
+                    except Exception:
+                        pass
                 return True
         return False
 
@@ -769,4 +857,12 @@ class PredictionOutcomeTracker:
 # Centralized application singletons
 athlete_profile = AthleteProfile()
 prediction_tracker = PredictionOutcomeTracker()
+
+
+def get_registry():
+    """Lazy-loader for AthleteRegistry singleton to avoid circular dependencies."""
+    import registry_engine
+    return registry_engine.registry
+
+
 

@@ -14,6 +14,12 @@ import generate_data
 import ai_coach_engine
 import twin_contracts
 from telemetry_engine import engine
+from registry_engine import registry
+
+try:
+    from storage import vault
+except Exception:
+    vault = None
 
 app = Flask(__name__, static_folder="static", static_url_path="")
 
@@ -609,6 +615,17 @@ def ingest_esp32_telemetry():
 
     analyzed_state = engine.process_telemetry(payload)
     broadcast_sse(analyzed_state)
+
+    # Route vital metrics to mapped athlete twin in registry
+    dev_id = payload.get("device_id")
+    target_athlete_id = registry.get_athlete_for_device(dev_id)
+    target_twin = registry.get_twin(target_athlete_id)
+    if target_twin:
+        target_twin.update_vitals(
+            hr=analyzed_state["vitals"]["heart_rate"]["value"],
+            spo2=analyzed_state["vitals"]["spo2"]["value"]
+        )
+
     return jsonify({
         "status": "success",
         "provenance": engine.data_provenance,
@@ -704,7 +721,30 @@ def handle_mock_feed():
 
 @app.route("/api/session/reset", methods=["POST"])
 def reset_session():
-    """Resets the active workout metrics and step counter."""
+    """Resets the active workout metrics, step counter, and archives session to SQLite vault."""
+    if vault is not None and len(engine.all_hr_readings) > 0:
+        try:
+            now = time.time()
+            dur = max(1.0, now - engine.session_start_time)
+            session_summary = {
+                "session_id": f"SES-{int(engine.session_start_time)}",
+                "athlete_id": "ATH-0824",
+                "start_time": engine.session_start_time,
+                "end_time": now,
+                "duration_sec": round(dur, 1),
+                "avg_hr": round(float(np.mean(engine.all_hr_readings)), 1),
+                "peak_hr": round(float(np.max(engine.all_hr_readings)), 1),
+                "avg_spo2": 98.0,
+                "calories": round(engine.total_calories, 1),
+                "steps": engine.step_count,
+                "training_load": round((dur / 60.0) * 0.7, 1),
+                "activity": "Running",
+                "hr_zone_distribution": {}
+            }
+            vault.save_session(session_summary)
+        except Exception:
+            pass
+
     engine.reset_session()
     return jsonify({
         "success": True,
@@ -780,92 +820,93 @@ def record_outcome():
 
 @app.route("/api/coach/team-overview", methods=["GET"])
 def get_team_overview():
-    """Multi-athlete squad overview for Coach View."""
+    """Multi-athlete squad overview for Coach View powered by AthleteRegistry."""
+    # Synchronize live telemetry values from active device into active athlete
+    active_twin = registry.get_active_twin()
     latest = engine.get_latest_state()
-    daniel_readiness = latest.get("twin_status", {}).get("performance_value", 85.0)
+    if active_twin.athlete_id == "ATH-0824":
+        active_twin.current_fatigue = latest.get("twin_status", {}).get("fatigue_value", active_twin.current_fatigue)
+        active_twin.current_recovery = latest.get("twin_status", {}).get("recovery_value", active_twin.current_recovery)
 
-    squad = [
-        {
-            "id": "ATH-0824",
-            "name": "Daniel Saji",
-            "position": "Midfield / Box-to-Box",
-            "readiness": daniel_readiness,
-            "fatigue": latest.get("twin_status", {}).get("fatigue_value", 38.0),
-            "recovery": latest.get("twin_status", {}).get("recovery_value", 78.0),
-            "acwr": 1.09,
-            "status": "Optimal",
-            "status_color": "green",
-            "recommendation": "High Intensity Tactical / Sprints",
-            "wearable_connected": engine.last_packet_time is not None and (time.time() - engine.last_packet_time < 4.0),
-            "active_squad": True
-        },
-        {
-            "id": "ATH-0102",
-            "name": "Marcus Vance",
-            "position": "Center Forward",
-            "readiness": 71.0,
-            "fatigue": 54.0,
-            "recovery": 66.0,
-            "acwr": 1.38,
-            "status": "High Workload Spike",
-            "status_color": "amber",
-            "recommendation": "Cap session at 45 min; tempo only",
-            "wearable_connected": False,
-            "active_squad": True
-        },
-        {
-            "id": "ATH-0315",
-            "name": "Leo Sterling",
-            "position": "Fullback",
-            "readiness": 62.0,
-            "fatigue": 64.0,
-            "recovery": 55.0,
-            "acwr": 1.42,
-            "status": "High Fatigue / Deload",
-            "status_color": "red",
-            "recommendation": "Active recovery pool deload today",
-            "wearable_connected": False,
-            "active_squad": True
-        },
-        {
-            "id": "ATH-0442",
-            "name": "Kai Chen",
-            "position": "Central Defender",
-            "readiness": 88.0,
-            "fatigue": 28.0,
-            "recovery": 84.0,
-            "acwr": 1.12,
-            "status": "Peak Readiness",
-            "status_color": "green",
-            "recommendation": "Clear for full match simulation",
-            "wearable_connected": False,
-            "active_squad": True
-        },
-        {
-            "id": "ATH-0588",
-            "name": "Elena Rostova",
-            "position": "Winger",
-            "readiness": 81.0,
-            "fatigue": 36.0,
-            "recovery": 79.0,
-            "acwr": 1.18,
-            "status": "Optimal",
-            "status_color": "green",
-            "recommendation": "Tactical drills & set pieces",
-            "wearable_connected": False,
-            "active_squad": True
-        }
-    ]
+    if engine.last_packet_time is not None:
+        active_twin.wearable_connected = (time.time() - engine.last_packet_time < 5.0)
 
+    summary = registry.get_squad_summary()
+    summary["team_name"] = "TwinAthlete FC (Collegiate Squad)"
+    summary["avg_readiness"] = summary.get("average_readiness", 80.0)
+    return jsonify(summary), 200
+
+
+@app.route("/api/athletes", methods=["GET"])
+def list_squad_athletes():
+    """Returns roster list of all athletes in registry."""
     return jsonify({
-        "team_name": "TwinAthlete FC (Collegiate Squad)",
-        "squad_size": len(squad),
-        "avg_readiness": round(sum(p["readiness"] for p in squad) / len(squad), 1),
-        "optimal_count": sum(1 for p in squad if p["status_color"] == "green"),
-        "caution_count": sum(1 for p in squad if p["status_color"] == "amber"),
-        "high_risk_count": sum(1 for p in squad if p["status_color"] == "red"),
-        "roster": squad
+        "active_athlete_id": registry.get_active_athlete_id(),
+        "athletes": registry.list_athletes()
     }), 200
+
+
+@app.route("/api/athlete/switch", methods=["POST"])
+def switch_active_athlete():
+    """Switches the active athlete for the cockpit."""
+    data = request.get_json(silent=True) or {}
+    athlete_id = data.get("athlete_id")
+    if not athlete_id:
+        return jsonify({"success": False, "error": "Field 'athlete_id' is required."}), 400
+
+    success = registry.set_active_athlete(athlete_id)
+    if success:
+        active_profile = registry.get_active_profile()
+        return jsonify({
+            "success": True,
+            "message": f"Active athlete switched to {active_profile.name} ({athlete_id})",
+            "active_athlete_id": athlete_id,
+            "profile": active_profile.to_dict()
+        }), 200
+    return jsonify({"success": False, "error": f"Athlete '{athlete_id}' not found."}), 404
+
+
+@app.route("/api/athlete/register", methods=["POST"])
+def register_new_athlete():
+    """Registers a new squad athlete in the registry and database."""
+    data = request.get_json(silent=True) or {}
+    name = data.get("name")
+    if not name:
+        return jsonify({"success": False, "error": "Athlete 'name' is required."}), 400
+
+    twin = registry.register_athlete(data)
+    return jsonify({
+        "success": True,
+        "message": f"Athlete '{name}' registered successfully.",
+        "athlete": twin.get_summary()
+    }), 201
+
+
+@app.route("/api/devices/mappings", methods=["GET"])
+def get_device_mappings():
+    """Returns all hardware device_id -> athlete_id mappings."""
+    mappings = registry.vault.get_all_device_mappings() if registry.vault else {}
+    return jsonify({"mappings": mappings}), 200
+
+
+@app.route("/api/devices/map", methods=["POST"])
+def map_hardware_device():
+    """Maps an ESP32 hardware device_id to a specific athlete_id."""
+    data = request.get_json(silent=True) or {}
+    device_id = data.get("device_id")
+    athlete_id = data.get("athlete_id")
+    if not device_id or not athlete_id:
+        return jsonify({"success": False, "error": "Fields 'device_id' and 'athlete_id' are required."}), 400
+
+    success = registry.map_device(device_id, athlete_id)
+    if success:
+        return jsonify({
+            "success": True,
+            "message": f"Device '{device_id}' mapped to athlete '{athlete_id}'.",
+            "device_id": device_id,
+            "athlete_id": athlete_id
+        }), 200
+    return jsonify({"success": False, "error": f"Athlete '{athlete_id}' not found."}), 404
 
 
 @app.route("/api/athlete/baseline", methods=["POST"])
@@ -898,9 +939,41 @@ def get_privacy_policy():
     }), 200
 
 
+@app.route("/api/history/sessions", methods=["GET"])
+def get_recorded_sessions():
+    """Returns past workout sessions persisted in SQLite."""
+    if vault is not None:
+        try:
+            athlete_id = request.args.get("athlete_id", "ATH-0824")
+            limit = int(request.args.get("limit", 20))
+            sessions = vault.get_recent_sessions(athlete_id=athlete_id, limit=limit)
+            return jsonify({"sessions": sessions, "count": len(sessions)}), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    return jsonify({"sessions": [], "count": 0}), 200
+
+
 @app.route("/api/audit-log", methods=["GET"])
 def get_audit_log():
-    """Returns recent system audit events."""
+    """Returns recent system audit events from SQLite persistence vault."""
+    if vault is not None:
+        try:
+            stored_events = vault.get_audit_events(limit=20)
+            if not stored_events:
+                now = time.time()
+                initial_events = [
+                    ("EVT-101", "MODEL_LOAD", "INFO", "simulator", {"details": "Dual Ensemble RF models (fatigue, recovery) or Banister fallback initialized."}, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now - 3600))),
+                    ("EVT-102", "DATA_CONTRACT", "INFO", "twin_contracts", {"details": "Validation schema v2.4 initialized with physiological bounds."}, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now - 1800))),
+                    ("EVT-103", "SECURITY_POLICY", "INFO", "security", {"details": "HTTP security headers and rate limiter (35 req/s) enforced."}, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now - 600))),
+                    ("EVT-104", "CALIBRATION", "INFO", "telemetry_engine", {"details": "6-DOF IMU accelerometer zero-bias calibrated for athlete session."}, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now - 60)))
+                ]
+                for eid, etype, sev, src, det, ts in initial_events:
+                    vault.save_audit_event(eid, etype, sev, src, det, timestamp_str=ts)
+                stored_events = vault.get_audit_events(limit=20)
+            return jsonify({"events": stored_events}), 200
+        except Exception:
+            pass
+
     now = time.time()
     events = [
         {"id": "EVT-101", "timestamp": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now - 3600)), "type": "MODEL_LOAD", "details": "Dual Ensemble RF models (fatigue, recovery) loaded from disk."},

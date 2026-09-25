@@ -49,3 +49,9 @@ desktop.ini
 *.log
 cloudflared*
 .agents/
+
+# SQLite databases & journals
+*.db
+*.db-wal
+*.db-shm
+

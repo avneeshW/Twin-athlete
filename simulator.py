@@ -1,16 +1,29 @@
+import os
 import json
-import joblib
 import numpy as np
 import pandas as pd
 
-# 1. Load Trained Twin Models & Feature Definitions
-model_fatigue = joblib.load("twin_fatigue_model.pkl")
-model_recovery = joblib.load("twin_recovery_model.pkl")
+# 1. Load Trained Twin Models & Feature Definitions with Graceful Fallback
+MODEL_FATIGUE = None
+MODEL_RECOVERY = None
+
+try:
+    import joblib
+    if os.path.exists("twin_fatigue_model.pkl"):
+        MODEL_FATIGUE = joblib.load("twin_fatigue_model.pkl")
+    if os.path.exists("twin_recovery_model.pkl"):
+        MODEL_RECOVERY = joblib.load("twin_recovery_model.pkl")
+except Exception as e:
+    print(f"[Simulator] Warning: ML models could not be loaded ({e}). Using deterministic Banister impulse-response kinetics.")
+
+# Backward compatibility references
+model_fatigue = MODEL_FATIGUE
+model_recovery = MODEL_RECOVERY
 
 try:
     with open("twin_features.json") as f:
         FEATURES = json.load(f)["features"]
-except FileNotFoundError:
+except Exception:
     FEATURES = ["prev_fatigue", "prev_recovery", "sleep_hours", "workout_duration_min", "workout_intensity", "daily_load"]
 
 # Standard preset workout profiles
@@ -27,23 +40,57 @@ def simulate_single_step(current_fatigue: float, current_recovery: float, sleep_
                          duration: int, intensity: float) -> dict:
     """
     Executes a 1-day forward step for the digital twin without scikit-learn feature name warnings.
-    Returns the predicted next-day physiological state.
+    Returns the predicted next-day physiological state using trained Random Forest regressors if available,
+    or deterministic Banister impulse-response kinetics as a robust mechanistic fallback.
     """
     daily_load = round(float(duration) * float(intensity), 1)
 
-    # Pass as DataFrame matching feature column names to eliminate scikit-learn warnings
-    input_df = pd.DataFrame([{
-        "prev_fatigue": float(current_fatigue),
-        "prev_recovery": float(current_recovery),
-        "sleep_hours": float(sleep_hours),
-        "workout_duration_min": int(duration),
-        "workout_intensity": float(intensity),
-        "daily_load": daily_load
-    }])[FEATURES]
+    pred_fatigue = None
+    pred_recovery = None
 
-    # Predict future twin state
-    pred_fatigue = np.clip(float(model_fatigue.predict(input_df)[0]), 5.0, 98.0)
-    pred_recovery = np.clip(float(model_recovery.predict(input_df)[0]), 10.0, 99.0)
+    # Check both module-level references (in case caller sets model_fatigue or MODEL_FATIGUE)
+    active_fatigue_model = MODEL_FATIGUE if MODEL_FATIGUE is not None else model_fatigue
+    active_recovery_model = MODEL_RECOVERY if MODEL_RECOVERY is not None else model_recovery
+
+    # 1. High-fidelity Machine Learning Inference
+    if active_fatigue_model is not None and active_recovery_model is not None:
+        try:
+            input_df = pd.DataFrame([{
+                "prev_fatigue": float(current_fatigue),
+                "prev_recovery": float(current_recovery),
+                "sleep_hours": float(sleep_hours),
+                "workout_duration_min": int(duration),
+                "workout_intensity": float(intensity),
+                "daily_load": daily_load
+            }])[FEATURES]
+
+            pred_fatigue = float(active_fatigue_model.predict(input_df)[0])
+            pred_recovery = float(active_recovery_model.predict(input_df)[0])
+        except Exception:
+            pred_fatigue = None
+            pred_recovery = None
+
+    # 2. Mechanistic Banister 2-Component Impulse-Response Fallback
+    if pred_fatigue is None or pred_recovery is None:
+        # Sleep restoration factor: 8 hours = 1.0; bounds [0.5, 1.5]
+        sleep_factor = max(0.5, min(1.5, float(sleep_hours) / 8.0))
+
+        # Banister fatigue kinetics:
+        # Decayed previous fatigue + acute dose from daily training load
+        decay_rate = 0.65 / sleep_factor
+        acute_dose = daily_load * 0.60
+        pred_fatigue = (float(current_fatigue) * decay_rate) + acute_dose
+
+        # Recovery restoration kinetics:
+        # Sleep provides base restorative boost; residual fatigue drains recovery
+        base_recovery = (float(sleep_hours) / 8.0) * 85.0
+        fatigue_drain = float(current_fatigue) * 0.25
+        rebound_bonus = 6.0 if float(intensity) < 0.40 else 0.0
+        pred_recovery = base_recovery - fatigue_drain + rebound_bonus
+
+    # Ensure strictly bounded physiological ranges
+    pred_fatigue = np.clip(float(pred_fatigue), 5.0, 98.0)
+    pred_recovery = np.clip(float(pred_recovery), 10.0, 99.0)
 
     # Derived physiological indicators
     pred_resting_hr = round(52.0 + ((100.0 - pred_recovery) * 0.18), 1)
@@ -51,8 +98,8 @@ def simulate_single_step(current_fatigue: float, current_recovery: float, sleep_
 
     return {
         "daily_load": daily_load,
-        "predicted_fatigue": round(pred_fatigue, 1),
-        "predicted_recovery": round(pred_recovery, 1),
+        "predicted_fatigue": round(float(pred_fatigue), 1),
+        "predicted_recovery": round(float(pred_recovery), 1),
         "predicted_resting_hr": pred_resting_hr,
         "predicted_performance": pred_performance
     }
