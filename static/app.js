@@ -53,10 +53,32 @@ document.addEventListener("DOMContentLoaded", () => {
   initForensicAuditorControls();
 
   // Support direct deep-linking via hash (e.g. #analytics, #digital-twin, #what-if, #accuracy, #coach-squad, #auditor-center)
-  const hash = window.location.hash.replace("#", "");
-  if (hash && ["dashboard", "live-data", "training-sessions", "analytics", "digital-twin", "what-if", "settings", "accuracy", "coach-squad", "auditor-center"].includes(hash)) {
-    switchView(hash);
+  const validViews = ["dashboard", "live-data", "training-sessions", "analytics", "digital-twin", "what-if", "settings", "accuracy", "coach-squad", "auditor-center"];
+
+  function handleHashNavigation() {
+    const rawHash = window.location.hash.replace("#", "");
+    if (rawHash && validViews.includes(rawHash)) {
+      switchView(rawHash);
+    }
   }
+
+  handleHashNavigation();
+  window.addEventListener("hashchange", handleHashNavigation);
+
+  // Global delegated click handler for in-page anchors
+  document.addEventListener("click", (e) => {
+    const anchor = e.target.closest('a[href^="#"]');
+    if (!anchor) return;
+    const targetHash = anchor.getAttribute("href").replace("#", "");
+    if (validViews.includes(targetHash)) {
+      e.preventDefault();
+      switchView(targetHash);
+      if (window.history && window.history.pushState) {
+        window.history.pushState(null, null, "#" + targetHash);
+      }
+      closeMobileDrawer();
+    }
+  });
 });
 
 /* ==============================================================================
@@ -172,6 +194,9 @@ function openMobileDrawer() {
   if (backdrop) backdrop.classList.add("active");
   if (toggle) toggle.setAttribute("aria-expanded", "true");
   document.body.style.overflow = "hidden";
+  if (window.TwinMotion && typeof window.TwinMotion.stopScroll === "function") {
+    window.TwinMotion.stopScroll();
+  }
 }
 
 function closeMobileDrawer() {
@@ -182,6 +207,9 @@ function closeMobileDrawer() {
   if (backdrop) backdrop.classList.remove("active");
   if (toggle) toggle.setAttribute("aria-expanded", "false");
   document.body.style.overflow = "";
+  if (window.TwinMotion && typeof window.TwinMotion.startScroll === "function") {
+    window.TwinMotion.startScroll();
+  }
 }
 
 function toggleMobileDrawer() {
@@ -245,6 +273,12 @@ function switchView(viewName) {
   } else if (viewName === "what-if") {
     if (!document.getElementById("microcycleGrid").children.length) {
       renderMicrocycleInputs("standard");
+    } else if (cachedScheduleDays) {
+      requestAnimationFrame(() => {
+        renderScheduleTrajectoryChart(cachedScheduleDays);
+      });
+    } else {
+      runScheduleSimulation();
     }
   } else if (viewName === "accuracy") {
     loadPredictionAccuracy();
@@ -605,6 +639,12 @@ function updateTwinUI(status) {
     const clampedR = Math.min(100, Math.max(0, rVal));
     const offset = circumference * (1 - (clampedR / 100));
     donutCircle.style.strokeDashoffset = offset;
+    const strokeColor = clampedR >= 67 ? "#00E676" : (clampedR >= 34 ? "#FFD60A" : "#FF453A");
+    donutCircle.style.stroke = strokeColor;
+    const donutSvg = donutCircle.closest("svg");
+    if (donutSvg) {
+      donutSvg.style.filter = `drop-shadow(0 0 12px ${strokeColor}66)`;
+    }
   }
 
   // 2. Overview Stack Indicators
@@ -1162,6 +1202,21 @@ function initWhatIfMicrocycleView() {
     runSimBtn.addEventListener("click", runScheduleSimulation);
   }
 
+  // Auto-render trajectory when canvas dimensions become positive (e.g. view switch)
+  const trajCanvas = document.getElementById("scheduleTrajectoryChart");
+  if (trajCanvas && window.ResizeObserver) {
+    const trajObserver = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        if (entry.contentRect.width > 0 && cachedScheduleDays) {
+          renderScheduleTrajectoryChart(cachedScheduleDays);
+        }
+      }
+    });
+    trajObserver.observe(trajCanvas);
+  }
+
+  initScheduleTrajectoryTooltip();
+
   // Initial render
   renderMicrocycleInputs("standard");
 }
@@ -1260,6 +1315,7 @@ async function runScheduleSimulation() {
 
     if (data.days) {
       cachedScheduleDays = data.days;
+      window.cachedScheduleDays = data.days;
       renderScheduleTrajectoryChart(data.days);
       populateScheduleTable(data.days);
     }
@@ -1278,9 +1334,9 @@ async function runScheduleSimulation() {
   }
 }
 
-function renderScheduleTrajectoryChart(days) {
+function renderScheduleTrajectoryChart(days, activeIdx = null) {
   const canvas = document.getElementById("scheduleTrajectoryChart");
-  if (!canvas || !days) return;
+  if (!canvas || !days || !days.length) return;
   const ctx = canvas.getContext("2d");
 
   const dpr = window.devicePixelRatio || 1;
@@ -1295,70 +1351,221 @@ function renderScheduleTrajectoryChart(days) {
   const h = rect.height;
   ctx.clearRect(0, 0, w, h);
 
-  const pad = { top: 15, right: 20, bottom: 25, left: 35 };
-  const plotW = w - pad.left - pad.right;
-  const plotH = h - pad.top - pad.bottom;
+  const pad = { top: 22, right: 24, bottom: 28, left: 44 };
+  const plotW = Math.max(10, w - pad.left - pad.right);
+  const plotH = Math.max(10, h - pad.top - pad.bottom);
 
-  // Grid
-  ctx.strokeStyle = "rgba(255,255,255,0.06)";
-  ctx.fillStyle = "#546580";
-  ctx.font = "10px Inter, sans-serif";
-  ctx.textAlign = "right";
+  const getX = i => pad.left + (i / Math.max(1, days.length - 1)) * plotW;
+  const getY = val => pad.top + plotH - (Math.min(100, Math.max(0, val)) / 100) * plotH;
 
+  const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+  // 1. Grid lines & Y-axis labels (WHOOP High-Contrast Style)
   [0, 25, 50, 75, 100].forEach(val => {
     const y = pad.top + plotH - (val / 100) * plotH;
     ctx.beginPath();
     ctx.moveTo(pad.left, y);
     ctx.lineTo(w - pad.right, y);
+    if (val === 0 || val === 100) {
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.14)";
+      ctx.setLineDash([]);
+    } else {
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.07)";
+      ctx.setLineDash([4, 4]);
+    }
+    ctx.lineWidth = 1;
     ctx.stroke();
-    ctx.fillText(`${val}%`, pad.left - 6, y + 3.5);
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = "#8E8E93";
+    ctx.font = "600 11px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    ctx.fillText(`${val}%`, pad.left - 8, y);
   });
 
-  const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  ctx.textAlign = "center";
-  dayNames.forEach((d, i) => {
-    const x = pad.left + (i / (dayNames.length - 1)) * plotW;
-    ctx.fillText(d, x, h - 6);
-  });
-
-  const getX = i => pad.left + (i / (days.length - 1)) * plotW;
-  const getY = val => pad.top + plotH - (Math.min(100, Math.max(0, val)) / 100) * plotH;
-
-  // Fatigue Curve (Red)
-  ctx.beginPath();
+  // 2. Day columns & vertical guides
   days.forEach((d, i) => {
     const x = getX(i);
-    const y = getY(d["Fatigue (%)"]);
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  });
-  ctx.strokeStyle = "#ef4444";
-  ctx.lineWidth = 2.4;
-  ctx.stroke();
+    const isAct = (activeIdx === i);
 
-  // Recovery Curve (Green)
-  ctx.beginPath();
-  days.forEach((d, i) => {
-    const x = getX(i);
-    const y = getY(d["Recovery (%)"]);
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  });
-  ctx.strokeStyle = "#10b981";
-  ctx.lineWidth = 2.4;
-  ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x, pad.top);
+    ctx.lineTo(x, pad.top + plotH);
+    ctx.strokeStyle = isAct ? "rgba(255, 255, 255, 0.35)" : "rgba(255, 255, 255, 0.05)";
+    ctx.lineWidth = isAct ? 1.5 : 1;
+    ctx.setLineDash([2, 2]);
+    ctx.stroke();
+    ctx.setLineDash([]);
 
-  // Performance Capacity Curve (Blue)
-  ctx.beginPath();
-  days.forEach((d, i) => {
-    const x = getX(i);
-    const y = getY(d["Performance"]);
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
+    const label = dayLabels[i] || (d.Day ? d.Day.slice(0, 3) : `D${i + 1}`);
+    ctx.fillStyle = isAct ? "#FFFFFF" : "#8E8E93";
+    ctx.font = isAct ? "700 11px Inter, sans-serif" : "600 11px Inter, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.fillText(label, x, pad.top + plotH + 8);
   });
-  ctx.strokeStyle = "#38bdf8";
-  ctx.lineWidth = 2.4;
-  ctx.stroke();
+
+  // Smooth cubic spline builder
+  function buildSmoothSpline(pts) {
+    if (pts.length < 2) return;
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[Math.max(i - 1, 0)];
+      const p1 = pts[i];
+      const p2 = pts[i + 1];
+      const p3 = pts[Math.min(i + 2, pts.length - 1)];
+
+      const cp1x = p1.x + (p2.x - p0.x) / 6;
+      const cp1y = p1.y + (p2.y - p0.y) / 6;
+      const cp2x = p2.x - (p3.x - p1.x) / 6;
+      const cp2y = p2.y - (p3.y - p1.y) / 6;
+
+      ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+    }
+  }
+
+  // Fills with Smooth Splines
+  function fillSmoothArea(key, gradColor) {
+    const pts = days.map((d, i) => ({ x: getX(i), y: getY(d[key]) }));
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pad.top + plotH);
+    ctx.lineTo(pts[0].x, pts[0].y);
+    buildSmoothSpline(pts);
+    ctx.lineTo(pts[pts.length - 1].x, pad.top + plotH);
+    ctx.closePath();
+
+    const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + plotH);
+    grad.addColorStop(0, gradColor);
+    grad.addColorStop(1, "rgba(0, 0, 0, 0)");
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }
+
+  fillSmoothArea("Recovery (%)", "rgba(0, 230, 118, 0.18)");
+  fillSmoothArea("Performance", "rgba(56, 189, 248, 0.14)");
+  fillSmoothArea("Fatigue (%)", "rgba(255, 69, 58, 0.14)");
+
+  // Lines & Nodes with Smooth Splines
+  function drawSmoothSeries(key, color, lw) {
+    const pts = days.map((d, i) => ({ x: getX(i), y: getY(d[key]) }));
+
+    // Line stroke
+    ctx.beginPath();
+    buildSmoothSpline(pts);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lw;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.stroke();
+
+    // Node markers
+    pts.forEach((pt, i) => {
+      const isAct = (activeIdx === i);
+
+      // Outer glow
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, isAct ? 6 : 4.5, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.globalAlpha = isAct ? 0.45 : 0.25;
+      ctx.fill();
+      ctx.globalAlpha = 1.0;
+
+      // Inner solid core
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, isAct ? 3.5 : 2.8, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = "#101012";
+      ctx.stroke();
+    });
+  }
+
+  drawSmoothSeries("Recovery (%)", "#00E676", 2.6);
+  drawSmoothSeries("Performance", "#38BDF8", 2.4);
+  drawSmoothSeries("Fatigue (%)", "#FF453A", 2.4);
+}
+
+function initScheduleTrajectoryTooltip() {
+  const canvas = document.getElementById("scheduleTrajectoryChart");
+  if (!canvas) return;
+  const box = canvas.parentElement;
+  if (!box) return;
+
+  box.addEventListener("mousemove", e => {
+    if (!cachedScheduleDays || !cachedScheduleDays.length) return;
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    const pad = { top: 22, right: 24, bottom: 28, left: 44 };
+    const plotW = rect.width - pad.left - pad.right;
+
+    if (mouseX < pad.left || mouseX > rect.width - pad.right) {
+      hideScheduleTooltip();
+      renderScheduleTrajectoryChart(cachedScheduleDays, null);
+      return;
+    }
+
+    const ratio = (mouseX - pad.left) / plotW;
+    const idx = Math.min(cachedScheduleDays.length - 1, Math.max(0, Math.round(ratio * (cachedScheduleDays.length - 1))));
+
+    renderScheduleTrajectoryChart(cachedScheduleDays, idx);
+    showScheduleTooltip(e, box, cachedScheduleDays[idx]);
+  });
+
+  box.addEventListener("mouseleave", () => {
+    hideScheduleTooltip();
+    if (cachedScheduleDays) {
+      renderScheduleTrajectoryChart(cachedScheduleDays, null);
+    }
+  });
+}
+
+function showScheduleTooltip(e, container, day) {
+  let tooltip = document.getElementById("scheduleChartTooltip");
+  if (!tooltip) {
+    tooltip = document.createElement("div");
+    tooltip.id = "scheduleChartTooltip";
+    tooltip.className = "chart-tooltip";
+    container.appendChild(tooltip);
+  }
+
+  const dayName = day.Day || "Session";
+  const statusColor = day.Status === "OPTIMAL" ? "#00E676" : (day.Status === "OVERREACHING" ? "#FFD60A" : "#FF453A");
+  const loadAU = Math.round(day["Daily Load"] || 0);
+  const durMin = day["Duration (min)"] || 0;
+  const intensity = day["Intensity"] ? (day["Intensity"] > 0.8 ? "High" : day["Intensity"] > 0.5 ? "Mod" : "Low") : "Rest";
+
+  tooltip.innerHTML = `
+    <div style="font-weight:700;margin-bottom:5px;color:#FFFFFF;display:flex;justify-content:space-between;gap:12px;">
+      <span>${dayName}</span>
+      <span style="color:${statusColor};font-size:0.75rem;">${day.Status || "OPTIMAL"}</span>
+    </div>
+    <div style="display:flex;gap:12px;font-size:0.76rem;margin-bottom:4px;">
+      <span style="color:#00E676;">Recovery: <strong>${(day["Recovery (%)"] || 0).toFixed(1)}%</strong></span>
+      <span style="color:#38BDF8;">Readiness: <strong>${(day["Performance"] || 0).toFixed(1)}</strong></span>
+      <span style="color:#FF453A;">Fatigue: <strong>${(day["Fatigue (%)"] || 0).toFixed(1)}%</strong></span>
+    </div>
+    <div style="font-size:0.7rem;color:#8E8E93;">Planned Workload: ${loadAU} AU | ${durMin}m (${intensity})</div>
+  `;
+  tooltip.style.display = "block";
+
+  const boxRect = container.getBoundingClientRect();
+  const mouseX = e.clientX - boxRect.left;
+  const mouseY = e.clientY - boxRect.top;
+  if (typeof positionTooltip === "function") {
+    positionTooltip(tooltip, container, mouseX, mouseY);
+  } else {
+    tooltip.style.left = `${Math.min(boxRect.width - 200, mouseX + 12)}px`;
+    tooltip.style.top = `${Math.max(10, mouseY - 70)}px`;
+  }
+}
+
+function hideScheduleTooltip() {
+  const tooltip = document.getElementById("scheduleChartTooltip");
+  if (tooltip) tooltip.style.display = "none";
 }
 
 function populateScheduleTable(days) {
