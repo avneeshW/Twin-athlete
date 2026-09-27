@@ -14,6 +14,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
   <link rel="icon" type="image/png" href="images/digital_twin_logo.png">
+  <!-- Google Fonts Preconnect & High-Performance Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 
@@ -21,6 +25,7 @@
 
   <!-- Top Application Navigation Header -->
   <header class="top-nav">
+      <span id="headerRoleBadge" style="display:none;">Athlete</span>
     <div class="nav-left-group">
       <!-- Mobile Drawer Hamburger Toggle Button -->
       <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle navigation menu" aria-expanded="false"
@@ -171,6 +176,7 @@
           </svg>
           <span>Settings</span>
         </a>
+
       </nav>
 
       <!-- Sidebar Pinned Slogan -->
@@ -186,6 +192,14 @@
            VIEW 1: DASHBOARD (EXACT SCREENSHOT LAYOUT)
            ====================================================================== -->
       <section class="view-panel active" id="view-dashboard">
+        <!-- WHOOP-Style Cinematic Low-Poly 3D Soccer Hero Background Video Layer -->
+        <div class="whoop-hero-video-bg" aria-hidden="true">
+          <video class="whoop-bg-video-element" id="whoopHeroVideo" autoplay muted loop playsinline preload="auto">
+            <source src="videos/hero-soccer.mp4" type="video/mp4">
+          </video>
+          <div class="whoop-hero-video-overlay"></div>
+        </div>
+
         <div class="dashboard-grid">
 
           <!-- Left Main Column (~64%) -->
@@ -201,6 +215,7 @@
 
             <!-- 1B. Athlete Digital Twin Core Status Card -->
             <div class="card athlete-digital-twin-card" id="athleteTwinStatusCard">
+            <div id="twinLoadLabel" style="display:none;">Load: <span id="twinLoadVal">0.0</span></div>
               <div class="twin-card-header">
                 <div class="twin-title-group">
                   <div class="twin-pulse-icon">
@@ -281,6 +296,8 @@
 
             <!-- 1C. Today's AI Recommendation -->
             <div class="card ai-recommendation-card" id="aiRecommendationCard" style="margin-bottom: 20px;">
+            <div id="smartAlertsList" style="display:none;"></div>
+            <span id="alertsCountBadge" style="display:none;">0</span>
               <div class="ai-card-header">
                 <div class="ai-header-title-box">
                   <div class="ai-brain-icon">
@@ -773,10 +790,11 @@
               <span class="hw-status-label" id="esp32StatusText">ESP32: Waiting</span>
               <span class="hw-status-rate" id="esp32RateText" style="display:none;">0 Hz</span>
             </div>
-            <button class="btn-top-action" id="btnLiveToggleSim">
+            <button class="btn-top-action" id="btnLiveToggleSim"><span id="simFeedBtnText">
               <span>⚡</span>
               <span id="liveSimBtnText">Simulate ESP32</span>
-            </button>
+            </span></button>
+            <button id="btnToggleSimFeed" style="display:none;"></button>
             <button class="btn-top-action" id="btnOpenHwModal" title="ESP32 Wiring and Setup Guide">
               <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="10" />
@@ -786,6 +804,7 @@
               <span>Hardware Guide</span>
             </button>
             <button class="btn-top-action" id="btnLiveResetSession">Reset Session</button>
+            <button id="btnResetSession" style="display:none;"></button>
           </div>
         </div>
 
@@ -1627,6 +1646,7 @@
             </div>
             <div class="canvas-box" style="height:170px;">
               <canvas id="scheduleTrajectoryChart" width="800" height="170"></canvas>
+              <div id="scheduleChartTooltip" class="chart-tooltip" style="display:none;"></div>
             </div>
           </div>
 
@@ -1655,6 +1675,7 @@
            VIEW 6: PLAYER PROFILE / DIGITAL TWIN MODEL
            ====================================================================== -->
       <section class="view-panel" id="view-digital-twin">
+          <div id="inspectNodeCard" style="display:none;"><h4 id="inspectNodeTitle">Node</h4><p id="inspectNodeDesc">Desc</p></div>
         <div class="view-header-bar">
           <div class="view-header-left">
             <h2>Player Profile &amp; Biomechanical Digital Twin</h2>
@@ -2516,7 +2537,8 @@ Content-Type: application/json
               <strong class="step-title">Learn</strong>
               <p class="step-desc">Continuously calibrate the digital twin models as new session datasets arrive,
                 refining individual tolerance and recovery kinetics over time.</p>
-            </div>
+              <button class="btn-top-action btn-primary" id="btnCloseHowTwinBottom" style="display:none;">Got it</button>
+</div>
           </div>
         </div>
       </div>

@@ -165,6 +165,53 @@
   }
 
   // ==============================================================================
+  // 4B. WHOOP HERO BACKGROUND VIDEO CONTROLLER & PERFORMANCE LIFECYCLE
+  // ==============================================================================
+  function initHeroVideo() {
+    const video = document.getElementById('whoopHeroVideo');
+    if (!video) return;
+
+    if (prefersReducedMotion) {
+      video.pause();
+      return;
+    }
+
+    const tryPlay = () => {
+      if (video.paused) {
+        video.play().catch(() => { });
+      }
+    };
+
+    tryPlay();
+    document.addEventListener('click', tryPlay, { once: true });
+    document.addEventListener('touchstart', tryPlay, { once: true });
+
+    // Subtle parallax on video background
+    if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') {
+      gsap.to(video, {
+        scrollTrigger: {
+          trigger: '#view-dashboard',
+          start: 'top top',
+          end: 'bottom top',
+          scrub: 1.5,
+        },
+        yPercent: 10,
+        ease: 'none',
+      });
+    }
+
+    // Performance optimization: Pause video when switching views
+    window.addEventListener('hashchange', () => {
+      const hash = window.location.hash || '#dashboard';
+      if (hash === '#dashboard' || hash === '' || hash === '#') {
+        if (!prefersReducedMotion) tryPlay();
+      } else {
+        video.pause();
+      }
+    });
+  }
+
+  // ==============================================================================
   // 5. ATHLETE DIGITAL TWIN STATUS CARD & SCORE REVEALS
   // ==============================================================================
   function initTwinStatusAnimations() {
@@ -531,6 +578,7 @@
   function initAllMotion() {
     initSmoothScroll();
     initHeroAnimations();
+    initHeroVideo();
     initTwinStatusAnimations();
     initAiRecommendationAnimations();
     initVitalsAnimations();

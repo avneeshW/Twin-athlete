@@ -53,5 +53,6 @@ cloudflared*
 # SQLite databases & journals
 *.db
 *.db-wal
-*.db-shm
-
+# Backups & heavy media scratch
+static_backup/
+static/videos/*-alt.mp4
