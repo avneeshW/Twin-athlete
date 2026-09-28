@@ -13,6 +13,8 @@ let selectedIntensity = "Moderate";
 let currentActiveView = "dashboard";
 let livePacketCount = 0;
 let accelVisibility = { x: true, y: true, z: true };
+let isSensorConnected = false;
+let lastLivePacketTimestamp = 0;
 
 document.addEventListener("DOMContentLoaded", () => {
   initClock();
@@ -358,12 +360,127 @@ function initLiveStream() {
     if (dot) dot.className = "hw-dot dot-waiting";
     if (statusText) statusText.textContent = "Connecting...";
   };
+
+  // Connection Watchdog: Automatically clear live data if no real packets arrive for > 3.5 seconds
+  setInterval(() => {
+    if (isMockActive) return;
+    if (isSensorConnected && (Date.now() - lastLivePacketTimestamp > 3500)) {
+      handleSensorDisconnected();
+    }
+  }, 1000);
+}
+
+function handleSensorDisconnected() {
+  isSensorConnected = false;
+
+  // 1. Hardware Status Pill
+  updateHardwareStatusUI({
+    connected: false,
+    mock_mode: false,
+    rate_hz: 0,
+    device_id: "Disconnected"
+  });
+
+  // 2. Single System Log Entry in Live Packet Inspector (does not repeat every second)
+  const terminalBox = document.getElementById("terminalLogBox");
+  if (terminalBox) {
+    const now = new Date();
+    const timeStr = now.toTimeString().split(" ")[0];
+    const entry = document.createElement("div");
+    entry.className = "log-entry";
+    entry.innerHTML = `
+      <span class="log-time">[${timeStr}]</span>
+      <span class="log-src" style="color:#F59E0B;">SYSTEM:</span>
+      <span class="log-data" style="color:#94A3B8;">Sensor disconnected. Live telemetry stream paused. Waiting for ESP32...</span>
+    `;
+    terminalBox.appendChild(entry);
+    terminalBox.scrollTop = terminalBox.scrollHeight;
+  }
+
+  // 3. Reset Quick Vitals Cards (Dashboard) to Standby/Offline
+  const hrVal = document.getElementById("vitalHrVal");
+  const hrStatus = document.getElementById("vitalHrStatus");
+  const hrStatusText = document.getElementById("vitalHrStatusText");
+  const hrTrend = document.getElementById("vitalHrTrend");
+  if (hrVal) hrVal.textContent = "--";
+  if (hrStatusText) hrStatusText.textContent = "Offline";
+  if (hrStatus) hrStatus.className = "badge-pill";
+  if (hrTrend) hrTrend.textContent = "--";
+
+  const spo2Val = document.getElementById("vitalSpo2Val");
+  const spo2Status = document.getElementById("vitalSpo2Status");
+  const spo2StatusText = document.getElementById("vitalSpo2StatusText");
+  if (spo2Val) spo2Val.textContent = "--";
+  if (spo2StatusText) spo2StatusText.textContent = "Offline";
+  if (spo2Status) spo2Status.className = "badge-pill";
+
+  const actVal = document.getElementById("vitalActivityVal");
+  const actSub = document.getElementById("vitalActivitySub");
+  if (actVal) actVal.textContent = "Standby";
+  if (actSub) actSub.textContent = "Sensor Disconnected";
+
+  const accelVal = document.getElementById("vitalAccelVal");
+  const accelTrend = document.getElementById("vitalAccelTrend");
+  const accelStatus = document.getElementById("vitalAccelStatus");
+  const accelStatusText = document.getElementById("vitalAccelStatusText");
+  if (accelVal) accelVal.textContent = "--";
+  if (accelTrend) accelTrend.textContent = "--";
+  if (accelStatusText) accelStatusText.textContent = "Standby";
+  if (accelStatus) accelStatus.className = "badge-pill";
+
+  // 4. Reset Live Lab KPI Cards (View 2)
+  const labHrVal = document.getElementById("liveLabHrVal");
+  const labHrStatus = document.getElementById("liveLabHrStatus");
+  if (labHrVal) labHrVal.textContent = "--";
+  if (labHrStatus) labHrStatus.textContent = "Sensor Disconnected";
+
+  const labSpo2Val = document.getElementById("liveLabSpo2Val");
+  const labSpo2Status = document.getElementById("liveLabSpo2Status");
+  if (labSpo2Val) labSpo2Val.textContent = "--";
+  if (labSpo2Status) labSpo2Status.textContent = "Sensor Disconnected";
+
+  const labAccelG = document.getElementById("liveLabAccelG");
+  const labAccelAxes = document.getElementById("liveLabAccelAxes");
+  if (labAccelG) labAccelG.textContent = "--";
+  if (labAccelAxes) labAccelAxes.textContent = "X: -- • Y: -- • Z: --";
+
+  const labCadenceVal = document.getElementById("liveLabCadenceVal");
+  if (labCadenceVal) labCadenceVal.textContent = "--";
+
+  // 5. Freeze Hologram pulse animation
+  const nodes = document.querySelectorAll(".joint-node");
+  nodes.forEach(node => {
+    node.style.animation = "none";
+    node.style.stroke = "#38BDF8";
+  });
 }
 
 function handleIncomingTelemetry(data) {
   if (!data) return;
 
-  // Increment packet counter and update raw terminal log
+  // Handle explicit sensor disconnect event from server or device disconnected state
+  if (data.event === "sensor_disconnect" || (data.device && !data.device.connected && !data.device.mock_mode)) {
+    if (isSensorConnected) {
+      handleSensorDisconnected();
+    } else if (data.device) {
+      updateHardwareStatusUI(data.device);
+    }
+    return;
+  }
+
+  // Filter out keep-alive heartbeats when no live data is arriving
+  if (data.is_heartbeat) {
+    if (data.device) {
+      updateHardwareStatusUI(data.device);
+    }
+    return;
+  }
+
+  // Real sensor packet arrived!
+  isSensorConnected = true;
+  lastLivePacketTimestamp = Date.now();
+
+  // Increment packet counter and update raw terminal log ONLY for real incoming telemetry
   livePacketCount++;
   const counterEl = document.getElementById("livePacketCounter");
   if (counterEl) counterEl.textContent = `${livePacketCount} packets`;

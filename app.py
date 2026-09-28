@@ -753,18 +753,41 @@ def sse_stream():
         with sse_clients_lock:
             sse_clients.append(q)
         try:
-            # Emit immediate initial state
+            # Emit immediate initial state if active or mock running
+            is_active_initial = (engine.last_packet_time is not None and (time.time() - engine.last_packet_time < 4.0)) or mock_feed_running
             initial_packet = engine.get_latest_state()
+            initial_packet["is_heartbeat"] = not is_active_initial
             yield f"data: {json.dumps(initial_packet)}\n\n"
+
+            was_connected = is_active_initial
 
             while True:
                 try:
                     msg = q.get(timeout=1.0)
+                    was_connected = True
                     yield f"data: {json.dumps(msg)}\n\n"
                 except queue.Empty:
-                    # Periodic heartbeat / status check if no packet arrived in 1s
-                    heartbeat_state = engine.get_latest_state()
-                    yield f"data: {json.dumps(heartbeat_state)}\n\n"
+                    now = time.time()
+                    is_connected = (engine.last_packet_time is not None and (now - engine.last_packet_time < 4.0)) or mock_feed_running
+
+                    if was_connected and not is_connected:
+                        # Sensor just disconnected: notify browser once
+                        was_connected = False
+                        disconnect_event = {
+                            "event": "sensor_disconnect",
+                            "device": {
+                                "device_id": engine.device_id,
+                                "connected": False,
+                                "mock_mode": False,
+                                "rate_hz": 0.0,
+                                "last_seen_sec": round(now - engine.last_packet_time, 1) if engine.last_packet_time else None
+                            },
+                            "is_heartbeat": True
+                        }
+                        yield f"data: {json.dumps(disconnect_event)}\n\n"
+                    else:
+                        # Silently keep SSE socket alive with comment (does NOT trigger onmessage or produce packets)
+                        yield ": keep-alive\n\n"
         finally:
             with sse_clients_lock:
                 if q in sse_clients:
@@ -788,10 +811,22 @@ def get_esp32_status():
     last_seen = round(now - engine.last_packet_time, 1) if engine.last_packet_time else None
     connected = (last_seen is not None and last_seen < 4.0)
 
+    active_devs = [
+        dev for dev, meta in getattr(engine, "connected_devices", {}).items()
+        if (now - meta["last_seen"]) < 5.0
+    ]
+    if not active_devs and connected:
+        active_devs = [engine.device_id]
+
+    status_str = f"Streaming ({len(active_devs)} ESP32{'s' if len(active_devs) > 1 else ''} Online)" if connected else ("Simulated Feed (Active)" if mock_feed_running else "Waiting for ESP32")
+
     return jsonify({
         "device_id": engine.device_id,
+        "active_devices": active_devs,
+        "connected_count": len(active_devs),
+        "devices_detail": getattr(engine, "connected_devices", {}),
         "connected": connected,
-        "status": "Streaming (Live ESP32)" if connected else ("Simulated Feed (Active)" if mock_feed_running else "Waiting for ESP32"),
+        "status": status_str,
         "last_seen_sec": last_seen,
         "packet_count": engine.packet_count,
         "battery": engine.battery_level,

@@ -92,6 +92,38 @@ class TestTelemetryEngine(unittest.TestCase):
         self.assertIn("charts", res)
         self.assertTrue(len(res["charts"]["heart_rate"]["points"]) > 0)
 
+    def test_dual_esp32_sensor_fusion(self):
+        # 1. ESP32 #1 transmits MPU6050 motion packet
+        imu_packet = {
+            "device_id": "ESP32-MPU6050",
+            "ax": 0.42,
+            "ay": 1.85,
+            "az": -0.30,
+            "battery": 90
+        }
+        res_imu = self.engine.process_telemetry(imu_packet)
+        self.assertEqual(res_imu["vitals"]["acceleration"]["axes"]["x"], 0.42)
+        self.assertEqual(res_imu["device"]["id"], "ESP32-MPU6050")
+        self.assertIn("ESP32-MPU6050", res_imu["device"].get("active_devices", []))
+
+        # 2. ESP32 #2 transmits MAX30100 cardiac packet
+        ppg_packet = {
+            "device_id": "ESP32-MAX30100",
+            "heart_rate": 165.0,
+            "spo2": 97.0,
+            "battery": 85
+        }
+        res_ppg = self.engine.process_telemetry(ppg_packet)
+        # Verify vitals updated from PPG
+        self.assertEqual(res_ppg["vitals"]["heart_rate"]["value"], 165)
+        self.assertEqual(res_ppg["vitals"]["spo2"]["value"], 97)
+        # Verify motion was preserved from MPU6050!
+        self.assertEqual(res_ppg["vitals"]["acceleration"]["axes"]["x"], 0.42)
+        # Verify both devices are tracked in active_devices
+        active = res_ppg["device"].get("active_devices", [])
+        self.assertIn("ESP32-MPU6050", active)
+        self.assertIn("ESP32-MAX30100", active)
+
 
 if __name__ == "__main__":
     unittest.main()

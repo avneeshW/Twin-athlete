@@ -30,7 +30,7 @@
 // ==============================================================================
 const char* WIFI_SSID     = "YOUR_WIFI_NAME";       // E.g. "Home-WiFi" or Phone Hotspot
 const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";   // Wi-Fi Password
-const char* SERVER_URL    = "http://192.168.1.100:5000/api/esp32/telemetry"; // Change to your PC IP!
+const char* SERVER_URL    = "http://192.168.1.5:5000/api/esp32/telemetry"; // Host PC Wi-Fi IP
 const char* DEVICE_ID     = "ESP32-ATHLETE-01";
 
 // Telemetry interval in milliseconds (1000 ms = 1 Hz, 500 ms = 2 Hz)

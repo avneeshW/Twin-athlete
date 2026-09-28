@@ -69,11 +69,18 @@ class TelemetryEngine:
         self.current_recovery = 82.0
         self.sleep_hours = 7.5
 
-        # Device connection tracking
+        # Device connection tracking & Multi-Sensor Fusion
         self.last_packet_time = None
         self.packet_count = 0
         self.device_id = "ESP32-ATHLETE-01"
         self.battery_level = 100
+        self.latest_hr = 72.0
+        self.latest_spo2 = 98.0
+        self.latest_ax = 0.0
+        self.latest_ay = 1.0
+        self.latest_az = 0.0
+        self.connected_devices = {}  # {device_id: {"last_seen": ts, "type": type, "battery": pct}}
+
 
         # Data Quality & Sensor Science Diagnostics
         self.total_received = 0
@@ -238,14 +245,30 @@ class TelemetryEngine:
             self.data_provenance = "LIVE"
         self.device_id = dev_id
 
-        # Extract sanitized readings
-        hr = clean["heart_rate"]
-        spo2 = clean["spo2"]
-        ax = clean["ax"]
-        ay = clean["ay"]
-        az = clean["az"]
-        battery = clean["battery"]
+        # Multi-Sensor Fusion: Merge partial packets (MPU6050 motion or MAX30100 PPG)
+        if clean.get("heart_rate") is not None:
+            self.latest_hr = clean["heart_rate"]
+        if clean.get("spo2") is not None:
+            self.latest_spo2 = clean["spo2"]
+        if clean.get("ax") is not None:
+            self.latest_ax = clean["ax"]
+            self.latest_ay = clean["ay"] if clean.get("ay") is not None else self.latest_ay
+            self.latest_az = clean["az"] if clean.get("az") is not None else self.latest_az
+
+        hr = self.latest_hr
+        spo2 = self.latest_spo2
+        ax = self.latest_ax
+        ay = self.latest_ay
+        az = self.latest_az
+        battery = clean.get("battery", 100)
         self.battery_level = battery
+
+        # Track active hardware devices
+        self.connected_devices[dev_id] = {
+            "last_seen": now,
+            "sensor_type": clean.get("sensor_type", "dual"),
+            "battery": battery
+        }
 
         # Tri-axial vector magnitude G
         mag = round(math.sqrt(ax**2 + ay**2 + az**2), 2)
@@ -325,6 +348,14 @@ class TelemetryEngine:
         else:
             performance_label = "Low"
 
+        # Construct list of active devices seen within the last 5 seconds
+        active_devs = [
+            d for d, meta in self.connected_devices.items()
+            if (now - meta["last_seen"]) < 5.0
+        ]
+        if not active_devs:
+            active_devs = [self.device_id]
+
         # Construct comprehensive live payload
         state = {
             "device": {
@@ -334,7 +365,9 @@ class TelemetryEngine:
                 "last_seen_sec": 0.0,
                 "battery": self.battery_level,
                 "packet_count": self.packet_count,
-                "rate_hz": round(1.0 / dt, 1) if dt > 0 else 1.0
+                "rate_hz": round(1.0 / dt, 1) if dt > 0 else 1.0,
+                "active_devices": active_devs,
+                "devices_detail": self.connected_devices
             },
             "vitals": {
                 "heart_rate": {
@@ -489,6 +522,13 @@ class TelemetryEngine:
         last_seen = round(now - self.last_packet_time, 1) if self.last_packet_time else None
         connected = (last_seen is not None and last_seen < 4.0)
 
+        active_devs = [
+            dev for dev, meta in self.connected_devices.items()
+            if (now - meta["last_seen"]) < 5.0
+        ]
+        if not active_devs and connected:
+            active_devs = [self.device_id]
+
         if getattr(self, "_latest_state", None) is not None:
             state = dict(self._latest_state)
             state["device"] = dict(state.get("device", {}))
@@ -496,6 +536,8 @@ class TelemetryEngine:
             state["device"]["last_seen_sec"] = last_seen
             state["device"]["provenance"] = self.data_provenance
             state["device"]["data_quality"] = self.get_data_quality_report()
+            state["device"]["active_devices"] = active_devs
+            state["device"]["devices_detail"] = self.connected_devices
             return state
 
         # Default athlete state matching reference design

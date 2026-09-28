@@ -63,12 +63,11 @@ def validate_sensor_packet(raw: Any) -> SensorPacketValidationResult:
     else:
         device_id = device_id.strip()
 
-    # 2. Heart Rate (MAX30102 PPG)
+    # 2. Heart Rate (MAX30100 / MAX30102 PPG)
     raw_hr = raw.get("heart_rate", raw.get("hr"))
-    if raw_hr is None:
-        errors.append("Field 'heart_rate' is required.")
-        hr = None
-    else:
+    has_cardiac = False
+    if raw_hr is not None:
+        has_cardiac = True
         try:
             hr = float(raw_hr)
             if hr < HR_MIN_BPM or hr > HR_MAX_BPM:
@@ -78,13 +77,13 @@ def validate_sensor_packet(raw: Any) -> SensorPacketValidationResult:
         except (ValueError, TypeError):
             errors.append(f"Invalid heart rate value: {raw_hr}")
             hr = None
+    else:
+        hr = None
 
     # 3. SpO2 (Blood Oxygenation)
     raw_spo2 = raw.get("spo2")
-    if raw_spo2 is None:
-        errors.append("Field 'spo2' is required.")
-        spo2 = None
-    else:
+    if raw_spo2 is not None:
+        has_cardiac = True
         try:
             spo2 = float(raw_spo2)
             if spo2 < SPO2_MIN_PCT or spo2 > SPO2_MAX_PCT:
@@ -94,21 +93,29 @@ def validate_sensor_packet(raw: Any) -> SensorPacketValidationResult:
         except (ValueError, TypeError):
             errors.append(f"Invalid spo2 value: {raw_spo2}")
             spo2 = None
+    else:
+        spo2 = None
 
     # 4. Tri-axial Accelerometer (MPU6050 IMU)
+    has_motion = any(k in raw for k in ("ax", "ay", "az"))
     ax, ay, az = None, None, None
-    for axis, key in [("ax", "ax"), ("ay", "ay"), ("az", "az")]:
-        val = raw.get(key, 0.0)
-        try:
-            f_val = float(val)
-            if abs(f_val) > MAX_ACCEL_G:
-                warnings.append(f"Accelerometer {axis}={f_val}g exceeds normal range (+/- {MAX_ACCEL_G}g); clamping.")
-                f_val = max(-MAX_ACCEL_G, min(MAX_ACCEL_G, f_val))
-            if axis == "ax": ax = f_val
-            elif axis == "ay": ay = f_val
-            elif axis == "az": az = f_val
-        except (ValueError, TypeError):
-            errors.append(f"Invalid accelerometer value for {key}: {val}")
+    if has_motion:
+        for axis, key in [("ax", "ax"), ("ay", "ay"), ("az", "az")]:
+            val = raw.get(key, 0.0)
+            try:
+                f_val = float(val)
+                if abs(f_val) > MAX_ACCEL_G:
+                    warnings.append(f"Accelerometer {axis}={f_val}g exceeds normal range (+/- {MAX_ACCEL_G}g); clamping.")
+                    f_val = max(-MAX_ACCEL_G, min(MAX_ACCEL_G, f_val))
+                if axis == "ax": ax = f_val
+                elif axis == "ay": ay = f_val
+                elif axis == "az": az = f_val
+            except (ValueError, TypeError):
+                errors.append(f"Invalid accelerometer value for {key}: {val}")
+
+    # Ensure at least one valid sensor reading exists in the packet
+    if not has_cardiac and not has_motion:
+        errors.append("Packet must contain sensor data (either heart_rate/spo2 or ax/ay/az).")
 
     # 5. Battery
     raw_battery = raw.get("battery", 100)
@@ -143,13 +150,24 @@ def validate_sensor_packet(raw: Any) -> SensorPacketValidationResult:
             sanitized_data=None
         )
 
+    # Classify sensor modality
+    if has_cardiac and has_motion:
+        sensor_type = "dual"
+    elif has_motion:
+        sensor_type = "motion"
+    else:
+        sensor_type = "cardiac"
+
     sanitized = {
         "device_id": device_id,
-        "heart_rate": round(hr, 1) if hr is not None else 75.0,
-        "spo2": round(spo2, 1) if spo2 is not None else 98.0,
-        "ax": round(ax, 3) if ax is not None else 0.0,
-        "ay": round(ay, 3) if ay is not None else 0.0,
-        "az": round(az, 3) if az is not None else 0.0,
+        "heart_rate": round(hr, 1) if hr is not None else None,
+        "spo2": round(spo2, 1) if spo2 is not None else None,
+        "ax": round(ax, 3) if ax is not None else None,
+        "ay": round(ay, 3) if ay is not None else None,
+        "az": round(az, 3) if az is not None else None,
+        "has_cardiac": has_cardiac,
+        "has_motion": has_motion,
+        "sensor_type": sensor_type,
         "battery": battery,
         "packet": int(raw.get("packet", 0)),
         "timestamp": ts,
