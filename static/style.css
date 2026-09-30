@@ -5873,6 +5873,650 @@ body {
   box-shadow: var(--glass-shadow-hover);
 }
 
+/* ==============================================================================
+   NEW LANDING PAGE EXPERIENCE (Sections 1 & 2)
+   WHOOP-Inspired Cinematic Sports-Tech Aesthetics
+   ============================================================================== */
+.landing-page-root {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  background-color: #07090E;
+  color: #FFFFFF;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+  z-index: 10;
+}
+
+.landing-page-root.hidden,
+.dashboard-app-root.hidden {
+  display: none !important;
+}
+
+/* SECTION 1: FULL-SCREEN VIDEO HERO (100vh) */
+.landing-hero-section {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  min-height: 640px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  padding: 32px 24px;
+  box-sizing: border-box;
+}
+
+.landing-video-container {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  z-index: 0;
+  pointer-events: none;
+  background: #07090E;
+}
+
+.landing-hero-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 30%;
+  filter: contrast(108%) brightness(82%);
+  display: block;
+  transform: translateZ(0);
+}
+
+.landing-video-overlay {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 85% 65% at 50% 45%, rgba(0, 132, 255, 0.09) 0%, rgba(7, 9, 14, 0.60) 60%, #07090E 100%),
+    linear-gradient(180deg, rgba(7, 9, 14, 0.45) 0%, rgba(7, 9, 14, 0.25) 40%, rgba(7, 9, 14, 0.85) 85%, #07090E 100%);
+}
+
+.landing-grid-cyber-mesh {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 54px 54px;
+  mask-image: radial-gradient(circle at center, black 35%, transparent 80%);
+  -webkit-mask-image: radial-gradient(circle at center, black 35%, transparent 80%);
+  pointer-events: none;
+}
+
+/* Floating top brand header in Section 1 */
+.landing-top-bar {
+  position: absolute;
+  top: 32px;
+  left: 36px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+}
+
+.landing-brand-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(14, 18, 28, 0.65);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  padding: 8px 18px 8px 12px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+}
+
+.landing-brand-logo {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 8px rgba(0, 132, 255, 0.6));
+}
+
+.landing-brand-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.landing-brand-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #FFFFFF;
+}
+
+.landing-brand-sub {
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: #0084FF;
+  text-transform: uppercase;
+}
+
+/* Hero Content */
+.landing-hero-content {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  max-width: 960px;
+  margin: auto;
+  animation: heroFadeInUp 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes heroFadeInUp {
+  0% {
+    opacity: 0;
+    transform: translateY(36px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.landing-pill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  border-radius: 9999px;
+  background: rgba(0, 132, 255, 0.12);
+  border: 1px solid rgba(0, 132, 255, 0.35);
+  margin-bottom: 24px;
+}
+
+.landing-pulse-beacon {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #00E699;
+  box-shadow: 0 0 10px #00E699;
+  animation: beaconPulse 2s infinite ease-in-out;
+}
+
+@keyframes beaconPulse {
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.4;
+    transform: scale(0.8);
+  }
+}
+
+.landing-pill-text {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: #E2E8F0;
+  text-transform: uppercase;
+}
+
+.landing-hero-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: clamp(2.4rem, 6.2vw, 4.6rem);
+  font-weight: 800;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  color: #FFFFFF;
+  margin: 0 0 18px 0;
+  text-shadow: 0 4px 30px rgba(0, 0, 0, 0.75);
+}
+
+.landing-hero-title-highlight {
+  background: linear-gradient(135deg, #0084FF 15%, #00F0FF 55%, #00E699 90%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  display: inline-block;
+  filter: drop-shadow(0 0 24px rgba(0, 132, 255, 0.35));
+}
+
+.landing-hero-subtitle {
+  font-family: 'Inter', sans-serif;
+  font-size: clamp(1.1rem, 2.2vw, 1.45rem);
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.82);
+  letter-spacing: 0.02em;
+  margin: 0;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.6);
+}
+
+/* Scroll indicator */
+.landing-scroll-indicator {
+  position: absolute;
+  bottom: 34px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.65);
+  transition: all 0.3s ease;
+}
+
+.landing-scroll-indicator:hover {
+  color: #00F0FF;
+  transform: translateX(-50%) translateY(3px);
+}
+
+.landing-scroll-text {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.landing-scroll-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(8px);
+  animation: bounceDown 2.2s infinite ease-in-out;
+}
+
+@keyframes bounceDown {
+
+  0%,
+  20%,
+  50%,
+  80%,
+  100% {
+    transform: translateY(0);
+  }
+
+  40% {
+    transform: translateY(8px);
+  }
+
+  60% {
+    transform: translateY(4px);
+  }
+}
+
+/* SECTION 2: CHOOSE YOUR ROLE */
+.landing-role-section {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 24px 60px 24px;
+  box-sizing: border-box;
+  background: radial-gradient(circle at 50% 30%, rgba(14, 22, 38, 0.8) 0%, #07090E 70%);
+}
+
+.landing-role-backdrop-glow {
+  position: absolute;
+  top: 20%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 700px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(0, 132, 255, 0.12) 0%, rgba(0, 230, 153, 0.05) 50%, transparent 75%);
+  filter: blur(80px);
+  pointer-events: none;
+}
+
+.landing-role-container {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 1140px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.landing-role-header {
+  text-align: center;
+  max-width: 680px;
+  margin-bottom: 46px;
+}
+
+.landing-role-kicker {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: #0084FF;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.landing-role-headline {
+  font-family: 'Outfit', sans-serif;
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #FFFFFF;
+  margin: 0 0 12px 0;
+}
+
+.landing-role-lead {
+  font-size: 1.05rem;
+  color: rgba(255, 255, 255, 0.65);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.landing-role-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 480px));
+  gap: 32px;
+  width: 100%;
+  justify-content: center;
+}
+
+/* ROLE CARDS */
+.landing-role-card {
+  position: relative;
+  background: rgba(14, 18, 28, 0.72);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 24px;
+  padding: 42px 36px 36px 36px;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  overflow: hidden;
+  box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.65);
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  outline: none;
+  text-align: left;
+}
+
+.landing-role-card:hover {
+  transform: translateY(-8px) scale(1.015);
+}
+
+.coach-card:hover {
+  border-color: rgba(0, 132, 255, 0.6);
+  box-shadow: 0 24px 60px -10px rgba(0, 132, 255, 0.28), 0 0 0 1px rgba(0, 132, 255, 0.4);
+}
+
+.athlete-card:hover {
+  border-color: rgba(0, 230, 153, 0.6);
+  box-shadow: 0 24px 60px -10px rgba(0, 230, 153, 0.28), 0 0 0 1px rgba(0, 230, 153, 0.4);
+}
+
+.landing-role-card:active {
+  transform: translateY(-2px) scale(0.99);
+}
+
+/* Card Pill */
+.landing-card-pill {
+  position: absolute;
+  top: 24px;
+  right: 28px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  text-transform: uppercase;
+}
+
+.coach-pill {
+  background: rgba(0, 132, 255, 0.15);
+  color: #0084FF;
+  border: 1px solid rgba(0, 132, 255, 0.3);
+}
+
+.athlete-pill {
+  background: rgba(0, 230, 153, 0.15);
+  color: #00E699;
+  border: 1px solid rgba(0, 230, 153, 0.3);
+}
+
+/* Card Icon Box */
+.landing-card-icon-box {
+  width: 68px;
+  height: 68px;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 24px;
+  transition: transform 0.35s ease;
+}
+
+.landing-role-card:hover .landing-card-icon-box {
+  transform: scale(1.08) rotate(-2deg);
+}
+
+.coach-icon-box {
+  background: linear-gradient(135deg, rgba(0, 132, 255, 0.22) 0%, rgba(0, 132, 255, 0.06) 100%);
+  border: 1px solid rgba(0, 132, 255, 0.35);
+  color: #0084FF;
+}
+
+.athlete-icon-box {
+  background: linear-gradient(135deg, rgba(0, 230, 153, 0.22) 0%, rgba(0, 230, 153, 0.06) 100%);
+  border: 1px solid rgba(0, 230, 153, 0.35);
+  color: #00E699;
+}
+
+/* Card Typography */
+.landing-card-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.85rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #FFFFFF;
+  margin: 0 0 10px 0;
+}
+
+.landing-card-desc {
+  font-size: 1.02rem;
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1.5;
+  margin: 0 0 24px 0;
+  min-height: 48px;
+}
+
+/* Card Feature Bullets */
+.landing-card-features {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 32px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex-grow: 1;
+}
+
+.landing-card-features li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.92rem;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.feature-bullet {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 0.7rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.coach-bullet {
+  background: rgba(0, 132, 255, 0.2);
+  color: #0084FF;
+}
+
+.athlete-bullet {
+  background: rgba(0, 230, 153, 0.2);
+  color: #00E699;
+}
+
+/* Card CTA Action */
+.landing-card-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-radius: 14px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  transition: all 0.3s ease;
+}
+
+.coach-action {
+  background: rgba(0, 132, 255, 0.15);
+  border: 1px solid rgba(0, 132, 255, 0.3);
+  color: #FFFFFF;
+}
+
+.coach-card:hover .coach-action {
+  background: #0084FF;
+  color: #FFFFFF;
+  box-shadow: 0 6px 20px rgba(0, 132, 255, 0.4);
+}
+
+.athlete-action {
+  background: rgba(0, 230, 153, 0.15);
+  border: 1px solid rgba(0, 230, 153, 0.3);
+  color: #FFFFFF;
+}
+
+.athlete-card:hover .athlete-action {
+  background: #00E699;
+  color: #07090E;
+  box-shadow: 0 6px 20px rgba(0, 230, 153, 0.4);
+}
+
+.landing-card-action svg {
+  transition: transform 0.3s ease;
+}
+
+.landing-role-card:hover .landing-card-action svg {
+  transform: translateX(4px);
+}
+
+.landing-section-footer {
+  margin-top: 48px;
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.35);
+  letter-spacing: 0.04em;
+}
+
+/* SWITCH ROLE / BACK TO HOME BUTTONS IN DASHBOARD */
+.btn-switch-role-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 9999px;
+  color: #FFFFFF;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  text-decoration: none;
+  margin-left: 14px;
+  white-space: nowrap;
+}
+
+.btn-switch-role-pill:hover {
+  background: rgba(0, 132, 255, 0.2);
+  border-color: #0084FF;
+  color: #00F0FF;
+  transform: translateX(-2px);
+  box-shadow: 0 0 14px rgba(0, 132, 255, 0.3);
+}
+
+.sidebar-switch-role-box {
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 8px;
+}
+
+.sidebar-switch-role-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(0, 132, 255, 0.09);
+  border: 1px solid rgba(0, 132, 255, 0.24);
+  border-radius: 10px;
+  color: #E2E8F0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.sidebar-switch-role-btn:hover {
+  background: rgba(0, 132, 255, 0.22);
+  border-color: #0084FF;
+  color: #FFFFFF;
+  transform: translateX(3px);
+  box-shadow: 0 4px 14px rgba(0, 132, 255, 0.25);
+}
+
+/* ATHLETE MODE CONCEALMENT (Hides Coach-only controls) */
+body.role-mode-athlete .coach-only-element,
+body.role-mode-athlete [data-nav="coach-squad"],
+body.role-mode-athlete [data-nav="auditor-center"],
+body.role-mode-athlete .role-segment-btn[data-role="coach"],
+body.role-mode-athlete .role-segment-btn[data-role="auditor"],
+body.role-mode-athlete .squad-governance-section,
+body.role-mode-athlete #btnAddPlayerModalOpen,
+body.role-mode-athlete #btnExportSquadReport {
+  display: none !important;
+}
+
+@media (max-width: 900px) {
+  .landing-role-grid {
+    grid-template-columns: 1fr;
+    max-width: 480px;
+  }
+
+  .landing-top-bar {
+    top: 20px;
+    left: 20px;
+  }
+
+  .btn-switch-role-pill {
+    margin-left: 8px;
+    padding: 5px 10px;
+    font-size: 0.72rem;
+  }
+}
+
 /* Accessibility: Reduced Motion Override */
 @media (prefers-reduced-motion: reduce) {
 

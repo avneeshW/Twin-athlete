@@ -55,13 +55,30 @@ document.addEventListener("DOMContentLoaded", () => {
   initForensicAuditorControls();
   initCoachSquadControls();
 
+  // Initialize New Landing Page & Role Dispatch Gateway
+  initLandingPage();
+
   // Support direct deep-linking via hash (e.g. #analytics, #digital-twin, #what-if, #accuracy, #coach-squad, #auditor-center)
   const validViews = ["dashboard", "live-data", "training-sessions", "analytics", "digital-twin", "what-if", "settings", "accuracy", "coach-squad", "auditor-center"];
 
   function handleHashNavigation() {
     const rawHash = window.location.hash.replace("#", "");
-    if (rawHash && validViews.includes(rawHash)) {
-      switchView(rawHash);
+    if (!rawHash || rawHash === "home" || rawHash === "landing") {
+      showLandingPage();
+    } else if (rawHash === "chooseRoleSection" || rawHash === "choose-role") {
+      showLandingPage();
+      requestAnimationFrame(() => {
+        const roleSection = document.getElementById("chooseRoleSection");
+        if (roleSection) roleSection.scrollIntoView({ behavior: "smooth" });
+      });
+    } else if (validViews.includes(rawHash)) {
+      const landingPageEl = document.getElementById("landingPage");
+      if (landingPageEl && !landingPageEl.classList.contains("hidden")) {
+        const savedRole = sessionStorage.getItem("dta_selected_role") || "coach";
+        enterRoleWorkspace(savedRole, rawHash, false);
+      } else {
+        switchView(rawHash);
+      }
     }
   }
 
@@ -91,6 +108,187 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 });
+
+/* ==============================================================================
+   0. NEW LANDING PAGE & ROLE DISPATCH GATEWAY (Sections 1 & 2)
+   ============================================================================== */
+let currentActiveRole = null; // 'coach' | 'athlete' | null
+
+function initLandingPage() {
+  const landingPageEl = document.getElementById("landingPage");
+  const dashboardRootEl = document.getElementById("dashboardAppRoot");
+  const btnRoleCoach = document.getElementById("btnRoleCoach");
+  const btnRoleAthlete = document.getElementById("btnRoleAthlete");
+  const btnSwitchRoleTop = document.getElementById("btnSwitchRoleTop");
+  const btnSwitchRoleSidebar = document.getElementById("btnSwitchRoleSidebar");
+  const scrollExploreBtn = document.getElementById("scrollExploreBtn");
+  const landingVideo = document.getElementById("landingHeroVideo");
+
+  // Attempt video autoplay with muted fallback safeguard
+  if (landingVideo) {
+    landingVideo.muted = true;
+    const playPromise = landingVideo.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(err => {
+        console.log("[landing] Video autoplay note:", err);
+      });
+    }
+  }
+
+  // Smooth scroll explore button from Section 1 down to Section 2
+  if (scrollExploreBtn) {
+    scrollExploreBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      const roleSection = document.getElementById("chooseRoleSection");
+      if (roleSection) {
+        roleSection.scrollIntoView({ behavior: "smooth" });
+      }
+    });
+  }
+
+  // Role selections: Coach & Athlete cards
+  if (btnRoleCoach) {
+    btnRoleCoach.addEventListener("click", () => enterRoleWorkspace("coach"));
+    btnRoleCoach.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        enterRoleWorkspace("coach");
+      }
+    });
+  }
+
+  if (btnRoleAthlete) {
+    btnRoleAthlete.addEventListener("click", () => enterRoleWorkspace("athlete"));
+    btnRoleAthlete.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        enterRoleWorkspace("athlete");
+      }
+    });
+  }
+
+  // Quick Switch Role / Back to Home buttons
+  if (btnSwitchRoleTop) {
+    btnSwitchRoleTop.addEventListener("click", (e) => {
+      e.preventDefault();
+      returnToLandingPage(true);
+    });
+  }
+
+  if (btnSwitchRoleSidebar) {
+    btnSwitchRoleSidebar.addEventListener("click", (e) => {
+      e.preventDefault();
+      closeMobileDrawer();
+      returnToLandingPage(true);
+    });
+  }
+
+  // Initial landing page vs dashboard resolution:
+  const rawHash = window.location.hash.replace("#", "");
+  const validDashboardViews = ["dashboard", "live-data", "training-sessions", "analytics", "digital-twin", "what-if", "settings", "accuracy", "coach-squad", "auditor-center"];
+
+  if (rawHash === "coach-squad") {
+    enterRoleWorkspace("coach", "coach-squad", false);
+  } else if (validDashboardViews.includes(rawHash)) {
+    const savedRole = sessionStorage.getItem("dta_selected_role") || "coach";
+    enterRoleWorkspace(savedRole, rawHash, false);
+  } else if (rawHash === "chooseRoleSection" || rawHash === "choose-role") {
+    showLandingPage();
+    requestAnimationFrame(() => {
+      const roleSection = document.getElementById("chooseRoleSection");
+      if (roleSection) roleSection.scrollIntoView({ behavior: "smooth" });
+    });
+  } else {
+    // Default initial experience: Full-screen Video Hero Landing Page!
+    showLandingPage();
+  }
+}
+
+function enterRoleWorkspace(role, targetView = null, updateHash = true) {
+  currentActiveRole = role;
+  sessionStorage.setItem("dta_selected_role", role);
+
+  const landingPageEl = document.getElementById("landingPage");
+  const dashboardRootEl = document.getElementById("dashboardAppRoot");
+  const roleBadge = document.getElementById("headerRoleBadge");
+  const userRoleBadge = document.getElementById("userRoleBadge");
+
+  // Hide landing page, reveal dashboard
+  if (landingPageEl) landingPageEl.classList.add("hidden");
+  if (dashboardRootEl) dashboardRootEl.classList.remove("hidden");
+
+  // Update role mode on body
+  document.body.classList.remove("role-mode-coach", "role-mode-athlete");
+  document.body.classList.add(`role-mode-${role}`);
+
+  if (role === "coach") {
+    if (roleBadge) roleBadge.textContent = "Coach View";
+    if (userRoleBadge) userRoleBadge.textContent = "Head Coach";
+    const viewToOpen = targetView || "dashboard";
+    switchView(viewToOpen);
+    if (updateHash) {
+      if (history.pushState) history.pushState(null, null, `#${viewToOpen}`);
+      else window.location.hash = viewToOpen;
+    }
+    showToast("Entered Coach Command Dashboard", "🛡️");
+  } else {
+    if (roleBadge) roleBadge.textContent = "Athlete Cockpit";
+    if (userRoleBadge) userRoleBadge.textContent = "Football Player";
+    // Athlete must not land on coach-only views
+    const viewToOpen = (targetView && targetView !== "coach-squad" && targetView !== "auditor-center") ? targetView : "dashboard";
+    switchView(viewToOpen);
+    if (updateHash) {
+      if (history.pushState) history.pushState(null, null, `#${viewToOpen}`);
+      else window.location.hash = viewToOpen;
+    }
+    showToast("Entered Athlete Personal Cockpit", "🏃");
+  }
+
+  // Scroll to top of the dashboard
+  window.scrollTo({ top: 0, behavior: "instant" });
+
+  // Re-trigger window resize to ensure Chart.js canvases layout at full width
+  requestAnimationFrame(() => {
+    window.dispatchEvent(new Event("resize"));
+    if (cachedDashboardData && cachedDashboardData.charts) {
+      renderHeartRateChart(cachedDashboardData.charts.heart_rate);
+      renderMovementChart(cachedDashboardData.charts.movement);
+    }
+  });
+}
+
+function showLandingPage() {
+  const landingPageEl = document.getElementById("landingPage");
+  const dashboardRootEl = document.getElementById("dashboardAppRoot");
+
+  if (dashboardRootEl) dashboardRootEl.classList.add("hidden");
+  if (landingPageEl) {
+    landingPageEl.classList.remove("hidden");
+    const video = document.getElementById("landingHeroVideo");
+    if (video && video.paused) {
+      video.play().catch(() => {});
+    }
+  }
+}
+
+function returnToLandingPage(scrollToRoles = false) {
+  showLandingPage();
+  if (window.history && window.history.pushState) {
+    window.history.pushState(null, null, scrollToRoles ? "#chooseRoleSection" : "#");
+  }
+  if (scrollToRoles) {
+    requestAnimationFrame(() => {
+      const roleSection = document.getElementById("chooseRoleSection");
+      if (roleSection) {
+        roleSection.scrollIntoView({ behavior: "smooth" });
+      }
+    });
+  } else {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  showToast("Returned to Role Selector", "🏠");
+}
+
 
 /* ==============================================================================
    1. LIVE CLOCK, DATE & DYNAMIC GREETING
