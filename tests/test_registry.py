@@ -140,6 +140,31 @@ class TestAthleteRegistry(unittest.TestCase):
         # Allow that some might be Under-trained (cyan)
         self.assertLessEqual(total_categorized, summary["squad_size"])
 
+    def test_remove_athlete(self):
+        """Verify removing athlete updates registry, switches active athlete if needed, and deletes from SQLite."""
+        # 1. Register a temporary player
+        temp_data = {"athlete_id": "ATH-9999", "name": "Temporary Player", "position": "Midfield"}
+        self.registry.register_athlete(temp_data)
+        self.assertIn("ATH-9999", self.registry._twins)
+        self.assertIsNotNone(self.test_vault.get_athlete_profile("ATH-9999"))
+
+        # 2. Remove non-active player
+        removed = self.registry.remove_athlete("ATH-9999")
+        self.assertTrue(removed)
+        self.assertNotIn("ATH-9999", self.registry._twins)
+        self.assertIsNone(self.test_vault.get_athlete_profile("ATH-9999"))
+
+        # 3. Switching to Marcus Vance and removing active player switches to another athlete
+        self.registry.set_active_athlete("ATH-0102")
+        self.assertEqual(self.registry.get_active_athlete_id(), "ATH-0102")
+        removed_active = self.registry.remove_athlete("ATH-0102")
+        self.assertTrue(removed_active)
+        self.assertNotEqual(self.registry.get_active_athlete_id(), "ATH-0102")
+        self.assertIn(self.registry.get_active_athlete_id(), self.registry._twins)
+
+        # 4. Removing non-existent athlete returns False
+        self.assertFalse(self.registry.remove_athlete("NONEXISTENT-ATH"))
+
 
 if __name__ == "__main__":
     unittest.main()

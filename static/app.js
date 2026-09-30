@@ -53,6 +53,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initRoleSwitcher();
   initTransparencyModals();
   initForensicAuditorControls();
+  initCoachSquadControls();
 
   // Support direct deep-linking via hash (e.g. #analytics, #digital-twin, #what-if, #accuracy, #coach-squad, #auditor-center)
   const validViews = ["dashboard", "live-data", "training-sessions", "analytics", "digital-twin", "what-if", "settings", "accuracy", "coach-squad", "auditor-center"];
@@ -81,6 +82,14 @@ document.addEventListener("DOMContentLoaded", () => {
       closeMobileDrawer();
     }
   });
+
+  // User Profile shortcut to Player Digital Twin
+  const userProfileBtn = document.getElementById("userProfileBtn");
+  if (userProfileBtn) {
+    userProfileBtn.addEventListener("click", () => {
+      switchView("digital-twin");
+    });
+  }
 });
 
 /* ==============================================================================
@@ -253,6 +262,23 @@ function switchView(viewName) {
   const targetPanel = document.getElementById(`view-${viewName}`);
   if (targetPanel) {
     targetPanel.classList.add("active");
+  }
+
+  // Synchronize top role switcher buttons
+  const roleButtons = document.querySelectorAll(".role-segment-btn");
+  const roleBadge = document.getElementById("headerRoleBadge");
+  if (roleButtons.length) {
+    let activeRole = "athlete";
+    if (viewName === "coach-squad") activeRole = "coach";
+    else if (viewName === "auditor-center" || viewName === "accuracy") activeRole = "auditor";
+    roleButtons.forEach(btn => {
+      const isRoleActive = btn.dataset.role === activeRole;
+      btn.classList.toggle("active", isRoleActive);
+      btn.setAttribute("aria-selected", isRoleActive ? "true" : "false");
+    });
+    if (roleBadge) {
+      roleBadge.textContent = activeRole === "coach" ? "Coach View" : (activeRole === "auditor" ? "Auditor View" : "Athlete View");
+    }
   }
 
   // Update URL hash without reload
@@ -3993,6 +4019,67 @@ async function loadPredictionAccuracy() {
 /**
  * View 8: Coach Squad Management & Workload Matrix
  */
+let pendingRemoveAthleteId = null;
+
+function openAddPlayerModal() {
+  const modal = document.getElementById("addPlayerModal");
+  if (modal) {
+    modal.style.display = "flex";
+    const nameInput = document.getElementById("newPlayerName");
+    if (nameInput) setTimeout(() => nameInput.focus(), 100);
+  }
+}
+
+function closeAddPlayerModal() {
+  const modal = document.getElementById("addPlayerModal");
+  if (modal) modal.style.display = "none";
+}
+
+function promptRemoveAthlete(athleteId, athleteName) {
+  pendingRemoveAthleteId = athleteId;
+  const modal = document.getElementById("removePlayerModal");
+  const text = document.getElementById("removePlayerConfirmText");
+  if (text) {
+    text.innerHTML = `Are you sure you want to remove <strong>${athleteName}</strong> (<code>#${athleteId}</code>) from the active squad? Their digital twin model and session logs will be unlinked from the roster.`;
+  }
+  if (modal) modal.style.display = "flex";
+}
+
+function closeRemovePlayerModal() {
+  pendingRemoveAthleteId = null;
+  const modal = document.getElementById("removePlayerModal");
+  if (modal) modal.style.display = "none";
+}
+
+async function executeRemoveAthlete() {
+  if (!pendingRemoveAthleteId) return;
+  const athleteId = pendingRemoveAthleteId;
+  closeRemovePlayerModal();
+
+  try {
+    const res = await fetch(`/api/athlete/${encodeURIComponent(athleteId)}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" }
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      showToast(data.message || `Player #${athleteId} removed from squad`, "🗑️");
+      await loadCoachSquad();
+      if (typeof loadDashboardData === "function") {
+        loadDashboardData(currentTimeframe);
+      }
+      if (typeof loadDigitalTwinCoach === "function") {
+        loadDigitalTwinCoach();
+      }
+    } else {
+      showToast(data.error || "Cannot remove player", "⚠️");
+    }
+  } catch (err) {
+    console.error("Error removing player:", err);
+    showToast("Network error removing player", "⚠️");
+  }
+}
+
 async function loadCoachSquad() {
   const grid = document.getElementById("squadRosterGrid");
   if (!grid) return;
@@ -4001,53 +4088,205 @@ async function loadCoachSquad() {
     const res = await fetch("/api/coach/team-overview");
     if (!res.ok) return;
     const data = await res.json();
+    const athletes = data.roster || data.athletes || [];
+    const activeAthleteId = data.active_athlete_id || "ATH-0824";
 
-    if (data.athletes) {
-      grid.innerHTML = data.athletes.map(ath => {
-        const isSelected = ath.athlete_id === "ATH-001";
-        const readColor = ath.readiness_score >= 80 ? "#10B981" : (ath.readiness_score >= 65 ? "#F59E0B" : "#EF4444");
-        const statusClass = ath.status === "FIT_TO_TRAIN" ? "pill-green" : (ath.status === "RECOVERY_PRIORITY" ? "pill-amber" : "pill-red");
+    if (athletes.length) {
+      grid.innerHTML = athletes.map(ath => {
+        const aid = ath.id || ath.athlete_id;
+        const isSelected = aid === activeAthleteId;
+        const readiness = Math.round(ath.readiness || ath.readiness_score || 75);
+        const fatigue = Math.round(ath.fatigue || ath.fatigue_level || 35);
+        const acwr = ath.acwr !== undefined ? ath.acwr : 1.0;
+        const readColor = readiness >= 80 ? "var(--whoop-green)" : (readiness >= 65 ? "var(--whoop-yellow)" : "var(--whoop-red)");
+        const acwrColor = (acwr >= 0.8 && acwr <= 1.3) ? "var(--whoop-green)" : (acwr > 1.3 ? "var(--whoop-red)" : "var(--whoop-blue)");
+        const statusLabel = ath.status || "Optimal";
+        const statusColor = ath.status_color || (statusLabel === "Optimal" ? "green" : (statusLabel.includes("Spike") ? "yellow" : "red"));
+        const pillClass = statusColor === "green" ? "pill-green" : (statusColor === "amber" || statusColor === "yellow" ? "pill-yellow" : "pill-red");
+        const deviceTag = ath.device_id ? `<span style="font-size:0.68rem;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.06);color:var(--text-muted);">📡 ${ath.device_id}</span>` : "";
 
         return `
-          <div class="card" style="padding:18px;display:flex;flex-direction:column;justify-content:space-between;border:${isSelected ? "2px solid var(--primary-blue)" : "1px solid var(--border-card)"};">
+          <div class="card squad-athlete-card" style="padding:20px;display:flex;flex-direction:column;justify-content:space-between;border:${isSelected ? "1.5px solid var(--whoop-green)" : "1px solid var(--glass-border)"};background:var(--glass-bg);box-shadow:${isSelected ? "0 4px 20px rgba(0,230,118,0.18)" : "var(--glass-shadow-sm)"};">
             <div>
               <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
                 <div>
-                  <h3 style="font-size:1.05rem;font-weight:800;color:var(--text-dark);margin:0;">${ath.name}</h3>
-                  <span style="font-size:0.75rem;color:var(--text-muted);">${ath.position} • #${ath.athlete_id}</span>
+                  <h3 style="font-size:1.1rem;font-weight:800;color:var(--text-dark);margin:0 0 3px 0;">${ath.name}</h3>
+                  <div style="display:flex;align-items:center;gap:6px;">
+                    <span style="font-size:0.75rem;color:var(--text-muted);">${ath.position} • #${aid}</span>
+                    ${deviceTag}
+                  </div>
                 </div>
-                <span class="badge-pill ${statusClass}">${ath.status.replace("_", " ")}</span>
-              </div>
-
-              <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;background:#F8FAFC;padding:10px;border-radius:10px;margin-bottom:14px;text-align:center;">
-                <div>
-                  <span style="font-size:0.68rem;color:var(--text-muted);display:block;">Readiness</span>
-                  <strong style="font-size:1.15rem;color:${readColor};">${ath.readiness_score}%</strong>
-                </div>
-                <div>
-                  <span style="font-size:0.68rem;color:var(--text-muted);display:block;">Fatigue</span>
-                  <strong style="font-size:1.15rem;color:var(--text-dark);">${ath.fatigue_level}</strong>
-                </div>
-                <div>
-                  <span style="font-size:0.68rem;color:var(--text-muted);display:block;">ACWR</span>
-                  <strong style="font-size:1.15rem;color:${ath.acwr > 1.4 ? "#EF4444" : "#10B981"};">${ath.acwr}</strong>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span class="badge-pill ${pillClass}">${statusLabel}</span>
+                  <button class="btn-remove-player" onclick="promptRemoveAthlete('${aid}', '${(ath.name || '').replace(/'/g, "\\'")}')" title="Remove ${ath.name} from squad" aria-label="Remove player">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                  </button>
                 </div>
               </div>
 
-              <div style="font-size:0.8rem;color:var(--text-body);margin-bottom:14px;line-height:1.45;">
-                <strong>Coach Focus:</strong> ${ath.target_session} (${ath.recommended_intensity})
+              <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;background:var(--glass-bg-elevated);border:1px solid var(--glass-border-subtle);padding:12px;border-radius:12px;margin-bottom:14px;text-align:center;">
+                <div>
+                  <span style="font-size:0.68rem;color:var(--text-muted);display:block;text-transform:uppercase;font-weight:700;">Readiness</span>
+                  <strong style="font-size:1.2rem;color:${readColor};">${readiness}%</strong>
+                </div>
+                <div>
+                  <span style="font-size:0.68rem;color:var(--text-muted);display:block;text-transform:uppercase;font-weight:700;">Fatigue</span>
+                  <strong style="font-size:1.2rem;color:var(--text-dark);">${fatigue}%</strong>
+                </div>
+                <div>
+                  <span style="font-size:0.68rem;color:var(--text-muted);display:block;text-transform:uppercase;font-weight:700;">ACWR</span>
+                  <strong style="font-size:1.2rem;color:${acwrColor};">${acwr}</strong>
+                </div>
+              </div>
+
+              <div style="font-size:0.8rem;color:var(--text-body);margin-bottom:16px;line-height:1.45;">
+                <strong style="color:var(--text-dark);">Recommendation:</strong> ${ath.recommendation || "Maintain prescribed periodization"}
               </div>
             </div>
 
-            <button class="btn-top-action" onclick="switchView('dashboard')" style="justify-content:center;background:${isSelected ? "var(--primary-blue)" : "transparent"};color:${isSelected ? "#ffffff" : "var(--primary-blue)"};border:1px solid var(--primary-blue);font-weight:700;">
-              ${isSelected ? "Active Athlete Twin" : "Select Athlete Twin"}
+            <button class="btn-top-action" onclick="selectAthleteTwin('${aid}')" style="justify-content:center;background:${isSelected ? "var(--whoop-green)" : "var(--glass-bg-elevated)"};color:${isSelected ? "#0A0A0A" : "var(--text-dark)"};border:1px solid ${isSelected ? "var(--whoop-green)" : "var(--glass-border)"};font-weight:700;padding:8px 14px;border-radius:var(--radius-pill);cursor:pointer;">
+              ${isSelected ? "✓ Active Athlete Twin" : "Select Athlete Twin"}
             </button>
           </div>
         `;
       }).join("");
+    } else {
+      grid.innerHTML = `
+        <div style="grid-column:1/-1;text-align:center;padding:48px 20px;background:var(--glass-bg);border:1px dashed var(--glass-border);border-radius:16px;">
+          <div style="font-size:2.5rem;margin-bottom:12px;">⚽</div>
+          <h3 style="color:var(--text-dark);margin-bottom:6px;">No Athletes in Squad</h3>
+          <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:18px;">Get started by enrolling a new player into the digital twin matrix.</p>
+          <button class="btn-top-action" onclick="openAddPlayerModal()" style="background:var(--primary-blue);color:#FFF;border:none;padding:8px 18px;margin:0 auto;display:inline-flex;">+ Add Player</button>
+        </div>
+      `;
     }
   } catch (err) {
     console.error("Failed to load coach squad:", err);
+  }
+}
+
+async function selectAthleteTwin(athleteId) {
+  try {
+    const res = await fetch("/api/athlete/switch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ athlete_id: athleteId })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      showToast(data.message || `Switched to athlete ${athleteId}`, "🏃");
+      const nameEl = document.querySelector(".user-name");
+      if (nameEl && data.profile && data.profile.name) {
+        nameEl.textContent = data.profile.name;
+      }
+      const roleEl = document.getElementById("userRoleBadge");
+      if (roleEl && data.profile) {
+        roleEl.textContent = `${data.profile.position || "Football Player"}`;
+      }
+      if (typeof loadDashboardData === "function") {
+        loadDashboardData();
+      }
+      switchView("dashboard");
+    }
+  } catch (e) {
+    console.error("Failed to switch athlete:", e);
+  }
+}
+
+function initCoachSquadControls() {
+  const btnOpenAdd = document.getElementById("btnAddPlayerModalOpen");
+  const btnCloseAdd = document.getElementById("btnCloseAddPlayerModal");
+  const btnCancelAdd = document.getElementById("btnCancelAddPlayer");
+  const addModal = document.getElementById("addPlayerModal");
+  const addForm = document.getElementById("addPlayerForm");
+
+  if (btnOpenAdd) {
+    btnOpenAdd.addEventListener("click", openAddPlayerModal);
+  }
+  if (btnCloseAdd) {
+    btnCloseAdd.addEventListener("click", closeAddPlayerModal);
+  }
+  if (btnCancelAdd) {
+    btnCancelAdd.addEventListener("click", closeAddPlayerModal);
+  }
+  if (addModal) {
+    addModal.addEventListener("click", (e) => {
+      if (e.target === addModal) closeAddPlayerModal();
+    });
+  }
+
+  const btnCancelRemove = document.getElementById("btnCancelRemovePlayer");
+  const btnConfirmRemove = document.getElementById("btnConfirmRemovePlayer");
+  const removeModal = document.getElementById("removePlayerModal");
+
+  if (btnCancelRemove) {
+    btnCancelRemove.addEventListener("click", closeRemovePlayerModal);
+  }
+  if (btnConfirmRemove) {
+    btnConfirmRemove.addEventListener("click", executeRemoveAthlete);
+  }
+  if (removeModal) {
+    removeModal.addEventListener("click", (e) => {
+      if (e.target === removeModal) closeRemovePlayerModal();
+    });
+  }
+
+  if (addForm) {
+    addForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = document.getElementById("newPlayerName")?.value.trim();
+      if (!name) {
+        showToast("Player name is required", "⚠️");
+        return;
+      }
+
+      const position = document.getElementById("newPlayerPosition")?.value || "Midfield / Box-to-Box";
+      const age = parseInt(document.getElementById("newPlayerAge")?.value, 10) || 23;
+      const height_cm = parseFloat(document.getElementById("newPlayerHeight")?.value) || 181.0;
+      const weight_kg = parseFloat(document.getElementById("newPlayerWeight")?.value) || 76.0;
+      const resting_hr_baseline = parseFloat(document.getElementById("newPlayerRestingHr")?.value) || 54.0;
+      const max_hr = parseFloat(document.getElementById("newPlayerMaxHr")?.value) || 195.0;
+      const typical_sleep_baseline = parseFloat(document.getElementById("newPlayerSleep")?.value) || 7.8;
+      const recovery = parseFloat(document.getElementById("newPlayerRecovery")?.value) || 82.0;
+      const fatigue = Math.max(10, Math.min(90, Math.round(100 - recovery)));
+      const device_id = document.getElementById("newPlayerDeviceId")?.value.trim() || undefined;
+
+      const payload = {
+        name,
+        sport: "Football",
+        position,
+        age,
+        height_cm,
+        weight_kg,
+        resting_hr_baseline,
+        max_hr,
+        typical_sleep_baseline,
+        recovery,
+        fatigue,
+        acwr: 1.05,
+        device_id
+      };
+
+      try {
+        const res = await fetch("/api/athlete/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showToast(`Player ${name} registered in squad`, "⚽");
+          closeAddPlayerModal();
+          addForm.reset();
+          await loadCoachSquad();
+        } else {
+          showToast(data.error || "Failed to register player", "⚠️");
+        }
+      } catch (err) {
+        console.error("Failed to register athlete:", err);
+        showToast("Error registering athlete", "⚠️");
+      }
+    });
   }
 }
 

@@ -987,6 +987,7 @@ def get_team_overview():
     summary = registry.get_squad_summary()
     summary["team_name"] = "TwinAthlete FC (Collegiate Squad)"
     summary["avg_readiness"] = summary.get("average_readiness", 80.0)
+    summary["athletes"] = summary.get("roster", [])
     return jsonify(summary), 200
 
 
@@ -1028,11 +1029,38 @@ def register_new_athlete():
         return jsonify({"success": False, "error": "Athlete 'name' is required."}), 400
 
     twin = registry.register_athlete(data)
+    device_id = data.get("device_id")
+    if device_id:
+        registry.map_device(device_id, twin.athlete_id)
+
     return jsonify({
         "success": True,
         "message": f"Athlete '{name}' registered successfully.",
         "athlete": twin.get_summary()
     }), 201
+
+
+@app.route("/api/athlete/<athlete_id>", methods=["DELETE"])
+@app.route("/api/athlete/remove", methods=["POST"])
+def remove_squad_athlete(athlete_id=None):
+    """Removes an athlete from the squad registry and database."""
+    if not athlete_id:
+        data = request.get_json(silent=True) or {}
+        athlete_id = data.get("athlete_id")
+    if not athlete_id:
+        return jsonify({"success": False, "error": "Athlete ID is required."}), 400
+
+    if len(registry._twins) <= 1:
+        return jsonify({"success": False, "error": "Cannot remove the only athlete in the squad."}), 400
+
+    success = registry.remove_athlete(athlete_id)
+    if success:
+        return jsonify({
+            "success": True,
+            "message": f"Athlete '{athlete_id}' removed from squad.",
+            "active_athlete_id": registry.get_active_athlete_id()
+        }), 200
+    return jsonify({"success": False, "error": f"Athlete '{athlete_id}' not found."}), 404
 
 
 @app.route("/api/devices/mappings", methods=["GET"])

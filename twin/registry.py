@@ -282,17 +282,72 @@ class AthleteRegistry:
         return [twin.get_summary() for twin in self._twins.values()]
 
     def register_athlete(self, profile_data: Dict[str, Any]) -> DigitalTwin:
-        aid = profile_data.get("athlete_id") or f"ATH-{int(time.time() % 10000):04d}"
+        aid = profile_data.get("athlete_id")
+        if not aid:
+            # Generate next sequential ATH-XXXX id
+            highest = 0
+            for existing_id in self._twins.keys():
+                if str(existing_id).startswith("ATH-"):
+                    try:
+                        num = int(existing_id[4:])
+                        if num > highest:
+                            highest = num
+                    except ValueError:
+                        pass
+            aid = f"ATH-{highest + 1:04d}" if highest > 0 else f"ATH-{int(time.time() % 10000):04d}"
+
         profile_data["athlete_id"] = aid
         prof = ai_coach_engine.AthleteProfile(athlete_id=aid)
         for k, v in profile_data.items():
             if hasattr(prof, k):
-                setattr(prof, k, v)
+                try:
+                    curr_val = getattr(prof, k)
+                    if isinstance(curr_val, float):
+                        setattr(prof, k, float(v))
+                    elif isinstance(curr_val, int):
+                        setattr(prof, k, int(v))
+                    else:
+                        setattr(prof, k, v)
+                except (ValueError, TypeError):
+                    setattr(prof, k, v)
         if self.vault:
             self.vault.save_athlete_profile(prof.to_dict())
         twin = DigitalTwin(prof, storage_vault=self.vault)
+        if "fatigue" in profile_data:
+            try:
+                twin.current_fatigue = float(profile_data["fatigue"])
+            except (ValueError, TypeError):
+                pass
+        if "recovery" in profile_data:
+            try:
+                twin.current_recovery = float(profile_data["recovery"])
+            except (ValueError, TypeError):
+                pass
+        if "acwr" in profile_data:
+            try:
+                twin.acwr = float(profile_data["acwr"])
+            except (ValueError, TypeError):
+                pass
         self._twins[aid] = twin
         return twin
+
+    def remove_athlete(self, athlete_id: str) -> bool:
+        """Removes an athlete twin from active squad and SQLite database."""
+        if athlete_id in self._twins:
+            if len(self._twins) <= 1:
+                return False
+            del self._twins[athlete_id]
+            # If removing active athlete, switch to another available athlete
+            if self.active_athlete_id == athlete_id:
+                next_id = next(iter(self._twins.keys()))
+                self.set_active_athlete(next_id)
+            if self.vault:
+                try:
+                    self.vault.delete_athlete_profile(athlete_id)
+                except Exception as e:
+                    print(f"[AthleteRegistry] delete_athlete_profile notice: {e}")
+            return True
+        return False
 
     # Hardware device mapping
     def map_device(self, device_id: str, athlete_id: str) -> bool:
