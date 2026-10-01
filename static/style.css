@@ -767,30 +767,43 @@ body::after {
 }
 
 .metric-icon-box {
-  width: 26px;
-  height: 26px;
+  width: 32px;
+  height: 32px;
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.metric-icon-box svg {
+  width: 18px;
+  height: 18px;
 }
 
 .metric-icon-box.icon-heart {
-  color: var(--status-red);
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #EF4444;
 }
 
 .metric-icon-box.icon-spo2 {
-  color: var(--primary-blue);
+  background: rgba(20, 184, 166, 0.12);
+  border: 1px solid rgba(20, 184, 166, 0.25);
+  color: #14B8A6;
 }
 
 .metric-icon-box.icon-activity {
-  color: var(--status-purple);
+  background: rgba(139, 92, 246, 0.12);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  color: #8B5CF6;
 }
 
 .metric-icon-box.icon-accel {
-  color: var(--status-yellow);
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  color: #F59E0B;
 }
 
 .metric-label {
@@ -4751,43 +4764,30 @@ h6,
   color: #FFFFFF !important;
 }
 
-/* Biometric Cardiac Pulse at 156 BPM (Tactile biological rhythm) */
+/* Subtle cardiac rhythmic pulse (Clean, non-neon physiological motion) */
 @keyframes whoopCardiacPulse {
-  0% {
-    transform: scale(1);
-    filter: drop-shadow(0 0 2px rgba(255, 69, 58, 0.3));
-  }
-
-  14% {
-    transform: scale(1.18);
-    filter: drop-shadow(0 0 10px rgba(255, 69, 58, 0.8));
-  }
-
-  28% {
-    transform: scale(1.05);
-    filter: drop-shadow(0 0 4px rgba(255, 69, 58, 0.4));
-  }
-
-  42% {
-    transform: scale(1.22);
-    filter: drop-shadow(0 0 14px rgba(255, 69, 58, 0.9));
-  }
-
-  70% {
-    transform: scale(1);
-    filter: drop-shadow(0 0 2px rgba(255, 69, 58, 0.3));
-  }
-
+  0%,
   100% {
     transform: scale(1);
-    filter: drop-shadow(0 0 2px rgba(255, 69, 58, 0.3));
+  }
+
+  15% {
+    transform: scale(1.08);
+  }
+
+  30% {
+    transform: scale(1);
+  }
+
+  45% {
+    transform: scale(1.05);
   }
 }
 
 .icon-heart svg {
-  animation: whoopCardiacPulse 0.77s cubic-bezier(0.25, 0.1, 0.25, 1) infinite;
+  animation: whoopCardiacPulse 1.2s cubic-bezier(0.25, 0.1, 0.25, 1) infinite;
   transform-origin: center;
-  will-change: transform, filter;
+  will-change: transform;
 }
 
 /* Neon aura pulse for readiness status badge */
@@ -5706,6 +5706,39 @@ body {
   color: var(--text-muted);
   line-height: 1.35;
   margin: 0;
+}
+
+/* Dashboard Telemetry Section (Physical Sensors at Top) */
+.dashboard-telemetry-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Dashboard Safety Section & Balanced Hub Grid */
+.dashboard-safety-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.safety-cards-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.safety-sub-column {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+@media (max-width: 992px) {
+  .safety-cards-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Balanced Operations Grid: Telemetry vs Prevention Hub */

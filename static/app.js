@@ -673,12 +673,15 @@ function switchView(viewName) {
 
   // Hydrate view-specific content
   if (viewName === "dashboard") {
-    if (cachedDashboardData && cachedDashboardData.charts) {
-      renderHeartRateChart(cachedDashboardData.charts.heart_rate);
-      renderMovementChart(cachedDashboardData.charts.movement);
-    }
+    // Dashboard hydration
   } else if (viewName === "analytics") {
     loadAnalyticsView();
+    requestAnimationFrame(() => {
+      if (cachedDashboardData && cachedDashboardData.charts) {
+        renderHeartRateChart(cachedDashboardData.charts.heart_rate);
+        renderMovementChart(cachedDashboardData.charts.movement);
+      }
+    });
   } else if (viewName === "digital-twin") {
     syncDigitalTwinDeepView();
   } else if (viewName === "what-if") {
@@ -1414,6 +1417,11 @@ async function loadAnalyticsView() {
       renderAnalyticsFatigueRecoveryChart(data.history);
       renderAnalyticsLoadPerfChart(data.history);
       populateAnalyticsTable(data.history);
+    }
+
+    if (cachedDashboardData && cachedDashboardData.charts) {
+      renderHeartRateChart(cachedDashboardData.charts.heart_rate);
+      renderMovementChart(cachedDashboardData.charts.movement);
     }
   } catch (err) {
     console.error("Failed to load analytics history:", err);

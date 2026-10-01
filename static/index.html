@@ -463,274 +463,113 @@
             </div>
           </div>
 
-          <!-- 2. FOUR PHYSIOLOGICAL TWIN PILLARS (Unified Matrix - Zero Duplication!) -->
-          <div class="dashboard-pillars-section">
+          <!-- 2. PHYSICAL SENSORS: Live Biometric Telemetry & Inertial Kinematics -->
+          <div class="dashboard-telemetry-section">
             <div class="section-title-row">
               <div class="section-title-left">
-                <span class="section-kicker">COMPUTATIONAL BIOMARKERS</span>
-                <h2 class="section-heading">Athlete Digital Twin Status Matrix</h2>
+                <span class="section-kicker">PHYSICAL SENSORS</span>
+                <h2 class="section-heading">Live Biometric Telemetry &amp; Inertial Kinematics</h2>
               </div>
-              <span class="section-hint">Click any indicator to log check-in or inspect kinetic models</span>
+              <div class="telemetry-live-badge">
+                <span class="pulse-dot green"></span>
+                <span>STREAM ACTIVE</span>
+              </div>
             </div>
 
-            <div class="twin-pillars-grid">
-              <!-- Pillar 1: Recovery Score (With Interactive Donut Widget) -->
-              <div class="card twin-pillar-card pillar-recovery" id="donutRecoveryWidget" tabindex="0" role="button"
-                title="Click to log daily athlete check-in and update recovery readiness">
-                <div class="pillar-header">
-                  <span class="pillar-label">Recovery Score</span>
-                  <span class="badge-pill pill-green" id="twinRecoveryLabel">Optimal</span>
-                </div>
-                <div class="pillar-donut-row">
-                  <div class="donut-gauge-wrapper">
-                    <svg viewBox="0 0 100 100" class="donut-svg">
-                      <defs>
-                        <linearGradient id="donutGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                          <stop offset="0%" stop-color="#00E676" />
-                          <stop offset="100%" stop-color="#00C853" />
-                        </linearGradient>
-                      </defs>
-                      <circle class="donut-track" cx="50" cy="50" r="40" />
-                      <!-- 2 * PI * 40 ≈ 251.32. For 78%: dasharray=251.32, dashoffset=251.32 * (1 - 0.78) = 55.29 -->
-                      <circle class="donut-fill" id="donutRecoveryCircle" cx="50" cy="50" r="40" stroke-dasharray="251.32"
-                        stroke-dashoffset="55.29" />
+            <!-- 4 Quick Vitals Metric Cards -->
+            <div class="vitals-grid-row">
+              <!-- Heart Rate -->
+              <div class="card metric-card">
+                <div class="metric-header">
+                  <div class="metric-icon-box icon-heart">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
                     </svg>
-                    <div class="donut-center-text">
-                      <span class="donut-val-num" id="donutRecoveryVal">78%</span>
-                      <span class="donut-val-label">Recovery</span>
-                    </div>
                   </div>
-                  <div class="pillar-meta-text">
-                    <span class="score-num" id="twinRecoveryVal" style="display:none;">78%</span>
-                    <span class="pillar-desc">Parasympathetic restoration &amp; baseline readiness</span>
-                    <div class="score-progress-bar" style="margin-top: 10px;">
-                      <div class="score-fill fill-blue" id="twinRecoveryBar" style="width: 78%;"></div>
-                    </div>
-                    <span class="pillar-action-hint">Tap to log daily check-in &rarr;</span>
-                  </div>
+                  <span class="metric-label">Heart Rate</span>
+                </div>
+                <div class="metric-val-row">
+                  <span class="metric-num" id="vitalHrVal">156</span>
+                  <span class="metric-unit">BPM</span>
+                  <span class="metric-trend trend-up-red" id="vitalHrTrend">&uarr; 8%</span>
+                </div>
+                <div class="badge-pill pill-red" id="vitalHrStatus">
+                  <span id="vitalHrStatusText">High Intensity</span>
                 </div>
               </div>
 
-              <!-- Pillar 2: Performance Readiness -->
-              <div class="card twin-pillar-card pillar-readiness" id="metricReadinessItem" tabindex="0" role="button"
-                title="Click to view readiness breakdown">
-                <div class="pillar-header">
-                  <span class="pillar-label">Performance Readiness</span>
-                  <span class="badge-pill pill-green" id="twinReadinessLabel">High</span>
+              <!-- SpO2 -->
+              <div class="card metric-card">
+                <div class="metric-header">
+                  <div class="metric-icon-box icon-spo2">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
+                    </svg>
+                  </div>
+                  <span class="metric-label">SpO<sub>2</sub></span>
                 </div>
-                <div class="pillar-body">
-                  <div class="score-val-row">
-                    <span class="score-num" id="twinReadinessVal">82%</span>
-                    <span class="score-subtext text-green" id="todayReadinessStatus">High</span>
-                  </div>
-                  <div class="score-progress-bar">
-                    <div class="score-fill fill-green" id="twinReadinessBar" style="width: 82%;"></div>
-                  </div>
-                  <p class="pillar-note">Prime neuromuscular state for high-speed sprints and explosive accelerations.</p>
+                <div class="metric-val-row">
+                  <span class="metric-num" id="vitalSpo2Val">98</span>
+                  <span class="metric-unit">%</span>
                 </div>
-              </div>
-
-              <!-- Pillar 3: Neuromuscular Fatigue (TRIMP Kinetics) -->
-              <div class="card twin-pillar-card pillar-fatigue" id="metricFatigueItem" tabindex="0" role="button"
-                title="Click to view Banister fatigue kinetics">
-                <div class="pillar-header">
-                  <span class="pillar-label">Neuromuscular Fatigue</span>
-                  <span class="badge-pill pill-yellow" id="twinFatigueLabel">Moderate</span>
-                </div>
-                <div class="pillar-body">
-                  <div class="score-val-row">
-                    <span class="score-num" id="twinFatigueVal">38%</span>
-                    <span class="score-subtext text-amber" id="todayFatigueStatus">Moderate</span>
-                  </div>
-                  <div class="score-progress-bar">
-                    <div class="score-fill fill-amber" id="twinFatigueBar" style="width: 38%;"></div>
-                  </div>
-                  <p class="pillar-note">Banister kinetics: 38 AU residual fatigue following Matchday -2 loading.</p>
+                <div class="badge-pill pill-green" id="vitalSpo2Status">
+                  <span class="pill-dot"></span>
+                  <span id="vitalSpo2StatusText">Normal</span>
                 </div>
               </div>
 
-              <!-- Pillar 4: Workload & Performance Output -->
-              <div class="card twin-pillar-card pillar-performance" tabindex="0" role="button"
-                title="Click to view ACWR workload safety envelope">
-                <div class="pillar-header">
-                  <span class="pillar-label">Performance Capacity</span>
-                  <span class="badge-pill pill-purple" id="twinPerformanceLabel">High Output</span>
+              <!-- Activity -->
+              <div class="card metric-card">
+                <div class="metric-header">
+                  <div class="metric-icon-box icon-activity">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="16" cy="4" r="2" />
+                      <path d="m19 10-4 1-2-3-3 2v4" />
+                      <path d="M9 14 5 19" />
+                      <path d="m12 17 2 4" />
+                    </svg>
+                  </div>
+                  <span class="metric-label">Activity</span>
                 </div>
-                <div class="pillar-body">
-                  <div class="score-val-row">
-                    <span class="score-num" id="twinPerformanceVal">87%</span>
-                    <span class="score-subtext text-purple">ACWR 1.12</span>
+                <div class="metric-val-row">
+                  <span class="metric-num" id="vitalActivityVal" style="font-size:1.35rem;">Running</span>
+                </div>
+                <span class="badge-subtext" id="vitalActivitySub">Team Training</span>
+              </div>
+
+              <!-- Acceleration -->
+              <div class="card metric-card">
+                <div class="metric-header">
+                  <div class="metric-icon-box icon-accel">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                    </svg>
                   </div>
-                  <div class="score-progress-bar">
-                    <div class="score-fill fill-purple" id="twinPerformanceBar" style="width: 87%;"></div>
-                  </div>
-                  <p class="pillar-note">Optimal ACWR Sweet Spot (0.8–1.3). Minimal relative soft-tissue hazard.</p>
+                  <span class="metric-label">Acceleration</span>
+                </div>
+                <div class="metric-val-row">
+                  <span class="metric-num" id="vitalAccelVal">2.8</span>
+                  <span class="metric-unit">g</span>
+                  <span class="metric-trend trend-up-amber" id="vitalAccelTrend">&uarr; 22%</span>
+                </div>
+                <div class="badge-pill pill-yellow" id="vitalAccelStatus">
+                  <span class="pill-dot"></span>
+                  <span id="vitalAccelStatusText">High Load</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- 3. BALANCED 2-COLUMN OPERATIONS: Telemetry Studio vs Preventive Care Hub -->
-          <div class="dashboard-operations-grid">
-
-            <!-- Column A: Physical Sensors & Real-Time Telemetry -->
-            <div class="operations-left-column">
-              <div class="section-title-row">
-                <div class="section-title-left">
-                  <span class="section-kicker">PHYSICAL SENSORS</span>
-                  <h2 class="section-heading">Live Biometric Telemetry &amp; Inertial Kinematics</h2>
-                </div>
-                <div class="telemetry-live-badge">
-                  <span class="pulse-dot green"></span>
-                  <span>STREAM ACTIVE</span>
-                </div>
-              </div>
-
-              <!-- 4 Quick Vitals Metric Cards -->
-              <div class="vitals-grid-row">
-                <!-- Heart Rate -->
-                <div class="card metric-card">
-                  <div class="metric-header">
-                    <div class="metric-icon-box icon-heart">
-                      <svg viewBox="0 0 24 24" fill="currentColor">
-                        <path
-                          d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-                      </svg>
-                    </div>
-                    <span class="metric-label">Heart Rate</span>
-                  </div>
-                  <div class="metric-val-row">
-                    <span class="metric-num" id="vitalHrVal">156</span>
-                    <span class="metric-unit">BPM</span>
-                    <span class="metric-trend trend-up-red" id="vitalHrTrend">&uarr; 8%</span>
-                  </div>
-                  <div class="badge-pill pill-red" id="vitalHrStatus">
-                    <span id="vitalHrStatusText">High Intensity</span>
-                  </div>
-                </div>
-
-                <!-- SpO2 -->
-                <div class="card metric-card">
-                  <div class="metric-header">
-                    <div class="metric-icon-box icon-spo2">
-                      <svg viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
-                      </svg>
-                    </div>
-                    <span class="metric-label">SpO<sub>2</sub></span>
-                  </div>
-                  <div class="metric-val-row">
-                    <span class="metric-num" id="vitalSpo2Val">98</span>
-                    <span class="metric-unit">%</span>
-                  </div>
-                  <div class="badge-pill pill-green" id="vitalSpo2Status">
-                    <span class="pill-dot"></span>
-                    <span id="vitalSpo2StatusText">Normal</span>
-                  </div>
-                </div>
-
-                <!-- Activity -->
-                <div class="card metric-card">
-                  <div class="metric-header">
-                    <div class="metric-icon-box icon-activity">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
-                        <circle cx="16" cy="4" r="2" />
-                        <path d="m19 10-4 1-2-3-3 2v4" />
-                        <path d="M9 14 5 19" />
-                      </svg>
-                    </div>
-                    <span class="metric-label">Activity</span>
-                  </div>
-                  <div class="metric-val-row">
-                    <span class="metric-num" id="vitalActivityVal" style="font-size:1.35rem;">Running</span>
-                  </div>
-                  <span class="badge-subtext" id="vitalActivitySub">Team Training</span>
-                </div>
-
-                <!-- Acceleration -->
-                <div class="card metric-card">
-                  <div class="metric-header">
-                    <div class="metric-icon-box icon-accel">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
-                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-                      </svg>
-                    </div>
-                    <span class="metric-label">Acceleration</span>
-                  </div>
-                  <div class="metric-val-row">
-                    <span class="metric-num" id="vitalAccelVal">2.8</span>
-                    <span class="metric-unit">g</span>
-                    <span class="metric-trend trend-up-amber" id="vitalAccelTrend">&uarr; 22%</span>
-                  </div>
-                  <div class="badge-pill pill-yellow" id="vitalAccelStatus">
-                    <span class="pill-dot"></span>
-                    <span id="vitalAccelStatusText">High Load</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Live Sensor Data Dual Charts Card -->
-              <div class="card sensor-data-card">
-                <div class="sensor-header">
-                  <div class="sensor-title-box">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
-                      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-                    </svg>
-                    <span class="sensor-title">Live Dynamic Sensor Telemetry</span>
-                  </div>
-                  <div class="timeframe-pill-group">
-                    <button class="tf-btn" data-tf="1M">1 min</button>
-                    <button class="tf-btn" data-tf="10M">10 min</button>
-                    <button class="tf-btn" data-tf="30M">30 min</button>
-                    <button class="tf-btn active" data-tf="1H">1 hr</button>
-                  </div>
-                </div>
-
-                <div class="dual-charts-grid">
-                  <!-- Heart Rate (BPM) Chart Panel -->
-                  <div class="chart-subpanel">
-                    <div class="subpanel-header">
-                      <span class="subpanel-title">Heart Rate (BPM)</span>
-                    </div>
-                    <div class="canvas-box" id="hrCanvasContainer">
-                      <canvas id="heartRateChart" width="450" height="155"></canvas>
-                      <div class="chart-tooltip" id="hrChartTooltip"></div>
-                    </div>
-                    <div class="axis-label-x">Time (minutes)</div>
-                  </div>
-
-                  <!-- Acceleration (g) Chart Panel -->
-                  <div class="chart-subpanel">
-                    <div class="subpanel-header">
-                      <span class="subpanel-title">Acceleration (g)</span>
-                      <div class="legend-group" id="accelLegendGroup">
-                        <span class="legend-tag clickable-legend active" id="legendAxisX" data-axis="x"
-                          title="Click to show/hide X axis"><span class="dot dot-x"></span> X</span>
-                        <span class="legend-tag clickable-legend active" id="legendAxisY" data-axis="y"
-                          title="Click to show/hide Y axis"><span class="dot dot-y"></span> Y</span>
-                        <span class="legend-tag clickable-legend active" id="legendAxisZ" data-axis="z"
-                          title="Click to show/hide Z axis"><span class="dot dot-z"></span> Z</span>
-                      </div>
-                    </div>
-                    <div class="canvas-box" id="movementCanvasContainer">
-                      <canvas id="movementChart" width="450" height="155"></canvas>
-                      <div class="chart-tooltip" id="movementChartTooltip"></div>
-                    </div>
-                    <div class="axis-label-x">Time (minutes)</div>
-                  </div>
-                </div>
+          <!-- 3. SAFETY PROTOCOLS & INJURY PREVENTION HUB -->
+          <div class="dashboard-safety-section">
+            <div class="section-title-row">
+              <div class="section-title-left">
+                <span class="section-kicker">SAFETY PROTOCOLS</span>
+                <h2 class="section-heading">Injury Prevention &amp; Precautions</h2>
               </div>
             </div>
 
-            <!-- Column B: Preventive Care & Safety Hub -->
-            <div class="operations-right-column">
-              <div class="section-title-row">
-                <div class="section-title-left">
-                  <span class="section-kicker">SAFETY PROTOCOLS</span>
-                  <h2 class="section-heading">Injury Prevention &amp; Precautions</h2>
-                </div>
-              </div>
-
+            <div class="safety-cards-grid">
               <!-- Card: Biomechanical Injury Risk Assessment -->
               <div class="card injury-risk-card">
                 <div class="card-header-flex">
@@ -784,95 +623,96 @@
                 </div>
               </div>
 
-              <!-- Card: Recommended Precautions Checklist -->
-              <div class="card precautions-card">
-                <div class="card-header-flex">
-                  <div class="card-title-with-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                      <path d="M9 18h6" />
-                      <path d="M10 22h4" />
-                      <path d="M12 2a7 7 0 0 0-7 7c0 2.5 1.5 4.5 3 6h8c1.5-1.5 3-3.5 3-6a7 7 0 0 0-7-7z" />
-                    </svg>
-                    <span class="card-main-title">Prescribed Daily Precautions</span>
+              <!-- Right Sub-Column: Recommended Precautions & Quick Hub -->
+              <div class="safety-sub-column">
+                <!-- Card: Recommended Precautions Checklist -->
+                <div class="card precautions-card">
+                  <div class="card-header-flex">
+                    <div class="card-title-with-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                        <path d="M9 18h6" />
+                        <path d="M10 22h4" />
+                        <path d="M12 2a7 7 0 0 0-7 7c0 2.5 1.5 4.5 3 6h8c1.5-1.5 3-3.5 3-6a7 7 0 0 0-7-7z" />
+                      </svg>
+                      <span class="card-main-title">Prescribed Daily Precautions</span>
+                    </div>
+                    <div class="icon-info-btn" id="btnPrecautionsInfo"
+                      title="Physiological evidence-based recovery guidelines">
+                      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="16" x2="12" y2="12" />
+                        <line x1="12" y1="8" x2="12.01" y2="8" />
+                      </svg>
+                    </div>
                   </div>
-                  <div class="icon-info-btn" id="btnPrecautionsInfo"
-                    title="Physiological evidence-based recovery guidelines">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                      <circle cx="12" cy="12" r="10" />
-                      <line x1="12" y1="16" x2="12" y2="12" />
-                      <line x1="12" y1="8" x2="12.01" y2="8" />
-                    </svg>
-                  </div>
+
+                  <ul class="precautions-list" id="precautionsChecklist">
+                    <li class="precaution-item" data-idx="0">
+                      <div class="precaution-checkbox">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"
+                          stroke-linejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </div>
+                      <span class="precaution-text">Consider reducing high-intensity training if fatigue remains
+                        elevated.</span>
+                    </li>
+                    <li class="precaution-item" data-idx="1">
+                      <div class="precaution-checkbox">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"
+                          stroke-linejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </div>
+                      <span class="precaution-text">Focus on proper warm-up and cool-down.</span>
+                    </li>
+                    <li class="precaution-item" data-idx="2">
+                      <div class="precaution-checkbox">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"
+                          stroke-linejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </div>
+                      <span class="precaution-text">Include strength and mobility work for hamstrings and calves.</span>
+                    </li>
+                    <li class="precaution-item" data-idx="3">
+                      <div class="precaution-checkbox">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"
+                          stroke-linejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </div>
+                      <span class="precaution-text">Ensure adequate rest and sleep.</span>
+                    </li>
+                    <li class="precaution-item" data-idx="4">
+                      <div class="precaution-checkbox">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"
+                          stroke-linejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </div>
+                      <span class="precaution-text">If you feel pain or discomfort, consult a qualified sports
+                        professional.</span>
+                    </li>
+                  </ul>
                 </div>
 
-                <ul class="precautions-list" id="precautionsChecklist">
-                  <li class="precaution-item" data-idx="0">
-                    <div class="precaution-checkbox">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"
-                        stroke-linejoin="round">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    </div>
-                    <span class="precaution-text">Consider reducing high-intensity training if fatigue remains
-                      elevated.</span>
-                  </li>
-                  <li class="precaution-item" data-idx="1">
-                    <div class="precaution-checkbox">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"
-                        stroke-linejoin="round">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    </div>
-                    <span class="precaution-text">Focus on proper warm-up and cool-down.</span>
-                  </li>
-                  <li class="precaution-item" data-idx="2">
-                    <div class="precaution-checkbox">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"
-                        stroke-linejoin="round">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    </div>
-                    <span class="precaution-text">Include strength and mobility work for hamstrings and calves.</span>
-                  </li>
-                  <li class="precaution-item" data-idx="3">
-                    <div class="precaution-checkbox">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"
-                        stroke-linejoin="round">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    </div>
-                    <span class="precaution-text">Ensure adequate rest and sleep.</span>
-                  </li>
-                  <li class="precaution-item" data-idx="4">
-                    <div class="precaution-checkbox">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"
-                        stroke-linejoin="round">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    </div>
-                    <span class="precaution-text">If you feel pain or discomfort, consult a qualified sports
-                      professional.</span>
-                  </li>
-                </ul>
-              </div>
-
-              <!-- Card: Interactive Sports Science Tools -->
-              <div class="card quick-actions-hub-card">
-                <span class="quick-hub-title">Interactive Sports Science Hub</span>
-                <div class="quick-hub-grid">
-                  <a href="#what-if" class="quick-hub-btn" data-nav="what-if">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m19 12-7-7-7 7"/><path d="M12 19V5"/></svg>
-                    <span>What-If Simulator</span>
-                  </a>
-                  <a href="#accuracy" class="quick-hub-btn" data-nav="accuracy">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                    <span>Forecast Accuracy</span>
-                  </a>
+                <!-- Card: Interactive Sports Science Tools -->
+                <div class="card quick-actions-hub-card">
+                  <span class="quick-hub-title">Interactive Sports Science Hub</span>
+                  <div class="quick-hub-grid">
+                    <a href="#what-if" class="quick-hub-btn" data-nav="what-if">
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m19 12-7-7-7 7"/><path d="M12 19V5"/></svg>
+                      <span>What-If Simulator</span>
+                    </a>
+                    <a href="#accuracy" class="quick-hub-btn" data-nav="accuracy">
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                      <span>Forecast Accuracy</span>
+                    </a>
+                  </div>
                 </div>
               </div>
-
             </div>
-
           </div>
 
           <!-- 4. FULL-WIDTH HISTORICAL LEDGER: Recent Training Sessions -->
@@ -1190,6 +1030,58 @@
               style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border-card);display:flex;justify-content:space-between;align-items:center;font-size:0.75rem;color:var(--text-muted);">
               <span>Report Generated: <strong id="weeklyReportGenDate">Today</strong></span>
               <span style="color:#10B981;font-weight:700;">✓ Ready for Physio Review</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Dynamic Sensor Telemetry Card (Moved from Athlete Dashboard) -->
+        <div class="card sensor-data-card" style="margin-bottom:20px;">
+          <div class="sensor-header">
+            <div class="sensor-title-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+              </svg>
+              <span class="sensor-title">Live Dynamic Sensor Telemetry</span>
+            </div>
+            <div class="timeframe-pill-group">
+              <button class="tf-btn" data-tf="1M">1 min</button>
+              <button class="tf-btn" data-tf="10M">10 min</button>
+              <button class="tf-btn" data-tf="30M">30 min</button>
+              <button class="tf-btn active" data-tf="1H">1 hr</button>
+            </div>
+          </div>
+
+          <div class="dual-charts-grid">
+            <!-- Heart Rate (BPM) Chart Panel -->
+            <div class="chart-subpanel">
+              <div class="subpanel-header">
+                <span class="subpanel-title">Heart Rate (BPM)</span>
+              </div>
+              <div class="canvas-box" id="hrCanvasContainer">
+                <canvas id="heartRateChart" width="450" height="155"></canvas>
+                <div class="chart-tooltip" id="hrChartTooltip"></div>
+              </div>
+              <div class="axis-label-x">Time (minutes)</div>
+            </div>
+
+            <!-- Acceleration (g) Chart Panel -->
+            <div class="chart-subpanel">
+              <div class="subpanel-header">
+                <span class="subpanel-title">Acceleration (g)</span>
+                <div class="legend-group" id="accelLegendGroup">
+                  <span class="legend-tag clickable-legend active" id="legendAxisX" data-axis="x"
+                    title="Click to show/hide X axis"><span class="dot dot-x"></span> X</span>
+                  <span class="legend-tag clickable-legend active" id="legendAxisY" data-axis="y"
+                    title="Click to show/hide Y axis"><span class="dot dot-y"></span> Y</span>
+                  <span class="legend-tag clickable-legend active" id="legendAxisZ" data-axis="z"
+                    title="Click to show/hide Z axis"><span class="dot dot-z"></span> Z</span>
+                </div>
+              </div>
+              <div class="canvas-box" id="movementCanvasContainer">
+                <canvas id="movementChart" width="450" height="155"></canvas>
+                <div class="chart-tooltip" id="movementChartTooltip"></div>
+              </div>
+              <div class="axis-label-x">Time (minutes)</div>
             </div>
           </div>
         </div>
