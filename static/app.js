@@ -26,7 +26,7 @@ const DEFAULT_USER_PROFILE = Object.freeze({
   squadNumber: "8",
   sport: "Football",
   role: "Football Player",
-  avatar: "images/daniel_saji.jpg",
+  avatar: "images/athlete_avatar.png",
   age: 24,
   weight: 74,
   height: 180,

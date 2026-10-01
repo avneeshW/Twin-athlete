@@ -6458,33 +6458,32 @@ body {
 }
 
 .sidebar-switch-role-box {
-  padding: 10px 14px;
+  padding: 6px 14px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .sidebar-switch-role-btn {
-  width: 100%;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  background: rgba(0, 132, 255, 0.09);
-  border: 1px solid rgba(0, 132, 255, 0.24);
-  border-radius: 10px;
-  color: #E2E8F0;
-  font-size: 0.85rem;
-  font-weight: 600;
+  gap: 6px;
+  padding: 5px 10px;
+  background: rgba(0, 132, 255, 0.08);
+  border: 1px solid rgba(0, 132, 255, 0.2);
+  border-radius: 6px;
+  color: #CBD5E1;
+  font-size: 0.72rem;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.25s ease;
 }
 
 .sidebar-switch-role-btn:hover {
-  background: rgba(0, 132, 255, 0.22);
+  background: rgba(0, 132, 255, 0.2);
   border-color: #0084FF;
   color: #FFFFFF;
-  transform: translateX(3px);
-  box-shadow: 0 4px 14px rgba(0, 132, 255, 0.25);
+  transform: translateX(2px);
+  box-shadow: 0 2px 8px rgba(0, 132, 255, 0.2);
 }
 
 /* ATHLETE MODE CONCEALMENT (Hides Coach-only controls) */
