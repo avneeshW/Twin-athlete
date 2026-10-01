@@ -319,16 +319,6 @@ function initLandingPage() {
     }
   }
 
-  // Direct Launch Cockpit Button in Hero
-  const heroLaunchCockpitBtn = document.getElementById("heroLaunchCockpitBtn");
-  if (heroLaunchCockpitBtn) {
-    heroLaunchCockpitBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      const savedRole = sessionStorage.getItem("dta_selected_role") || "coach";
-      enterRoleWorkspace(savedRole, "dashboard", true);
-    });
-  }
-
   // Smooth scroll explore button from Section 1 down to Section 2
   if (scrollExploreBtn) {
     scrollExploreBtn.addEventListener("click", (e) => {
