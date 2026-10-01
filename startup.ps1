@@ -80,7 +80,7 @@ foreach ($v in $VenvPaths) {
 
 # 2. Check Required Packages
 Write-Host "`n[2/6] Verifying Core Dependencies..." -ForegroundColor Yellow
-$CorePackages = @("flask", "numpy", "pandas", "sklearn", "serial")
+$CorePackages = @("flask", "numpy", "serial")
 $MissingPackages = @()
 
 foreach ($pkg in $CorePackages) {
@@ -100,7 +100,7 @@ if ($MissingPackages.Count -gt 0) {
         Write-Host " [+] All dependencies successfully installed!" -ForegroundColor Green
     }
 } else {
-    Write-Host " [+] Core dependencies verified (Flask, NumPy, Pandas, Scikit-Learn, PySerial)" -ForegroundColor Green
+    Write-Host " [+] Core dependencies verified (Flask, NumPy, PySerial, Compatibility Engine)" -ForegroundColor Green
 }
 
 # 3. Detect Local Network IP for ESP32 Wi-Fi

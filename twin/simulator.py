@@ -7,9 +7,17 @@ except Exception as e:
     np = None
 
 try:
-    import pandas as pd
-except Exception as e:
-    pd = None
+    from .compat import pd, DataFrame
+except Exception:
+    try:
+        from twin.compat import pd, DataFrame
+    except Exception:
+        try:
+            import pandas as pd
+            DataFrame = getattr(pd, "DataFrame", None)
+        except Exception:
+            pd = None
+            DataFrame = None
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.abspath(os.path.join(BASE_DIR, ".."))

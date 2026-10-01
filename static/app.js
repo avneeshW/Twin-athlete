@@ -16,7 +16,191 @@ let accelVisibility = { x: true, y: true, z: true };
 let isSensorConnected = false;
 let lastLivePacketTimestamp = 0;
 
+/* ==============================================================================
+   ACTIVE USER / ATHLETE PROFILE - SINGLE SOURCE OF TRUTH
+   ============================================================================== */
+const DEFAULT_USER_PROFILE = Object.freeze({
+  name: "Avneesh Walvalkar",
+  firstName: "Avneesh",
+  position: "Midfielder",
+  squadNumber: "8",
+  sport: "Football",
+  role: "Football Player",
+  avatar: "images/daniel_saji.jpg",
+  age: 24,
+  weight: 74,
+  height: 180,
+  restHr: 54,
+  maxHr: 196
+});
+
+function getFirstName(fullName) {
+  if (!fullName || typeof fullName !== "string") return "Athlete";
+  const trimmed = fullName.trim();
+  const first = trimmed.split(/\s+/)[0];
+  return first || trimmed;
+}
+
+// Global active athlete state bound to both Header Profile and Hero Greeting Card
+let activeUserProfile = { ...DEFAULT_USER_PROFILE };
+
+// Pre-hydrate from localStorage if previously configured
+try {
+  const savedProfile = JSON.parse(localStorage.getItem("digitalTwinAthleteSettings") || "{}");
+  if (savedProfile && typeof savedProfile === "object" && savedProfile.name) {
+    activeUserProfile = {
+      ...DEFAULT_USER_PROFILE,
+      ...savedProfile,
+      firstName: getFirstName(savedProfile.name)
+    };
+  }
+} catch (e) { }
+
+function getActiveUserProfile() {
+  return { ...activeUserProfile };
+}
+
+function updateActiveUserProfile(partialProfile, shouldPersist = true) {
+  if (!partialProfile || typeof partialProfile !== "object") return;
+
+  activeUserProfile = {
+    ...activeUserProfile,
+    ...partialProfile
+  };
+
+  // Derive dynamic fields
+  if (activeUserProfile.name) {
+    activeUserProfile.firstName = getFirstName(activeUserProfile.name);
+  } else {
+    activeUserProfile.name = DEFAULT_USER_PROFILE.name;
+    activeUserProfile.firstName = DEFAULT_USER_PROFILE.firstName;
+  }
+
+  if (!activeUserProfile.position) {
+    activeUserProfile.position = DEFAULT_USER_PROFILE.position;
+  }
+  if (!activeUserProfile.squadNumber) {
+    activeUserProfile.squadNumber = DEFAULT_USER_PROFILE.squadNumber;
+  }
+
+  if (shouldPersist) {
+    try {
+      localStorage.setItem("digitalTwinAthleteSettings", JSON.stringify(activeUserProfile));
+    } catch (e) { }
+  }
+
+  renderActiveUserProfileUI();
+
+  // Notify any subscribers/listeners
+  window.dispatchEvent(new CustomEvent("athleteProfileChanged", {
+    detail: { ...activeUserProfile }
+  }));
+}
+
+function renderActiveUserProfileUI() {
+  const profile = activeUserProfile;
+  const firstName = profile.firstName || getFirstName(profile.name);
+  const fullName = profile.name || DEFAULT_USER_PROFILE.name;
+  const position = profile.position || DEFAULT_USER_PROFILE.position;
+  const squadNumber = profile.squadNumber || DEFAULT_USER_PROFILE.squadNumber;
+
+  // 1. ATHLETE DIGITAL TWIN Hero Card Heading: Good Morning, {firstName}!
+  const heroGreetingEl = document.getElementById("heroGreeting");
+  if (heroGreetingEl) {
+    heroGreetingEl.textContent = `Good Morning, ${firstName}!`;
+  }
+
+  // 2. ATHLETE DIGITAL TWIN Hero Card Subtitle: {fullName} • {position} • Squad #{squadNumber} • {date}
+  const heroSubtextEl = document.getElementById("heroSubtext");
+  if (heroSubtextEl) {
+    const existingDateSpan = document.getElementById("overviewDateText");
+    const dateText = (existingDateSpan && existingDateSpan.textContent && existingDateSpan.textContent.trim())
+      || document.getElementById("liveDate")?.textContent
+      || "Mon, 7 Oct 2025";
+    heroSubtextEl.innerHTML = `${fullName} • ${position} • Squad #${squadNumber} • <span id="overviewDateText">${dateText}</span>`;
+  }
+
+  // 3. Hero Card Avatar
+  const heroAvatarImg = document.querySelector(".hero-avatar-img");
+  if (heroAvatarImg) {
+    heroAvatarImg.alt = fullName;
+    if (profile.avatar) heroAvatarImg.src = profile.avatar;
+  }
+
+  // 4. Header Top-Right Component: User name, role badge, avatar
+  const userNameEls = document.querySelectorAll(".user-name");
+  userNameEls.forEach(el => {
+    if (el.textContent !== fullName) {
+      el.textContent = fullName;
+    }
+  });
+
+  const userRoleBadge = document.getElementById("userRoleBadge");
+  if (userRoleBadge) {
+    userRoleBadge.textContent = position || profile.role || "Football Player";
+  }
+
+  const headerAvatarImg = document.querySelector(".user-profile-menu .user-avatar-img");
+  if (headerAvatarImg) {
+    headerAvatarImg.alt = fullName;
+    if (profile.avatar) headerAvatarImg.src = profile.avatar;
+  }
+
+  // 5. User Profile Dropdown Popover
+  const dropdownName = document.getElementById("dropdownUserName");
+  if (dropdownName) dropdownName.textContent = fullName;
+
+  const dropdownSub = document.getElementById("dropdownUserSub");
+  if (dropdownSub) dropdownSub.textContent = `#${squadNumber} • ${position} • Squad Runner`;
+
+  const dropdownAvatar = document.getElementById("dropdownUserAvatar");
+  if (dropdownAvatar) {
+    dropdownAvatar.alt = fullName;
+    if (profile.avatar) dropdownAvatar.src = profile.avatar;
+  }
+
+  // 6. Settings Inputs (if not actively being edited)
+  const settingName = document.getElementById("settingAthleteName");
+  if (settingName && document.activeElement !== settingName) {
+    settingName.value = fullName;
+  }
+  const settingPos = document.getElementById("settingAthletePosition");
+  if (settingPos && document.activeElement !== settingPos) {
+    settingPos.value = position;
+  }
+  const settingSquad = document.getElementById("settingAthleteSquadNumber");
+  if (settingSquad && document.activeElement !== settingSquad) {
+    settingSquad.value = squadNumber;
+  }
+
+  // 7. What-If Section Subtitle
+  const whatIfSub = document.querySelector(".whatif-section-sub");
+  if (whatIfSub) {
+    whatIfSub.textContent = `${fullName} • Established Baseline`;
+  }
+}
+
+// Expose state and mutators globally for testability and cross-component integration
+window.DEFAULT_USER_PROFILE = DEFAULT_USER_PROFILE;
+window.getActiveUserProfile = getActiveUserProfile;
+window.updateActiveUserProfile = updateActiveUserProfile;
+window.renderActiveUserProfileUI = renderActiveUserProfileUI;
+
 document.addEventListener("DOMContentLoaded", () => {
+  renderActiveUserProfileUI();
+
+  // Watch header profile user-name for any direct external updates to maintain two-way synchronization
+  const headerNameEl = document.querySelector(".user-profile-menu .user-name");
+  if (headerNameEl && window.MutationObserver) {
+    const observer = new MutationObserver(() => {
+      const currentText = headerNameEl.textContent?.trim();
+      if (currentText && currentText !== activeUserProfile.name) {
+        updateActiveUserProfile({ name: currentText }, false);
+      }
+    });
+    observer.observe(headerNameEl, { childList: true, characterData: true, subtree: true });
+  }
+
   initClock();
   initSidebar();
   initTimeframeButtons();
@@ -133,6 +317,16 @@ function initLandingPage() {
         console.log("[landing] Video autoplay note:", err);
       });
     }
+  }
+
+  // Direct Launch Cockpit Button in Hero
+  const heroLaunchCockpitBtn = document.getElementById("heroLaunchCockpitBtn");
+  if (heroLaunchCockpitBtn) {
+    heroLaunchCockpitBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      const savedRole = sessionStorage.getItem("dta_selected_role") || "coach";
+      enterRoleWorkspace(savedRole, "dashboard", true);
+    });
   }
 
   // Smooth scroll explore button from Section 1 down to Section 2
@@ -266,7 +460,7 @@ function showLandingPage() {
     landingPageEl.classList.remove("hidden");
     const video = document.getElementById("landingHeroVideo");
     if (video && video.paused) {
-      video.play().catch(() => {});
+      video.play().catch(() => { });
     }
   }
 }
@@ -313,18 +507,19 @@ function initClock() {
     const minutes = now.getMinutes().toString().padStart(2, "0");
     const ampm = hour24 >= 12 ? "PM" : "AM";
 
-    if (liveDateEl) liveDateEl.textContent = `${dayName}, ${dateNum} ${monthName} ${year}`;
+    const dateText = `${dayName}, ${dateNum} ${monthName} ${year}`;
+    if (liveDateEl) liveDateEl.textContent = dateText;
     if (liveTimeEl) liveTimeEl.textContent = `${hours}:${minutes} ${ampm}`;
 
-    // Dynamic time-of-day greeting
+    const overviewDateSpan = document.getElementById("overviewDateText");
+    if (overviewDateSpan && !overviewDateSpan.dataset.customDate) {
+      overviewDateSpan.textContent = dateText;
+    }
+
+    // Dynamic greeting bound to active user profile: Good Morning, {firstName}!
     if (heroGreetingEl) {
-      if (hour24 >= 4 && hour24 < 12) {
-        heroGreetingEl.textContent = "Good Morning, Daniel!";
-      } else if (hour24 >= 12 && hour24 < 17) {
-        heroGreetingEl.textContent = "Good Afternoon, Daniel!";
-      } else {
-        heroGreetingEl.textContent = "Good Evening, Daniel!";
-      }
+      const firstName = activeUserProfile.firstName || getFirstName(activeUserProfile.name);
+      heroGreetingEl.textContent = `Good Morning, ${firstName}!`;
     }
   }
 
@@ -539,6 +734,18 @@ async function loadDashboardData(timeframe = "1H") {
     const res = await fetch(`/api/dashboard-data?timeframe=${timeframe}`);
     const data = await res.json();
     cachedDashboardData = data;
+
+    // Sync active profile with server athlete data if not locally overridden
+    if (data.athlete && data.athlete.name) {
+      const hasLocalOverride = localStorage.getItem("digitalTwinAthleteSettings");
+      if (!hasLocalOverride) {
+        updateActiveUserProfile({
+          name: data.athlete.name,
+          position: data.athlete.position || "Midfielder",
+          squadNumber: data.athlete.squad_number || "8"
+        }, false);
+      }
+    }
 
     if (data.vitals) updateVitalsUI(data.vitals);
     if (data.recent_session) updateSessionUI(data.recent_session);
@@ -1483,38 +1690,38 @@ const MICROCYCLE_PRESETS = {
   standard: [
     { day: "Mon", duration: 45, intensity: "Moderate", sleep: 7.5 },
     { day: "Tue", duration: 60, intensity: "Moderate", sleep: 8.0 },
-    { day: "Wed", duration: 0,  intensity: "Low",      sleep: 8.5 },
-    { day: "Thu", duration: 50, intensity: "High",     sleep: 7.5 },
+    { day: "Wed", duration: 0, intensity: "Low", sleep: 8.5 },
+    { day: "Thu", duration: 50, intensity: "High", sleep: 7.5 },
     { day: "Fri", duration: 45, intensity: "Moderate", sleep: 7.5 },
     { day: "Sat", duration: 90, intensity: "Moderate", sleep: 8.5 },
-    { day: "Sun", duration: 0,  intensity: "Low",      sleep: 9.0 }
+    { day: "Sun", duration: 0, intensity: "Low", sleep: 9.0 }
   ],
   taper: [
     { day: "Mon", duration: 40, intensity: "Moderate", sleep: 8.5 },
     { day: "Tue", duration: 30, intensity: "Moderate", sleep: 8.5 },
-    { day: "Wed", duration: 20, intensity: "Low",      sleep: 9.0 },
-    { day: "Thu", duration: 25, intensity: "High",     sleep: 8.5 },
-    { day: "Fri", duration: 0,  intensity: "Low",      sleep: 9.5 },
-    { day: "Sat", duration: 15, intensity: "Low",      sleep: 9.5 },
-    { day: "Sun", duration: 60, intensity: "High",     sleep: 9.0 }
+    { day: "Wed", duration: 20, intensity: "Low", sleep: 9.0 },
+    { day: "Thu", duration: 25, intensity: "High", sleep: 8.5 },
+    { day: "Fri", duration: 0, intensity: "Low", sleep: 9.5 },
+    { day: "Sat", duration: 15, intensity: "Low", sleep: 9.5 },
+    { day: "Sun", duration: 60, intensity: "High", sleep: 9.0 }
   ],
   endurance: [
     { day: "Mon", duration: 75, intensity: "Moderate", sleep: 8.0 },
     { day: "Tue", duration: 90, intensity: "Moderate", sleep: 8.0 },
     { day: "Wed", duration: 60, intensity: "Moderate", sleep: 8.0 },
-    { day: "Thu", duration: 80, intensity: "High",     sleep: 8.0 },
-    { day: "Fri", duration: 45, intensity: "Low",      sleep: 8.5 },
+    { day: "Thu", duration: 80, intensity: "High", sleep: 8.0 },
+    { day: "Fri", duration: 45, intensity: "Low", sleep: 8.5 },
     { day: "Sat", duration: 120, intensity: "Moderate", sleep: 8.5 },
-    { day: "Sun", duration: 0,  intensity: "Low",      sleep: 9.0 }
+    { day: "Sun", duration: 0, intensity: "Low", sleep: 9.0 }
   ],
   recovery: [
     { day: "Mon", duration: 30, intensity: "Low", sleep: 9.0 },
-    { day: "Tue", duration: 0,  intensity: "Low", sleep: 9.5 },
+    { day: "Tue", duration: 0, intensity: "Low", sleep: 9.5 },
     { day: "Wed", duration: 30, intensity: "Low", sleep: 9.0 },
-    { day: "Thu", duration: 0,  intensity: "Low", sleep: 9.5 },
+    { day: "Thu", duration: 0, intensity: "Low", sleep: 9.5 },
     { day: "Fri", duration: 25, intensity: "Low", sleep: 9.0 },
     { day: "Sat", duration: 40, intensity: "Low", sleep: 9.5 },
-    { day: "Sun", duration: 0,  intensity: "Low", sleep: 10.0 }
+    { day: "Sun", duration: 0, intensity: "Low", sleep: 10.0 }
   ],
   overload: [
     { day: "Mon", duration: 90, intensity: "High", sleep: 6.5 },
@@ -1963,7 +2170,9 @@ function initSettingsView() {
   // Load saved settings if any
   try {
     const saved = JSON.parse(localStorage.getItem("digitalTwinAthleteSettings") || "{}");
-    if (saved.name) document.getElementById("settingAthleteName").value = saved.name;
+    if (saved.name) {
+      updateActiveUserProfile(saved, false);
+    }
     if (saved.age) {
       document.getElementById("settingAthleteAge").value = saved.age;
       if (maxHrInput) maxHrInput.value = 220 - saved.age;
@@ -1973,27 +2182,26 @@ function initSettingsView() {
     if (saved.restHr) document.getElementById("settingAthleteRestHr").value = saved.restHr;
     if (saved.serverUrl) document.getElementById("settingServerUrl").value = saved.serverUrl;
     if (saved.wifiSsid) document.getElementById("settingWifiSsid").value = saved.wifiSsid;
-  } catch (e) {}
+  } catch (e) { }
 
   if (saveBtn) {
     saveBtn.addEventListener("click", () => {
+      const newName = document.getElementById("settingAthleteName")?.value?.trim() || DEFAULT_USER_PROFILE.name;
+      const newPos = document.getElementById("settingAthletePosition")?.value?.trim() || DEFAULT_USER_PROFILE.position;
+      const newSquad = document.getElementById("settingAthleteSquadNumber")?.value?.trim() || DEFAULT_USER_PROFILE.squadNumber;
       const settings = {
-        name: document.getElementById("settingAthleteName")?.value || "Daniel Saji",
-        age: parseInt(document.getElementById("settingAthleteAge")?.value || "28"),
-        weight: parseFloat(document.getElementById("settingAthleteWeight")?.value || "72"),
-        height: parseFloat(document.getElementById("settingAthleteHeight")?.value || "178"),
+        name: newName,
+        position: newPos,
+        squadNumber: newSquad,
+        age: parseInt(document.getElementById("settingAthleteAge")?.value || "24"),
+        weight: parseFloat(document.getElementById("settingAthleteWeight")?.value || "74"),
+        height: parseFloat(document.getElementById("settingAthleteHeight")?.value || "180"),
         restHr: parseInt(document.getElementById("settingAthleteRestHr")?.value || "54"),
         serverUrl: document.getElementById("settingServerUrl")?.value,
         wifiSsid: document.getElementById("settingWifiSsid")?.value
       };
 
-      try {
-        localStorage.setItem("digitalTwinAthleteSettings", JSON.stringify(settings));
-      } catch (e) {}
-
-      // Update hero greeting and top nav user name
-      const userNameEls = document.querySelectorAll(".user-name");
-      userNameEls.forEach(el => el.textContent = settings.name);
+      updateActiveUserProfile(settings, true);
 
       if (toast) {
         toast.style.display = "block";
@@ -2554,7 +2762,7 @@ function initChartTooltips() {
       const x = chartData.x ? chartData.x[idx] : 0;
       const y = chartData.y ? chartData.y[idx] : 0;
       const z = chartData.z ? chartData.z[idx] : 0;
-      const mag = Math.sqrt(x*x + y*y + z*z).toFixed(2);
+      const mag = Math.sqrt(x * x + y * y + z * z).toFixed(2);
 
       let timeStr = "";
       if (chartData.time_unit === "seconds") {
@@ -3035,7 +3243,7 @@ function initWhatIfStudio() {
   let scenarioDuration = 60;
   let scenarioPreset = "Normal";
 
-  // Baseline reference metrics for Daniel Saji
+  // Baseline reference metrics for active athlete profile
   const baselineState = {
     intensity: "Moderate",
     duration: 60,
@@ -3622,7 +3830,7 @@ function initWeeklyReportModal() {
       const r = rep.recovery || {};
 
       if (aiSum) aiSum.textContent = rep.ai_summary || "";
-      if (sub) sub.textContent = `${rep.report_period || "This Week"} • ${rep.athlete_name || "Daniel Saji"}`;
+      if (sub) sub.textContent = `${rep.report_period || "This Week"} • ${rep.athlete_name || activeUserProfile.name || "Avneesh Walvalkar"}`;
 
       const avgP = document.getElementById("wkAvgPerf");
       const pChg = document.getElementById("wkPerfChange");
@@ -3903,7 +4111,7 @@ async function initWhatIfComparativeScenarios() {
 
   function getCurrentIntFactor() {
     const activeIntBtn = document.querySelector("#customCardIntPills .card-int-pill.active") ||
-                         intGroup?.querySelector(".int-btn.active");
+      intGroup?.querySelector(".int-btn.active");
     const intName = activeIntBtn?.dataset.int || "Moderate";
     if (intName === "Low") return { factor: 0.40, name: "Low" };
     if (intName === "High") return { factor: 0.88, name: "High" };
@@ -4375,11 +4583,13 @@ async function selectAthleteTwin(athleteId) {
       showToast(data.message || `Switched to athlete ${athleteId}`, "🏃");
       const nameEl = document.querySelector(".user-name");
       if (nameEl && data.profile && data.profile.name) {
-        nameEl.textContent = data.profile.name;
-      }
-      const roleEl = document.getElementById("userRoleBadge");
-      if (roleEl && data.profile) {
-        roleEl.textContent = `${data.profile.position || "Football Player"}`;
+        const squadNum = data.profile.squad_number || athleteId.replace(/[^0-9]/g, "").replace(/^0+/, "").slice(0, 2) || "8";
+        updateActiveUserProfile({
+          name: data.profile.name,
+          position: data.profile.position || "Midfielder",
+          squadNumber: squadNum,
+          role: data.profile.sport ? `${data.profile.sport} Player` : "Football Player"
+        }, true);
       }
       if (typeof loadDashboardData === "function") {
         loadDashboardData();

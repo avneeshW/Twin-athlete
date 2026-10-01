@@ -2,7 +2,13 @@ import os
 import sys
 import argparse
 import numpy as np
-import pandas as pd
+try:
+    from twin.compat import pd, DataFrame
+except Exception:
+    try:
+        import pandas as pd
+    except Exception:
+        pd = None
 
 # ==============================================================================
 # USER-DEFINED ATHLETE CONFIGURATION

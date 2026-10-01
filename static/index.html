@@ -68,6 +68,17 @@
         </h1>
 
         <p class="landing-hero-subtitle">Train Smarter. Stay Stronger.</p>
+
+        <!-- Direct Action Buttons -->
+        <div class="landing-hero-actions" style="margin-top: 2rem; display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; z-index: 10;">
+          <button type="button" class="landing-cta-btn" id="heroLaunchCockpitBtn" style="display: inline-flex; align-items: center; gap: 0.6rem; padding: 0.9rem 2.2rem; border-radius: 9999px; background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%); color: #000; font-weight: 700; font-size: 1rem; letter-spacing: 0.5px; border: none; cursor: pointer; box-shadow: 0 4px 20px rgba(0, 242, 254, 0.4); transition: transform 0.2s ease, box-shadow 0.2s ease;">
+            <span>ENTER COCKPIT</span>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+          </button>
+          <a href="#chooseRoleSection" class="landing-cta-secondary" id="heroChooseRoleBtn" style="display: inline-flex; align-items: center; gap: 0.6rem; padding: 0.9rem 1.8rem; border-radius: 9999px; background: rgba(255, 255, 255, 0.12); backdrop-filter: blur(10px); color: #fff; border: 1px solid rgba(255, 255, 255, 0.25); font-weight: 600; font-size: 0.95rem; text-decoration: none; transition: background 0.2s ease;">
+            <span>CHOOSE ROLE</span>
+          </a>
+        </div>
       </div>
 
       <!-- Bottom Scroll Indicator -->
@@ -270,10 +281,10 @@
       <!-- User Profile & Time Display -->
       <div class="user-profile-widget">
         <div class="user-profile-menu" id="userProfileBtn" tabindex="0" role="button" aria-haspopup="true">
-          <img src="images/daniel_saji.jpg" alt="Daniel Saji" class="user-avatar-img">
+          <img src="images/daniel_saji.jpg" alt="Avneesh Walvalkar" class="user-avatar-img">
           <div class="user-info-text">
             <div class="user-name-row">
-              <span class="user-name">Daniel Saji</span>
+              <span class="user-name">Avneesh Walvalkar</span>
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5">
                 <polyline points="6 9 12 15 18 9" />
               </svg>
@@ -465,7 +476,7 @@
               <div id="twinLoadLabel" style="display:none;">Load: <span id="twinLoadVal">0.0</span></div>
               <div class="hero-identity-top">
                 <div class="hero-avatar-box">
-                  <img src="images/daniel_saji.jpg" alt="Daniel Saji" class="hero-avatar-img">
+                  <img src="images/daniel_saji.jpg" alt="Avneesh Walvalkar" class="hero-avatar-img">
                   <span class="pulsing-state-dot-mini"></span>
                 </div>
                 <div class="hero-identity-meta">
@@ -473,8 +484,8 @@
                     <span class="twin-section-label">ATHLETE DIGITAL TWIN</span>
                     <span class="twin-model-tag">v2.4 • Dynamic Calibrated Model</span>
                   </div>
-                  <h1 class="hero-greeting-title" id="heroGreeting">Good Morning, Daniel!</h1>
-                  <p class="hero-greeting-sub" id="heroSubtext">Daniel Saji • Midfielder • Squad #8 • <span id="overviewDateText">Mon, 7 Oct 2025</span></p>
+                  <h1 class="hero-greeting-title" id="heroGreeting">Good Morning, Avneesh!</h1>
+                  <p class="hero-greeting-sub" id="heroSubtext">Avneesh Walvalkar • Midfielder • Squad #8 • <span id="overviewDateText">Mon, 7 Oct 2025</span></p>
                 </div>
               </div>
 
@@ -1412,7 +1423,7 @@
               </div>
               <div>
                 <h3 class="whatif-section-title">Current State</h3>
-                <span class="whatif-section-sub">Daniel Saji • Established Baseline</span>
+                <span class="whatif-section-sub">Avneesh Walvalkar • Established Baseline</span>
               </div>
             </div>
 
@@ -2055,16 +2066,20 @@
             </div>
             <div class="form-group">
               <label for="settingAthleteName">Full Name</label>
-              <input type="text" id="settingAthleteName" class="form-control" value="Daniel Saji">
+              <input type="text" id="settingAthleteName" class="form-control" value="Avneesh Walvalkar">
             </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
               <div class="form-group">
                 <label for="settingAthleteAge">Age</label>
                 <input type="number" id="settingAthleteAge" class="form-control" value="24">
               </div>
               <div class="form-group">
                 <label for="settingAthletePosition">Position</label>
-                <input type="text" id="settingAthletePosition" class="form-control" value="Football Player (Midfield)">
+                <input type="text" id="settingAthletePosition" class="form-control" value="Midfielder">
+              </div>
+              <div class="form-group">
+                <label for="settingAthleteSquadNumber">Squad #</label>
+                <input type="text" id="settingAthleteSquadNumber" class="form-control" value="8">
               </div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
@@ -2309,10 +2324,10 @@
   <!-- Athlete Profile Dropdown Popover -->
   <div class="user-profile-dropdown" id="userProfileDropdown">
     <div class="profile-dropdown-header">
-      <img src="images/daniel_saji.jpg" alt="Daniel Saji" class="user-avatar-img" style="width:46px;height:46px;">
+      <img src="images/daniel_saji.jpg" alt="Avneesh Walvalkar" class="user-avatar-img" id="dropdownUserAvatar" style="width:46px;height:46px;">
       <div>
-        <h4 style="font-size:0.95rem;font-weight:800;color:var(--text-dark);">Daniel Saji</h4>
-        <span style="font-size:0.75rem;color:var(--text-muted);">#10 • Midfielder • City FC</span>
+        <h4 style="font-size:0.95rem;font-weight:800;color:var(--text-dark);" id="dropdownUserName">Avneesh Walvalkar</h4>
+        <span style="font-size:0.75rem;color:var(--text-muted);" id="dropdownUserSub">#8 • Midfielder • Squad Runner</span>
       </div>
     </div>
     <div style="display:flex;flex-direction:column;gap:6px;padding-top:12px;">
@@ -2722,7 +2737,7 @@ Content-Type: application/json
             <span style="font-size:1.25rem;">📋</span>
             <h3 class="modal-title">Weekly Athlete Performance Report</h3>
           </div>
-          <p class="modal-subtitle" id="weeklyReportPeriodSubtitle">Week of 1–7 Oct 2025 • Daniel Saji</p>
+          <p class="modal-subtitle" id="weeklyReportPeriodSubtitle">Week of 1–7 Oct 2025 • Avneesh Walvalkar</p>
         </div>
         <button class="modal-btn-close" id="btnCloseWeeklyReportModal">&times;</button>
       </div>

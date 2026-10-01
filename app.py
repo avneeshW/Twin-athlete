@@ -26,10 +26,13 @@ except Exception as e:
     print(f"[app] Notice: numpy import error: {e}")
 
 try:
-    import pandas as pd
-except Exception as e:
-    pd = None
-    print(f"[app] Notice: pandas import error: {e}")
+    from twin.compat import pd, DataFrame
+except Exception:
+    try:
+        import pandas as pd
+    except Exception as e:
+        pd = None
+        print(f"[app] Notice: pandas import error: {e}")
 
 from flask import Flask, jsonify, request, send_from_directory, Response
 
@@ -334,12 +337,29 @@ def get_dashboard_data():
     twin_status["overall_state_label"] = st_label
     twin_status["overall_state_color"] = st_color
 
+    active_profile = registry.get_active_profile() if registry else None
+    active_id = registry.get_active_athlete_id() if registry else None
+    if active_profile and active_id and active_id != "ATH-0824":
+        athlete_name = getattr(active_profile, "name", "Avneesh Walvalkar")
+        position = getattr(active_profile, "position", "Midfielder")
+        squad_num = getattr(active_profile, "squad_number", "8")
+    else:
+        athlete_name = "Avneesh Walvalkar"
+        position = "Midfielder"
+        squad_num = "8"
+
+    first_name = athlete_name.split()[0] if athlete_name else "Avneesh"
+    date_str = time.strftime("%a, %d %b %Y")
+
     return jsonify({
         "athlete": {
-            "name": "Daniel Saji",
-            "greeting": "Good Morning, Daniel!",
-            "subtext": "Here's your current performance overview.",
-            "date": time.strftime("%a, %d %b %Y"),
+            "name": athlete_name,
+            "first_name": first_name,
+            "position": position,
+            "squad_number": squad_num,
+            "greeting": f"Good Morning, {first_name}!",
+            "subtext": f"{athlete_name} • {position} • Squad #{squad_num} • {date_str}",
+            "date": date_str,
             "time": time.strftime("%I:%M %p")
         },
         "device": {
@@ -743,6 +763,7 @@ def ingest_esp32_telemetry():
 
 
 @app.route("/api/stream", methods=["GET"])
+@app.route("/api/telemetry-stream", methods=["GET"])
 def sse_stream():
     """
     Server-Sent Events (SSE) live telemetry stream.
