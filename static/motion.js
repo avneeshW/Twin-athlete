@@ -573,12 +573,106 @@
   }
 
   // ==============================================================================
+  // 12B. START/LANDING PAGE CINEMATIC SCROLL EXPERIENCE
+  // ==============================================================================
+  function initLandingScrollExperience() {
+    const landingRoot = document.getElementById('landingPage');
+    if (!landingRoot) return;
+
+    const heroSection = document.getElementById('landingHeroSection');
+    const heroContent = document.querySelector('.landing-hero-content');
+    const heroVideo = document.getElementById('landingHeroVideo');
+    const scrollIndicator = document.getElementById('scrollExploreBtn');
+    const roleSection = document.getElementById('chooseRoleSection');
+    const roleHeader = document.querySelector('.landing-role-header');
+    const roleCards = document.querySelectorAll('.landing-role-card');
+
+    // 1. Role Section Reveal (IntersectionObserver + stagger)
+    if (roleSection) {
+      const revealElements = () => {
+        if (roleHeader) roleHeader.classList.add('is-revealed');
+        roleCards.forEach((card, idx) => {
+          setTimeout(() => {
+            card.classList.add('is-revealed');
+          }, idx * 120);
+        });
+      };
+
+      if ('IntersectionObserver' in window) {
+        const observer = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              revealElements();
+              observer.unobserve(entry.target);
+            }
+          });
+        }, { threshold: 0.15, rootMargin: '0px 0px -30px 0px' });
+        observer.observe(roleSection);
+      } else {
+        revealElements();
+      }
+    }
+
+    // 2. Parallax and Smooth Scroll Transitions with GSAP ScrollTrigger
+    if (!prefersReducedMotion && typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') {
+      if (heroSection && heroContent) {
+        gsap.to(heroContent, {
+          scrollTrigger: {
+            trigger: heroSection,
+            start: 'top top',
+            end: 'bottom top',
+            scrub: 1.2,
+          },
+          y: -50,
+          opacity: 0.15,
+          ease: 'power1.out',
+        });
+      }
+
+      if (heroSection && heroVideo) {
+        gsap.to(heroVideo, {
+          scrollTrigger: {
+            trigger: heroSection,
+            start: 'top top',
+            end: 'bottom top',
+            scrub: 1.5,
+          },
+          yPercent: 12,
+          scale: 1.04,
+          ease: 'none',
+        });
+      }
+    }
+
+    // 3. Scroll Indicator Auto-fade on Scroll
+    if (scrollIndicator) {
+      let ticking = false;
+      const onScroll = () => {
+        if (!ticking) {
+          window.requestAnimationFrame(() => {
+            const scrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
+            if (scrollY > 50) {
+              scrollIndicator.classList.add('is-faded');
+            } else {
+              scrollIndicator.classList.remove('is-faded');
+            }
+            ticking = false;
+          });
+          ticking = true;
+        }
+      };
+      window.addEventListener('scroll', onScroll, { passive: true });
+    }
+  }
+
+  // ==============================================================================
   // 13. MASTER INITIALIZATION & PUBLIC API
   // ==============================================================================
   function initAllMotion() {
     initSmoothScroll();
     initHeroAnimations();
     initHeroVideo();
+    initLandingScrollExperience();
     initTwinStatusAnimations();
     initAiRecommendationAnimations();
     initVitalsAnimations();
