@@ -768,9 +768,13 @@ body::after {
   transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
-.metric-icon-box svg {
+.metric-icon-box svg,
+.metric-icon-box img,
+.metric-icon-box .metric-icon-img {
   width: 18px;
   height: 18px;
+  object-fit: contain;
+  display: block;
 }
 
 .metric-icon-box.icon-heart {
@@ -786,9 +790,9 @@ body::after {
 }
 
 .metric-icon-box.icon-activity {
-  background: rgba(139, 92, 246, 0.12);
-  border: 1px solid rgba(139, 92, 246, 0.25);
-  color: #8B5CF6;
+  background: rgba(0, 70, 184, 0.12);
+  border: 1px solid rgba(0, 70, 184, 0.25);
+  color: #0046B8;
 }
 
 .metric-icon-box.icon-accel {
