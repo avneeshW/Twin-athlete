@@ -242,8 +242,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // Initialize New Landing Page & Role Dispatch Gateway
   initLandingPage();
 
-  // Support direct deep-linking via hash (e.g. #analytics, #digital-twin, #what-if, #accuracy, #coach-squad, #auditor-center)
-  const validViews = ["dashboard", "live-data", "training-sessions", "analytics", "digital-twin", "what-if", "settings", "accuracy", "coach-squad", "auditor-center"];
+  // Support direct deep-linking via hash (e.g. #analytics, #digital-twin, #what-if, #coach-squad)
+  const validViews = ["dashboard", "live-data", "analytics", "digital-twin", "what-if", "settings", "coach-squad"];
 
   function handleHashNavigation() {
     const rawHash = window.location.hash.replace("#", "");
@@ -369,7 +369,7 @@ function initLandingPage() {
 
   // Initial landing page vs dashboard resolution:
   const rawHash = window.location.hash.replace("#", "");
-  const validDashboardViews = ["dashboard", "live-data", "training-sessions", "analytics", "digital-twin", "what-if", "settings", "accuracy", "coach-squad", "auditor-center"];
+  const validDashboardViews = ["dashboard", "live-data", "analytics", "digital-twin", "what-if", "settings", "coach-squad"];
 
   if (rawHash === "coach-squad") {
     enterRoleWorkspace("coach", "coach-squad", false);
@@ -419,7 +419,7 @@ function enterRoleWorkspace(role, targetView = null, updateHash = true) {
     if (roleBadge) roleBadge.textContent = "Athlete Cockpit";
     if (userRoleBadge) userRoleBadge.textContent = "Football Player";
     // Athlete must not land on coach-only views
-    const viewToOpen = (targetView && targetView !== "coach-squad" && targetView !== "auditor-center") ? targetView : "dashboard";
+    const viewToOpen = (targetView && targetView !== "coach-squad") ? targetView : "dashboard";
     switchView(viewToOpen);
     if (updateHash) {
       if (history.pushState) history.pushState(null, null, `#${viewToOpen}`);
@@ -653,14 +653,13 @@ function switchView(viewName) {
   if (roleButtons.length) {
     let activeRole = "athlete";
     if (viewName === "coach-squad") activeRole = "coach";
-    else if (viewName === "auditor-center" || viewName === "accuracy") activeRole = "auditor";
     roleButtons.forEach(btn => {
       const isRoleActive = btn.dataset.role === activeRole;
       btn.classList.toggle("active", isRoleActive);
       btn.setAttribute("aria-selected", isRoleActive ? "true" : "false");
     });
     if (roleBadge) {
-      roleBadge.textContent = activeRole === "coach" ? "Coach View" : (activeRole === "auditor" ? "Auditor View" : "Athlete View");
+      roleBadge.textContent = activeRole === "coach" ? "Coach View" : "Athlete View";
     }
   }
 
@@ -694,12 +693,8 @@ function switchView(viewName) {
     } else {
       runScheduleSimulation();
     }
-  } else if (viewName === "accuracy") {
-    loadPredictionAccuracy();
   } else if (viewName === "coach-squad") {
     loadCoachSquad();
-  } else if (viewName === "auditor-center") {
-    loadAuditorCenter();
   }
 }
 
@@ -1184,7 +1179,7 @@ function updateTwinUI(status) {
     donutCircle.style.stroke = strokeColor;
     const donutSvg = donutCircle.closest("svg");
     if (donutSvg) {
-      donutSvg.style.filter = `drop-shadow(0 0 12px ${strokeColor}66)`;
+      donutSvg.style.filter = "none";
     }
   }
 
@@ -4217,7 +4212,7 @@ async function initWhatIfComparativeScenarios() {
    ============================================================================== */
 
 /**
- * Role Switcher (Athlete, Coach, Auditor)
+ * Role Switcher (Athlete, Coach)
  */
 function initRoleSwitcher() {
   const roleButtons = document.querySelectorAll(".role-segment-btn");
@@ -4233,10 +4228,6 @@ function initRoleSwitcher() {
         if (roleBadge) roleBadge.textContent = "Coach View";
         switchView("coach-squad");
         showToast("Switched to Coach Command View", "🛡️");
-      } else if (role === "auditor") {
-        if (roleBadge) roleBadge.textContent = "Auditor View";
-        switchView("auditor-center");
-        showToast("Switched to Forensic Auditor View", "🔍");
       } else {
         if (roleBadge) roleBadge.textContent = "Athlete View";
         switchView("dashboard");
@@ -4465,8 +4456,12 @@ async function executeRemoveAthlete() {
       method: "DELETE",
       headers: { "Content-Type": "application/json" }
     });
-    const data = await res.json();
-    if (res.ok && data.success) {
+    let data = null;
+    try {
+      data = await res.json();
+    } catch (_) {}
+
+    if (res.ok && data && data.success) {
       showToast(data.message || `Player #${athleteId} removed from squad`, "🗑️");
       await loadCoachSquad();
       if (typeof loadDashboardData === "function") {
@@ -4476,11 +4471,12 @@ async function executeRemoveAthlete() {
         loadDigitalTwinCoach();
       }
     } else {
-      showToast(data.error || "Cannot remove player", "⚠️");
+      const errMsg = (data && data.error) || (res.status ? `Removal failed (HTTP ${res.status})` : "Cannot remove player");
+      showToast(errMsg, "⚠️");
     }
   } catch (err) {
     console.error("Error removing player:", err);
-    showToast("Network error removing player", "⚠️");
+    showToast(err && err.message ? `Error: ${err.message}` : "Network error removing player", "⚠️");
   }
 }
 
@@ -4679,18 +4675,24 @@ function initCoachSquadControls() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
-        const data = await res.json();
-        if (res.ok && data.success) {
+        let data = null;
+        try {
+          data = await res.json();
+        } catch (_) {}
+
+        if (res.ok && data && data.success) {
           showToast(`Player ${name} registered in squad`, "⚽");
           closeAddPlayerModal();
           addForm.reset();
           await loadCoachSquad();
         } else {
-          showToast(data.error || "Failed to register player", "⚠️");
+          const errMsg = (data && data.error) || (res.status ? `Registration failed (HTTP ${res.status})` : "Failed to register player");
+          showToast(errMsg, "⚠️");
         }
       } catch (err) {
         console.error("Failed to register athlete:", err);
-        showToast("Error registering athlete", "⚠️");
+        const msg = (err && err.message) ? `Network error: ${err.message}` : "Error registering athlete";
+        showToast(msg, "⚠️");
       }
     });
   }

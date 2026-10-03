@@ -116,7 +116,52 @@ class TestE2EIntegration(unittest.TestCase):
         # 6. Switch back to ATH-0824 for test isolation
         self.client.post("/api/athlete/switch", json={"athlete_id": "ATH-0824"})
 
+    def test_athlete_registration_and_removal(self):
+        # 1. Missing name returns 400
+        res_bad = self.client.post("/api/athlete/register", json={"name": ""})
+        self.assertEqual(res_bad.status_code, 400)
+        self.assertFalse(res_bad.get_json()["success"])
+
+        # 2. Preflight OPTIONS returns 200 with CORS headers
+        res_opt = self.client.open("/api/athlete/register", method="OPTIONS")
+        self.assertEqual(res_opt.status_code, 200)
+        self.assertIn("Access-Control-Allow-Origin", res_opt.headers)
+
+        # 3. Successful registration
+        payload = {
+            "name": "Daniel Saji Test",
+            "position": "Center Forward",
+            "age": 23,
+            "height_cm": 181.0,
+            "weight_kg": 76.0,
+            "resting_hr_baseline": 54.0,
+            "max_hr": 195.0,
+            "typical_sleep_baseline": 7.8,
+            "recovery": 82.0,
+            "fatigue": 18.0,
+            "acwr": 1.05,
+            "device_id": "ESP32-TEST-REG"
+        }
+        res_reg = self.client.post("/api/athlete/register", json=payload)
+        self.assertEqual(res_reg.status_code, 201)
+        data = res_reg.get_json()
+        self.assertTrue(data["success"])
+        new_id = data["athlete"]["id"]
+        self.assertTrue(new_id.startswith("ATH-"))
+
+        # 4. Verify listed in roster
+        res_roster = self.client.get("/api/coach/team-overview")
+        self.assertEqual(res_roster.status_code, 200)
+        roster = res_roster.get_json()["roster"]
+        self.assertTrue(any(a["id"] == new_id for a in roster))
+
+        # 5. Remove newly created player
+        res_del = self.client.delete(f"/api/athlete/{new_id}")
+        self.assertEqual(res_del.status_code, 200)
+        self.assertTrue(res_del.get_json()["success"])
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

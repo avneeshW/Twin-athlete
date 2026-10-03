@@ -36,10 +36,10 @@ class TestAthleteDashboardChanges(unittest.TestCase):
         self.assertNotEqual(hero_idx, -1)
         self.assertNotEqual(telemetry_idx, -1)
         self.assertNotEqual(safety_idx, -1)
-        self.assertNotEqual(sessions_idx, -1)
+        self.assertEqual(sessions_idx, -1)
 
-        # Order must be: hero -> telemetry -> safety -> sessions
-        self.assertTrue(hero_idx < telemetry_idx < safety_idx < sessions_idx)
+        # Order must be: hero -> telemetry -> safety
+        self.assertTrue(hero_idx < telemetry_idx < safety_idx)
 
     def test_vitals_functional_ids_preserved(self):
         """5. KEEP THE SENSOR CARDS FUNCTIONAL"""

@@ -20,7 +20,7 @@
   /* Subtle Optical Borders & Dividers */
   --glass-border: rgba(255, 255, 255, 0.08);
   --glass-border-subtle: rgba(255, 255, 255, 0.05);
-  --glass-border-hover: rgba(255, 255, 255, 0.18);
+  --glass-border-hover: rgba(255, 255, 255, 0.16);
 
   /* Backdrop Filters & Saturation */
   --glass-blur: blur(24px) saturate(180%);
@@ -28,12 +28,12 @@
   --glass-blur-sm: blur(14px) saturate(160%);
 
   /* Multi-Layer Depth Shadows with Specular Top Inner Highlight */
-  --glass-shadow-sm: 0 4px 16px 0 rgba(0, 0, 0, 0.6), inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
-  --glass-shadow: 0 12px 36px -4px rgba(0, 0, 0, 0.75), 0 2px 8px 0 rgba(0, 0, 0, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
-  --glass-shadow-hover: 0 16px 40px -6px rgba(0, 0, 0, 0.85), inset 0 1px 0 0 rgba(255, 255, 255, 0.14);
-  --glass-shadow-hero: 0 24px 60px -8px rgba(0, 0, 0, 0.9), inset 0 1.5px 0 0 rgba(255, 255, 255, 0.12);
-  --glass-shadow-subtle: 0 6px 18px 0 rgba(0, 0, 0, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
-  --glass-shadow-modal: 0 32px 80px -12px rgba(0, 0, 0, 0.95), inset 0 1px 0 0 rgba(255, 255, 255, 0.14);
+  --glass-shadow-sm: 0 2px 8px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+  --glass-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.55), 0 2px 6px 0 rgba(0, 0, 0, 0.35), inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
+  --glass-shadow-hover: 0 10px 28px -4px rgba(0, 0, 0, 0.65), inset 0 1px 0 0 rgba(255, 255, 255, 0.10);
+  --glass-shadow-hero: 0 16px 40px -6px rgba(0, 0, 0, 0.75), inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+  --glass-shadow-subtle: 0 4px 12px 0 rgba(0, 0, 0, 0.35), inset 0 1px 0 0 rgba(255, 255, 255, 0.04);
+  --glass-shadow-modal: 0 24px 60px -8px rgba(0, 0, 0, 0.85), inset 0 1px 0 0 rgba(255, 255, 255, 0.10);
 
   /* Core Card & Surface Variables */
   --bg-card: var(--glass-bg);
@@ -93,9 +93,10 @@
   --status-purple-bg: rgba(191, 90, 242, 0.12);
 
   --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  --radius-card: 16px;
-  --radius-inner: 12px;
-  --radius-pill: 9999px;
+  --font-mono: 'IBM Plex Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --radius-card: 12px;
+  --radius-inner: 8px;
+  --radius-pill: 6px;
 }
 
 * {
@@ -295,16 +296,13 @@ body::after {
   font-weight: 600;
   color: var(--text-body);
   cursor: pointer;
-  box-shadow: var(--glass-shadow-sm);
-  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.2s ease;
 }
 
 .btn-header-pill:hover {
   background: var(--glass-bg-hover);
-  border-color: rgba(0, 132, 255, 0.4);
-  color: var(--primary-blue);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(0, 132, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--text-dark);
 }
 
 .pulse-dot {
@@ -317,7 +315,7 @@ body::after {
 
 .pulse-dot.green {
   background-color: var(--status-green-text);
-  box-shadow: 0 0 8px rgba(16, 185, 129, 0.7);
+  box-shadow: 0 0 2px rgba(16, 185, 129, 0.4);
   animation: pulse-dot 2s infinite ease-in-out;
 }
 
@@ -340,7 +338,6 @@ body::after {
   font-size: 0.74rem;
   font-weight: 600;
   color: var(--text-body);
-  box-shadow: var(--glass-shadow-sm);
   transition: all 0.2s ease;
 }
 
@@ -353,12 +350,12 @@ body::after {
 
 .dot-connected {
   background-color: var(--status-green);
-  box-shadow: 0 0 8px rgba(16, 185, 129, 0.7);
+  box-shadow: 0 0 2px rgba(16, 185, 129, 0.4);
 }
 
 .dot-waiting {
   background-color: var(--status-yellow);
-  box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
+  box-shadow: 0 0 2px rgba(245, 158, 11, 0.4);
 }
 
 .btn-top-action {
@@ -375,22 +372,18 @@ body::after {
   font-weight: 600;
   color: var(--primary-blue);
   cursor: pointer;
-  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: var(--glass-shadow-sm);
+  transition: all 0.2s ease;
 }
 
 .btn-top-action:hover {
   background: var(--glass-bg-hover);
-  border-color: var(--primary-blue);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(0, 132, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .btn-top-action.active-sim {
-  background: rgba(254, 243, 199, 0.75);
-  color: #D97706;
-  border-color: rgba(245, 158, 11, 0.4);
-  box-shadow: 0 2px 10px rgba(245, 158, 11, 0.15);
+  background: rgba(245, 158, 11, 0.15);
+  color: #F59E0B;
+  border-color: rgba(245, 158, 11, 0.3);
 }
 
 .user-profile-widget {
@@ -575,20 +568,20 @@ body::after {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 11px 16px;
-  border-radius: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-inner);
   font-size: 0.88rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-muted);
   text-decoration: none;
-  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.2s ease;
   border: 1px solid transparent;
 }
 
 .nav-item svg {
-  width: 19px;
-  height: 19px;
-  stroke-width: 2.1;
+  width: 18px;
+  height: 18px;
+  stroke-width: 2;
   color: var(--text-muted);
   stroke: var(--text-muted);
   transition: all 0.2s ease;
@@ -596,10 +589,8 @@ body::after {
 
 .nav-item:hover {
   color: #FFFFFF;
-  background-color: #1C1C1E;
-  border-color: rgba(255, 255, 255, 0.12);
-  transform: translateX(2px);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+  background-color: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 .nav-item:hover svg {
@@ -608,10 +599,10 @@ body::after {
 }
 
 .nav-item.active {
-  background-color: #1C1C1E;
+  background-color: rgba(255, 255, 255, 0.08);
   color: #FFFFFF !important;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .nav-item.active svg {
@@ -694,7 +685,7 @@ body::after {
 
 .card:hover {
   background-color: var(--bg-card-hover);
-  border-color: rgba(255, 255, 255, 0.90);
+  border-color: var(--glass-border-hover);
   box-shadow: var(--shadow-hover);
 }
 
@@ -810,7 +801,7 @@ body::after {
   font-size: 0.72rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   color: var(--text-muted);
 }
 
@@ -825,19 +816,47 @@ body::after {
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--text-dark);
-  letter-spacing: -0.035em;
+  letter-spacing: -0.025em;
   line-height: 1;
 }
 
+/* Explicit IBM Plex Mono numerical sensor values */
+#vitalHrVal,
+#vitalSpo2Val,
+#vitalAccelVal,
+#liveLabHrVal,
+#analyticsRhrVal,
+#predAvgHrVal,
+#sessionAvgHr,
+#sessionMaxHr,
+#modalAvgHr,
+#modalMaxHr {
+  font-family: var(--font-mono);
+  font-size: 1.85rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: #FFFFFF;
+}
+
+#vitalActivityVal {
+  font-family: var(--font-family);
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #FFFFFF;
+}
+
 .metric-unit {
-  font-size: 0.76rem;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
   font-weight: 500;
   color: var(--text-muted);
 }
 
 .metric-trend {
-  font-size: 0.74rem;
-  font-weight: 700;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
   display: inline-flex;
   align-items: center;
   margin-left: 2px;
@@ -849,6 +868,47 @@ body::after {
 
 .trend-up-amber {
   color: var(--status-yellow-text);
+}
+
+/* Refined, subtle badge pills for sensor cards and tables */
+.badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  font-size: 0.70rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  width: fit-content;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.pill-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.pill-red {
+  background: rgba(239, 68, 68, 0.12);
+  color: #F87171;
+  border-color: rgba(239, 68, 68, 0.24);
+}
+
+.pill-green {
+  background: rgba(16, 185, 129, 0.12);
+  color: #34D399;
+  border-color: rgba(16, 185, 129, 0.24);
+}
+
+.pill-yellow {
+  background: rgba(245, 158, 11, 0.12);
+  color: #FBBF24;
+  border-color: rgba(245, 158, 11, 0.24);
 }
 
 /* 3. Live Sensor Data Card */
@@ -2173,14 +2233,14 @@ body::after {
 .injury-detail-meter {
   height: 8px;
   background: var(--bg-subtle);
-  border-radius: 9999px;
+  border-radius: var(--radius-pill);
   overflow: hidden;
   margin: 8px 0 16px 0;
 }
 
 .injury-meter-fill {
   height: 100%;
-  border-radius: 9999px;
+  border-radius: var(--radius-pill);
   transition: width 0.5s ease;
 }
 
@@ -2659,23 +2719,20 @@ body::after {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 13px 20px;
+  padding: 12px 20px;
   background: var(--primary-blue);
   color: #ffffff;
   border: none;
-  border-radius: 12px;
-  font-size: 0.95rem;
-  font-weight: 800;
+  border-radius: var(--radius-inner);
+  font-size: 0.92rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 4px 14px rgba(0, 132, 255, 0.35);
+  transition: all 0.2s ease;
   margin-top: 6px;
 }
 
 .btn-run-simulation:hover {
   background: var(--primary-blue-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(0, 132, 255, 0.45);
 }
 
 .btn-run-simulation:active {
@@ -2721,9 +2778,9 @@ body::after {
 
 .delta-badge {
   font-size: 0.72rem;
-  font-weight: 800;
-  padding: 2px 8px;
-  border-radius: 999px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
 }
 
 .delta-neutral {
@@ -3435,10 +3492,10 @@ a,
 .twin-model-tag {
   font-size: 0.68rem;
   font-weight: 600;
-  padding: 2px 9px;
+  padding: 2px 8px;
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-muted);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid rgba(255, 255, 255, 0.10);
 }
 
@@ -3460,43 +3517,39 @@ a,
 .overall-state-badge {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  border-radius: 999px;
-  font-size: 0.76rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
 }
 
 .overall-state-badge.badge-ready {
-  background: rgba(16, 185, 129, 0.10);
-  color: #047857;
-  border: 1px solid rgba(16, 185, 129, 0.30);
-  box-shadow: 0 2px 10px rgba(16, 185, 129, 0.12);
+  background: rgba(16, 185, 129, 0.12);
+  color: #34D399;
+  border: 1px solid rgba(16, 185, 129, 0.25);
 }
 
 .overall-state-badge.badge-recovery {
-  background: rgba(245, 158, 11, 0.10);
-  color: #B45309;
-  border: 1px solid rgba(245, 158, 11, 0.30);
-  box-shadow: 0 2px 10px rgba(245, 158, 11, 0.12);
+  background: rgba(245, 158, 11, 0.12);
+  color: #FBBF24;
+  border: 1px solid rgba(245, 158, 11, 0.25);
 }
 
 .overall-state-badge.badge-fatigue {
-  background: rgba(239, 68, 68, 0.10);
-  color: #DC2626;
-  border: 1px solid rgba(239, 68, 68, 0.30);
-  box-shadow: 0 2px 10px rgba(239, 68, 68, 0.12);
+  background: rgba(239, 68, 68, 0.12);
+  color: #F87171;
+  border: 1px solid rgba(239, 68, 68, 0.25);
 }
 
 .pulsing-state-dot {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: currentColor;
-  box-shadow: 0 0 8px currentColor;
   animation: pulse-dot 1.8s infinite ease-in-out;
 }
 
@@ -3599,34 +3652,30 @@ a,
 .twin-score-item .score-progress-bar {
   height: 4.5px;
   background: rgba(220, 231, 243, 0.55);
-  border-radius: 999px;
+  border-radius: 3px;
   overflow: hidden;
 }
 
 .twin-score-item .score-fill {
   height: 100%;
-  border-radius: 999px;
+  border-radius: 3px;
   transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .fill-purple {
   background: linear-gradient(90deg, #A855F7, #7C3AED);
-  box-shadow: 0 0 8px rgba(139, 92, 246, 0.4);
 }
 
 .fill-green {
   background: linear-gradient(90deg, #10B981, #059669);
-  box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
 }
 
 .fill-blue {
   background: linear-gradient(90deg, #0084FF, #0066CC);
-  box-shadow: 0 0 8px rgba(0, 132, 255, 0.4);
 }
 
 .fill-amber {
   background: linear-gradient(90deg, #F59E0B, #D97706);
-  box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
 }
 
 .text-purple {
@@ -4790,21 +4839,9 @@ h6,
   will-change: transform;
 }
 
-/* Neon aura pulse for readiness status badge */
-@keyframes whoopReadyGlow {
-
-  0%,
-  100% {
-    box-shadow: 0 0 6px rgba(48, 209, 88, 0.35);
-  }
-
-  50% {
-    box-shadow: 0 0 18px rgba(48, 209, 88, 0.75), inset 0 0 8px rgba(48, 209, 88, 0.4);
-  }
-}
-
+/* Readiness status badge - subtle professional indicator */
 .overall-state-badge.badge-ready {
-  animation: whoopReadyGlow 2.4s ease-in-out infinite;
+  animation: none;
 }
 
 /* Brain synaptic glow pulse */
@@ -4942,7 +4979,7 @@ h6,
 
 /* Donut Gauge Visual Enhancement */
 .donut-svg {
-  filter: drop-shadow(0 0 14px rgba(0, 230, 118, 0.45));
+  filter: none;
 }
 
 .donut-track {
@@ -5008,7 +5045,7 @@ h6,
   stroke: var(--whoop-green, #00E676);
   stroke-dasharray: 4 4;
   animation: whoopFlowPulse 1.2s linear infinite;
-  filter: drop-shadow(0 0 4px rgba(0, 230, 118, 0.6));
+  filter: none;
 }
 
 /* Smooth Table Row Interactions */
@@ -5076,7 +5113,7 @@ input[type="range"] {
 
 ::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.16);
-  border-radius: 9999px;
+  border-radius: 4px;
   border: 2px solid #0A0A0A;
 }
 
@@ -5555,9 +5592,9 @@ body {
 .hero-avatar-img {
   width: 100%;
   height: 100%;
-  border-radius: 16px;
+  border-radius: var(--radius-inner);
   object-fit: cover;
-  border: 2px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
 }
 
@@ -5565,12 +5602,12 @@ body {
   position: absolute;
   bottom: -2px;
   right: -2px;
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   background: var(--whoop-green);
   border: 2px solid #141416;
   border-radius: 50%;
-  box-shadow: 0 0 10px rgba(0, 230, 118, 0.7);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
 .hero-identity-meta {
@@ -6000,7 +6037,7 @@ body {
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   padding: 8px 18px 8px 12px;
-  border-radius: 9999px;
+  border-radius: var(--radius-inner);
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
 }
@@ -6009,7 +6046,7 @@ body {
   width: 30px;
   height: 30px;
   object-fit: contain;
-  filter: drop-shadow(0 0 8px rgba(0, 132, 255, 0.6));
+  filter: none;
 }
 
 .landing-brand-info {
@@ -6018,9 +6055,9 @@ body {
 }
 
 .landing-brand-title {
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-family);
   font-size: 0.82rem;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.08em;
   color: #FFFFFF;
 }
@@ -6045,9 +6082,9 @@ body {
 }
 
 .landing-hero-title {
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-family);
   font-size: clamp(2.4rem, 6.2vw, 4.6rem);
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.08;
   letter-spacing: -0.025em;
   color: #FFFFFF;
@@ -6073,7 +6110,7 @@ body {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   display: inline-block;
-  filter: drop-shadow(0 0 24px rgba(0, 132, 255, 0.35));
+  filter: none;
 }
 
 .landing-hero-subtitle {
@@ -6219,8 +6256,8 @@ body {
 
 .landing-role-kicker {
   font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.2em;
+  font-weight: 600;
+  letter-spacing: 0.18em;
   color: #0084FF;
   text-transform: uppercase;
   margin-bottom: 8px;
@@ -6228,9 +6265,9 @@ body {
 }
 
 .landing-role-headline {
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-family);
   font-size: clamp(2rem, 4vw, 3.2rem);
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: -0.02em;
   color: #FFFFFF;
   margin: 0 0 12px 0;
@@ -6258,13 +6295,13 @@ body {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 24px;
+  border-radius: 16px;
   padding: 42px 36px 36px 36px;
   display: flex;
   flex-direction: column;
   cursor: pointer;
   overflow: hidden;
-  box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.65);
+  box-shadow: 0 12px 36px -4px rgba(0, 0, 0, 0.65);
   opacity: 0;
   transform: translateY(34px) scale(0.97);
   transition: opacity 0.75s cubic-bezier(0.16, 1, 0.3, 1),
@@ -6286,21 +6323,21 @@ body {
 }
 
 .landing-role-card.is-revealed:hover {
-  transform: translateY(-8px) scale(1.015);
+  transform: translateY(-4px);
 }
 
 .coach-card:hover {
-  border-color: rgba(0, 132, 255, 0.6);
-  box-shadow: 0 24px 60px -10px rgba(0, 132, 255, 0.28), 0 0 0 1px rgba(0, 132, 255, 0.4);
+  border-color: rgba(0, 132, 255, 0.45);
+  box-shadow: 0 16px 40px -10px rgba(0, 0, 0, 0.7);
 }
 
 .athlete-card:hover {
-  border-color: rgba(0, 230, 153, 0.6);
-  box-shadow: 0 24px 60px -10px rgba(0, 230, 153, 0.28), 0 0 0 1px rgba(0, 230, 153, 0.4);
+  border-color: rgba(0, 230, 153, 0.45);
+  box-shadow: 0 16px 40px -10px rgba(0, 0, 0, 0.7);
 }
 
 .landing-role-card:active {
-  transform: translateY(-2px) scale(0.99);
+  transform: translateY(-2px);
 }
 
 /* Card Pill */
@@ -6309,10 +6346,10 @@ body {
   top: 24px;
   right: 28px;
   font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  padding: 4px 12px;
-  border-radius: 9999px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
   text-transform: uppercase;
 }
 
@@ -6332,7 +6369,7 @@ body {
 .landing-card-icon-box {
   width: 68px;
   height: 68px;
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -6341,7 +6378,7 @@ body {
 }
 
 .landing-role-card:hover .landing-card-icon-box {
-  transform: scale(1.08) rotate(-2deg);
+  transform: scale(1.04);
 }
 
 .coach-icon-box {
@@ -6358,9 +6395,9 @@ body {
 
 /* Card Typography */
 .landing-card-title {
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-family);
   font-size: 1.85rem;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: -0.01em;
   color: #FFFFFF;
   margin: 0 0 10px 0;
@@ -6420,11 +6457,11 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 20px;
-  border-radius: 14px;
-  font-weight: 700;
-  font-size: 0.95rem;
-  transition: all 0.3s ease;
+  padding: 12px 20px;
+  border-radius: var(--radius-inner);
+  font-weight: 600;
+  font-size: 0.92rem;
+  transition: all 0.2s ease;
 }
 
 .coach-action {
@@ -6436,7 +6473,7 @@ body {
 .coach-card:hover .coach-action {
   background: #0084FF;
   color: #FFFFFF;
-  box-shadow: 0 6px 20px rgba(0, 132, 255, 0.4);
+  box-shadow: none;
 }
 
 .athlete-action {
@@ -6448,15 +6485,15 @@ body {
 .athlete-card:hover .athlete-action {
   background: #00E699;
   color: #07090E;
-  box-shadow: 0 6px 20px rgba(0, 230, 153, 0.4);
+  box-shadow: none;
 }
 
 .landing-card-action svg {
-  transition: transform 0.3s ease;
+  transition: transform 0.2s ease;
 }
 
 .landing-role-card:hover .landing-card-action svg {
-  transform: translateX(4px);
+  transform: translateX(3px);
 }
 
 .landing-section-footer {
@@ -6474,23 +6511,23 @@ body {
   padding: 6px 14px;
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 9999px;
+  border-radius: var(--radius-pill);
   color: #FFFFFF;
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.25s ease;
+  transition: all 0.2s ease;
   text-decoration: none;
   margin-left: 14px;
   white-space: nowrap;
 }
 
 .btn-switch-role-pill:hover {
-  background: rgba(0, 132, 255, 0.2);
-  border-color: #0084FF;
-  color: #00F0FF;
-  transform: translateX(-2px);
-  box-shadow: 0 0 14px rgba(0, 132, 255, 0.3);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #FFFFFF;
+  transform: none;
+  box-shadow: none;
 }
 
 .sidebar-switch-role-box {
@@ -6525,9 +6562,7 @@ body {
 /* ATHLETE MODE CONCEALMENT (Hides Coach-only controls) */
 body.role-mode-athlete .coach-only-element,
 body.role-mode-athlete [data-nav="coach-squad"],
-body.role-mode-athlete [data-nav="auditor-center"],
 body.role-mode-athlete .role-segment-btn[data-role="coach"],
-body.role-mode-athlete .role-segment-btn[data-role="auditor"],
 body.role-mode-athlete .squad-governance-section,
 body.role-mode-athlete #btnAddPlayerModalOpen,
 body.role-mode-athlete #btnExportSquadReport {

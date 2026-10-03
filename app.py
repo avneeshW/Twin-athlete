@@ -126,14 +126,45 @@ def get_model_card_path() -> str:
 app = Flask(__name__, static_folder="static", static_url_path="")
 
 # ==============================================================================
-# SECURITY HEADERS MIDDLEWARE (Phase 16)
+# SECURITY HEADERS & CORS MIDDLEWARE (Phase 16)
 # ==============================================================================
 @app.after_request
 def add_security_headers(response):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
     return response
+
+@app.before_request
+def handle_options_preflight():
+    if request.method == "OPTIONS":
+        response = app.make_default_options_response()
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+        return response
+
+@app.errorhandler(500)
+def handle_500(err):
+    if request.path.startswith("/api/"):
+        return jsonify({"success": False, "error": f"Internal server error: {str(err)}"}), 500
+    return err
+
+@app.errorhandler(404)
+def handle_404(err):
+    if request.path.startswith("/api/"):
+        return jsonify({"success": False, "error": f"API endpoint not found: {request.path}"}), 404
+    return err
+
+@app.errorhandler(405)
+def handle_405(err):
+    if request.path.startswith("/api/"):
+        return jsonify({"success": False, "error": f"Method {request.method} not allowed for {request.path}"}), 405
+    return err
+
 
 # Rate Limiting Tracker for Ingestion Endpoints (max 35 req/sec per IP)
 _rate_tracker = {}
@@ -1041,47 +1072,67 @@ def switch_active_athlete():
     return jsonify({"success": False, "error": f"Athlete '{athlete_id}' not found."}), 404
 
 
-@app.route("/api/athlete/register", methods=["POST"])
+@app.route("/api/athlete/register", methods=["POST", "OPTIONS"])
 def register_new_athlete():
     """Registers a new squad athlete in the registry and database."""
+    if request.method == "OPTIONS":
+        return jsonify({"success": True}), 200
+
     data = request.get_json(silent=True) or {}
     name = data.get("name")
-    if not name:
+    if not name or not str(name).strip():
         return jsonify({"success": False, "error": "Athlete 'name' is required."}), 400
 
-    twin = registry.register_athlete(data)
-    device_id = data.get("device_id")
-    if device_id:
-        registry.map_device(device_id, twin.athlete_id)
+    if registry is None:
+        return jsonify({"success": False, "error": "Athlete registry engine is currently unavailable."}), 503
 
-    return jsonify({
-        "success": True,
-        "message": f"Athlete '{name}' registered successfully.",
-        "athlete": twin.get_summary()
-    }), 201
+    try:
+        twin = registry.register_athlete(data)
+        device_id = data.get("device_id")
+        if device_id and str(device_id).strip():
+            registry.map_device(str(device_id).strip(), twin.athlete_id)
+
+        return jsonify({
+            "success": True,
+            "message": f"Athlete '{name}' registered successfully.",
+            "athlete": twin.get_summary()
+        }), 201
+    except Exception as e:
+        app.logger.error(f"Error registering athlete: {e}", exc_info=True)
+        return jsonify({"success": False, "error": f"Failed to register athlete: {str(e)}"}), 500
 
 
-@app.route("/api/athlete/<athlete_id>", methods=["DELETE"])
-@app.route("/api/athlete/remove", methods=["POST"])
+@app.route("/api/athlete/<athlete_id>", methods=["DELETE", "OPTIONS"])
+@app.route("/api/athlete/remove", methods=["POST", "OPTIONS"])
 def remove_squad_athlete(athlete_id=None):
     """Removes an athlete from the squad registry and database."""
+    if request.method == "OPTIONS":
+        return jsonify({"success": True}), 200
+
     if not athlete_id:
         data = request.get_json(silent=True) or {}
         athlete_id = data.get("athlete_id")
     if not athlete_id:
         return jsonify({"success": False, "error": "Athlete ID is required."}), 400
 
-    if len(registry._twins) <= 1:
-        return jsonify({"success": False, "error": "Cannot remove the only athlete in the squad."}), 400
+    if registry is None:
+        return jsonify({"success": False, "error": "Athlete registry engine is currently unavailable."}), 503
 
-    success = registry.remove_athlete(athlete_id)
-    if success:
-        return jsonify({
-            "success": True,
-            "message": f"Athlete '{athlete_id}' removed from squad.",
-            "active_athlete_id": registry.get_active_athlete_id()
-        }), 200
-    return jsonify({"success": False, "error": f"Athlete '{athlete_id}' not found."}), 404
+    try:
+        if len(registry._twins) <= 1:
+            return jsonify({"success": False, "error": "Cannot remove the only athlete in the squad."}), 400
+
+        success = registry.remove_athlete(athlete_id)
+        if success:
+            return jsonify({
+                "success": True,
+                "message": f"Athlete '{athlete_id}' removed from squad.",
+                "active_athlete_id": registry.get_active_athlete_id()
+            }), 200
+        return jsonify({"success": False, "error": f"Athlete '{athlete_id}' not found."}), 404
+    except Exception as e:
+        app.logger.error(f"Error removing athlete: {e}", exc_info=True)
+        return jsonify({"success": False, "error": f"Failed to remove athlete: {str(e)}"}), 500
 
 
 @app.route("/api/devices/mappings", methods=["GET"])

@@ -240,7 +240,32 @@ class AthleteRegistry:
             twin.acwr = athlete_data.get("acwr", 1.0)
             self._twins[aid] = twin
 
-        # 2. Seed default device mappings
+        # 2. Restore custom registered athletes from SQLite
+        if self.vault:
+            try:
+                all_saved = self.vault.get_all_athlete_profiles()
+                for row in all_saved:
+                    aid = row.get("athlete_id")
+                    if aid and aid not in self._twins and row.get("active_squad", 1):
+                        custom_prof = ai_coach_engine.AthleteProfile(athlete_id=aid)
+                        for k, v in row.items():
+                            if hasattr(custom_prof, k) and v is not None:
+                                try:
+                                    curr = getattr(custom_prof, k)
+                                    if isinstance(curr, float):
+                                        setattr(custom_prof, k, float(v))
+                                    elif isinstance(curr, int):
+                                        setattr(custom_prof, k, int(v))
+                                    else:
+                                        setattr(custom_prof, k, v)
+                                except (ValueError, TypeError):
+                                    setattr(custom_prof, k, v)
+                        custom_twin = DigitalTwin(custom_prof, storage_vault=self.vault)
+                        self._twins[aid] = custom_twin
+            except Exception as e:
+                print(f"[AthleteRegistry] Notice restoring athletes from vault: {e}")
+
+        # 3. Seed default device mappings & restore saved mappings
         default_device_maps = {
             "ESP32-ATHLETE-01": "ATH-0824",
             "ESP32-ATHLETE-02": "ATH-0102"
@@ -252,6 +277,15 @@ class AthleteRegistry:
                     self.vault.save_device_mapping(dev, aid)
             if aid in self._twins:
                 self._twins[aid].device_id = dev
+
+        if self.vault:
+            try:
+                saved_mappings = self.vault.get_all_device_mappings()
+                for dev, aid in saved_mappings.items():
+                    if aid in self._twins:
+                        self._twins[aid].device_id = dev
+            except Exception as e:
+                print(f"[AthleteRegistry] Notice restoring device mappings: {e}")
 
     # Athlete selection & retrieval
     def get_active_athlete_id(self) -> str:
@@ -284,12 +318,18 @@ class AthleteRegistry:
     def register_athlete(self, profile_data: Dict[str, Any]) -> DigitalTwin:
         aid = profile_data.get("athlete_id")
         if not aid:
-            # Generate next sequential ATH-XXXX id
+            # Generate next sequential ATH-XXXX id checking both active twins and SQLite database
             highest = 0
-            for existing_id in self._twins.keys():
+            all_known_ids = set(self._twins.keys())
+            if self.vault:
+                try:
+                    all_known_ids.update([p.get("athlete_id") for p in self.vault.get_all_athlete_profiles() if p.get("athlete_id")])
+                except Exception:
+                    pass
+            for existing_id in all_known_ids:
                 if str(existing_id).startswith("ATH-"):
                     try:
-                        num = int(existing_id[4:])
+                        num = int(str(existing_id)[4:])
                         if num > highest:
                             highest = num
                     except ValueError:
@@ -352,6 +392,10 @@ class AthleteRegistry:
     # Hardware device mapping
     def map_device(self, device_id: str, athlete_id: str) -> bool:
         if athlete_id in self._twins:
+            # Unmap device from any other athlete twin in memory
+            for aid, tw in self._twins.items():
+                if aid != athlete_id and tw.device_id == device_id:
+                    tw.device_id = None
             if self.vault:
                 self.vault.save_device_mapping(device_id, athlete_id)
             self._twins[athlete_id].device_id = device_id
