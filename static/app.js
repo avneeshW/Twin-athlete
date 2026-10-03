@@ -110,14 +110,10 @@ function renderActiveUserProfileUI() {
     heroGreetingEl.textContent = `Good Morning, ${firstName}!`;
   }
 
-  // 2. ATHLETE DIGITAL TWIN Hero Card Subtitle: {fullName} • {position} • Squad #{squadNumber} • {date}
+  // 2. ATHLETE DIGITAL TWIN Hero Card Subtitle: {fullName} • {position} • Squad #{squadNumber}
   const heroSubtextEl = document.getElementById("heroSubtext");
   if (heroSubtextEl) {
-    const existingDateSpan = document.getElementById("overviewDateText");
-    const dateText = (existingDateSpan && existingDateSpan.textContent && existingDateSpan.textContent.trim())
-      || document.getElementById("liveDate")?.textContent
-      || "Mon, 7 Oct 2025";
-    heroSubtextEl.innerHTML = `${fullName} • ${position} • Squad #${squadNumber} • <span id="overviewDateText">${dateText}</span>`;
+    heroSubtextEl.textContent = `${fullName} • ${position} • Squad #${squadNumber}`;
   }
 
   // 3. Hero Card Avatar
