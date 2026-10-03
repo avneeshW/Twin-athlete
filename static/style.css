@@ -5819,10 +5819,15 @@ body {
 
 /* Quick Hub Card */
 .quick-actions-hub-card {
-  padding: 18px 20px;
+  padding: 16px 24px;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  max-width: 600px;
+  width: 100%;
+  margin: 12px auto 0 auto;
+  align-self: center;
+  text-align: center;
 }
 
 .quick-hub-title {
@@ -5831,12 +5836,13 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-muted);
+  text-align: center;
 }
 
 .quick-hub-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 12px;
 }
 
 @media (max-width: 480px) {
@@ -5848,6 +5854,7 @@ body {
 .quick-hub-btn {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   padding: 10px 14px;
   border-radius: 10px;
