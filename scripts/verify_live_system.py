@@ -5,14 +5,14 @@ import time
 BASE_URL = "http://127.0.0.1:5000"
 
 print("=" * 60)
-print(" VERIFYING TWINATHLETE LIVE SERVER & ESP32 PIPELINE")
+print(" VERIFYING SYNC LIVE SERVER & ESP32 PIPELINE")
 print("=" * 60)
 
 # 1. Test Index
 req = urllib.request.Request(f"{BASE_URL}/")
 with urllib.request.urlopen(req) as resp:
     html = resp.read().decode("utf-8")
-    assert "Digital Twin Athlete" in html
+    assert "Sync" in html
     assert "esp32StatusPill" in html
     print("[PASS] Web app served successfully (HTML with ESP32 status pill & controls)")
 

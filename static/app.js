@@ -3147,7 +3147,7 @@ function initInfoModals() {
       if (titleEl) titleEl.textContent = "Biomechanical Injury Risk Model";
       if (bodyEl) {
         bodyEl.innerHTML = `
-          The Digital Twin Athlete combines real-time 6-DOF IMU acceleration spikes (>2.5g), acute-to-chronic workload ratios (ACWR), and athlete-reported neuromuscular fatigue.<br><br>
+          Sync combines real-time 6-DOF IMU acceleration spikes (>2.5g), acute-to-chronic workload ratios (ACWR), and athlete-reported neuromuscular fatigue.<br><br>
           Elevated risk alerts trigger targeted pre-habilitation drills to prevent soft-tissue non-contact injuries before they occur.
         `;
       }

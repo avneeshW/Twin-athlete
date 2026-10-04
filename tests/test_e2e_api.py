@@ -15,7 +15,7 @@ class TestE2EIntegration(unittest.TestCase):
     def test_index_serves(self):
         res = self.client.get("/")
         self.assertEqual(res.status_code, 200)
-        self.assertIn(b"Digital Twin Athlete", res.data)
+        self.assertIn(b"Sync", res.data)
         self.assertIn(b"ESP32", res.data)
 
     def test_status_endpoint(self):

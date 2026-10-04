@@ -1037,7 +1037,7 @@ def get_team_overview():
         active_twin.wearable_connected = (time.time() - engine.last_packet_time < 5.0)
 
     summary = registry.get_squad_summary()
-    summary["team_name"] = "TwinAthlete FC (Collegiate Squad)"
+    summary["team_name"] = "Sync FC (Collegiate Squad)"
     summary["avg_readiness"] = summary.get("average_readiness", 80.0)
     summary["athletes"] = summary.get("roster", [])
     return jsonify(summary), 200
@@ -1182,7 +1182,7 @@ def update_athlete_baseline():
 def get_privacy_policy():
     """Returns the athlete data privacy, retention, and non-commercialization disclosure."""
     return jsonify({
-        "data_controller": "TwinAthlete Autonomous Bio-Platform",
+        "data_controller": "Sync Autonomous Bio-Platform",
         "data_retention_days": 180,
         "commercial_use": False,
         "third_party_sharing": False,
@@ -1239,7 +1239,7 @@ def get_audit_log():
 
 if __name__ == "__main__":
     print("\n" + "=" * 60)
-    print(" Digital Twin Athlete Cockpit Online: http://127.0.0.1:5000")
+    print(" Sync Cockpit Online: http://127.0.0.1:5000")
     print("=" * 60 + "\n")
     app.run(host="0.0.0.0", port=5000, debug=False)
 
