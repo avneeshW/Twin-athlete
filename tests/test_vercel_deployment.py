@@ -25,7 +25,7 @@ class TestVercelDeployment(unittest.TestCase):
             data = json.load(f)
         self.assertIn("rewrites", data)
         destinations = [r.get("destination") for r in data["rewrites"]]
-        self.assertTrue(any("api/index.py" in d for d in destinations))
+        self.assertTrue(any("/api/index" in d for d in destinations))
 
     def test_api_entrypoint_exists_and_exports_app(self):
         entry_path = os.path.join(ROOT_DIR, "api", "index.py")
