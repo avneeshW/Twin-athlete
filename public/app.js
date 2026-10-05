@@ -4661,11 +4661,11 @@ function initCoachSquadControls() {
       const height_cm = parseFloat(document.getElementById("newPlayerHeight")?.value) || 181.0;
       const weight_kg = parseFloat(document.getElementById("newPlayerWeight")?.value) || 76.0;
       const resting_hr_baseline = parseFloat(document.getElementById("newPlayerRestingHr")?.value) || 54.0;
-      const max_hr = parseFloat(document.getElementById("newPlayerMaxHr")?.value) || 195.0;
+      const max_hr = parseFloat(document.getElementById("newPlayerMaxHr")?.value) || Math.max(160, 220 - age);
       const typical_sleep_baseline = parseFloat(document.getElementById("newPlayerSleep")?.value) || 7.8;
       const recovery = parseFloat(document.getElementById("newPlayerRecovery")?.value) || 82.0;
       const fatigue = Math.max(10, Math.min(90, Math.round(100 - recovery)));
-      const device_id = document.getElementById("newPlayerDeviceId")?.value.trim() || undefined;
+      const device_id = document.getElementById("newPlayerDeviceId")?.value?.trim() || undefined;
 
       const payload = {
         name,
