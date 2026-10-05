@@ -165,6 +165,44 @@ class TestAthleteRegistry(unittest.TestCase):
         # 4. Removing non-existent athlete returns False
         self.assertFalse(self.registry.remove_athlete("NONEXISTENT-ATH"))
 
+    def test_remove_default_athlete_and_empty_squad_recovery(self):
+        """Verify removing default athlete ATH-0824 does not crash and empty squad is handled safely."""
+        # 1. Remove ATH-0824 (Daniel Saji)
+        removed_daniel = self.registry.remove_athlete("ATH-0824")
+        self.assertTrue(removed_daniel)
+        self.assertNotIn("ATH-0824", self.registry._twins)
+
+        # 2. get_active_twin and get_active_profile should NOT raise KeyError
+        active_twin = self.registry.get_active_twin()
+        self.assertIsNotNone(active_twin)
+        active_profile = self.registry.get_active_profile()
+        self.assertIsNotNone(active_profile)
+        self.assertIn(active_twin.athlete_id, self.registry._twins)
+
+        # 3. Remove all remaining athletes
+        remaining_ids = list(self.registry._twins.keys())
+        for aid in remaining_ids:
+            self.registry.remove_athlete(aid)
+        self.assertEqual(len(self.registry._twins), 0)
+
+        # 4. Even with empty squad, get_active_twin and get_squad_summary must not raise errors
+        standby_twin = self.registry.get_active_twin()
+        self.assertIsNotNone(standby_twin)
+        summary = self.registry.get_squad_summary()
+        self.assertEqual(summary["squad_size"], 0)
+
+        # 5. Register a custom athlete of choice (e.g. Saimesh) into the empty squad
+        saimesh = self.registry.register_athlete({
+            "name": "Saimesh",
+            "position": "Fullback",
+            "age": 23
+        })
+        self.assertIsNotNone(saimesh)
+        self.assertEqual(saimesh.profile.name, "Saimesh")
+        self.assertEqual(self.registry.get_active_athlete_id(), saimesh.athlete_id)
+        self.assertEqual(self.registry.get_active_profile().name, "Saimesh")
+
 
 if __name__ == "__main__":
     unittest.main()
+

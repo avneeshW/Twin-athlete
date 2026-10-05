@@ -312,19 +312,35 @@ class AthleteRegistry:
         if athlete_id in self._twins:
             self.active_athlete_id = athlete_id
             # Synchronize module-level singletons in ai_coach_engine
-            ai_coach_engine.athlete_profile = self.get_active_profile()
-            ai_coach_engine.prediction_tracker = self.get_active_tracker()
+            active_prof = self.get_active_profile()
+            active_track = self.get_active_tracker()
+            if active_prof:
+                ai_coach_engine.athlete_profile = active_prof
+            if active_track:
+                ai_coach_engine.prediction_tracker = active_track
             return True
         return False
 
     def get_active_twin(self) -> DigitalTwin:
-        return self._twins.get(self.active_athlete_id, self._twins["ATH-0824"])
+        if self.active_athlete_id and self.active_athlete_id in self._twins:
+            return self._twins[self.active_athlete_id]
+        if self._twins:
+            first_id = next(iter(self._twins.keys()))
+            self.active_athlete_id = first_id
+            return self._twins[first_id]
+        # Standby fallback twin for completely empty squad
+        standby_prof = ai_coach_engine.AthleteProfile(athlete_id="ATH-STANDBY")
+        standby_prof.name = "Squad Athlete"
+        standby_prof.position = "Player"
+        return DigitalTwin(standby_prof, storage_vault=self.vault)
 
     def get_active_profile(self) -> "ai_coach_engine.AthleteProfile":
-        return self.get_active_twin().profile
+        twin = self.get_active_twin()
+        return twin.profile
 
     def get_active_tracker(self) -> "ai_coach_engine.PredictionOutcomeTracker":
-        return self.get_active_twin().tracker
+        twin = self.get_active_twin()
+        return twin.tracker
 
     def get_twin(self, athlete_id: str) -> Optional[DigitalTwin]:
         return self._twins.get(athlete_id)
@@ -389,18 +405,21 @@ class AthleteRegistry:
             except (ValueError, TypeError):
                 pass
         self._twins[aid] = twin
+        if not self.active_athlete_id or self.active_athlete_id not in self._twins:
+            self.set_active_athlete(aid)
         return twin
 
     def remove_athlete(self, athlete_id: str) -> bool:
         """Removes an athlete twin from active squad and SQLite database."""
         if athlete_id in self._twins:
-            if len(self._twins) <= 1:
-                return False
             del self._twins[athlete_id]
-            # If removing active athlete, switch to another available athlete
-            if self.active_athlete_id == athlete_id:
-                next_id = next(iter(self._twins.keys()))
-                self.set_active_athlete(next_id)
+            # If removing active athlete or active athlete is no longer in squad, switch to another available athlete
+            if self.active_athlete_id == athlete_id or self.active_athlete_id not in self._twins:
+                if self._twins:
+                    next_id = next(iter(self._twins.keys()))
+                    self.set_active_athlete(next_id)
+                else:
+                    self.active_athlete_id = ""
             if self.vault:
                 try:
                     self.vault.delete_athlete_profile(athlete_id)

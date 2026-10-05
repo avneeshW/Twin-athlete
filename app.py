@@ -395,7 +395,15 @@ def get_dashboard_data():
     active_profile = registry.get_active_profile() if registry else None
     active_id = registry.get_active_athlete_id() if registry else None
     if active_profile and active_id and active_id != "ATH-0824":
-        athlete_name = getattr(active_profile, "name", "Avneesh Walvalkar")
+        athlete_name = getattr(active_profile, "name", "Athlete")
+        position = getattr(active_profile, "position", "Midfielder")
+        squad_num = getattr(active_profile, "squad_number", "8")
+    elif active_profile and active_id == "ATH-0824":
+        athlete_name = "Avneesh Walvalkar"
+        position = "Midfielder"
+        squad_num = "8"
+    elif active_profile and getattr(active_profile, "name", None):
+        athlete_name = active_profile.name
         position = getattr(active_profile, "position", "Midfielder")
         squad_num = getattr(active_profile, "squad_number", "8")
     else:
@@ -1057,7 +1065,7 @@ def get_team_overview():
     # Synchronize live telemetry values from active device into active athlete
     active_twin = reg.get_active_twin()
     latest = engine.get_latest_state() if engine else {}
-    if active_twin and active_twin.athlete_id == "ATH-0824":
+    if active_twin:
         active_twin.current_fatigue = latest.get("twin_status", {}).get("fatigue_value", active_twin.current_fatigue)
         active_twin.current_recovery = latest.get("twin_status", {}).get("recovery_value", active_twin.current_recovery)
 
@@ -1173,9 +1181,6 @@ def remove_squad_athlete(athlete_id=None):
         return jsonify({"success": False, "error": "Athlete registry engine is currently unavailable."}), 503
 
     try:
-        if len(reg._twins) <= 1:
-            return jsonify({"success": False, "error": "Cannot remove the only athlete in the squad."}), 400
-
         success = reg.remove_athlete(athlete_id)
         if success:
             return jsonify({

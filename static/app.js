@@ -4416,11 +4416,13 @@ function openAddPlayerModal() {
     if (nameInput) setTimeout(() => nameInput.focus(), 100);
   }
 }
+window.openAddPlayerModal = openAddPlayerModal;
 
 function closeAddPlayerModal() {
   const modal = document.getElementById("addPlayerModal");
   if (modal) modal.style.display = "none";
 }
+window.closeAddPlayerModal = closeAddPlayerModal;
 
 function promptRemoveAthlete(athleteId, athleteName) {
   pendingRemoveAthleteId = athleteId;
@@ -4431,12 +4433,14 @@ function promptRemoveAthlete(athleteId, athleteName) {
   }
   if (modal) modal.style.display = "flex";
 }
+window.promptRemoveAthlete = promptRemoveAthlete;
 
 function closeRemovePlayerModal() {
   pendingRemoveAthleteId = null;
   const modal = document.getElementById("removePlayerModal");
   if (modal) modal.style.display = "none";
 }
+window.closeRemovePlayerModal = closeRemovePlayerModal;
 
 async function executeRemoveAthlete() {
   if (!pendingRemoveAthleteId) return;
@@ -4471,17 +4475,35 @@ async function executeRemoveAthlete() {
     showToast(err && err.message ? `Error: ${err.message}` : "Network error removing player", "⚠️");
   }
 }
+window.executeRemoveAthlete = executeRemoveAthlete;
 
 async function loadCoachSquad() {
   const grid = document.getElementById("squadRosterGrid");
   if (!grid) return;
 
   try {
-    const res = await fetch("/api/coach/team-overview");
-    if (!res.ok) return;
-    const data = await res.json();
-    const athletes = data.roster || data.athletes || [];
-    const activeAthleteId = data.active_athlete_id || "ATH-0824";
+    let athletes = [];
+    let activeAthleteId = "";
+
+    try {
+      const res = await fetch("/api/coach/team-overview");
+      if (res.ok) {
+        const data = await res.json();
+        athletes = data.roster || data.athletes || [];
+        activeAthleteId = data.active_athlete_id || "";
+      }
+    } catch (_) {}
+
+    if (!athletes.length) {
+      try {
+        const fallbackRes = await fetch("/api/athletes");
+        if (fallbackRes.ok) {
+          const fallbackData = await fallbackRes.json();
+          athletes = fallbackData.athletes || [];
+          activeAthleteId = fallbackData.active_athlete_id || "";
+        }
+      } catch (_) {}
+    }
 
     if (athletes.length) {
       grid.innerHTML = athletes.map(ath => {
