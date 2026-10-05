@@ -1,49 +1,89 @@
 import os
 import sys
-import urllib.parse
 import traceback
+from flask import Flask, jsonify, request
 
-# Ensure the repository root directory is in sys.path
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
-# Flag serverless runtime
 os.environ["VERCEL"] = "1"
 
+app = Flask(__name__)
+
+
+@app.route("/api/health")
+@app.route("/api/test-imports")
+def diagnostic():
+    results = {}
+    modules = [
+        "numpy",
+        "joblib",
+        "twin.compat",
+        "twin.contracts",
+        "twin.simulator",
+        "twin.storage",
+        "twin.coach",
+        "twin.telemetry",
+        "twin.registry",
+        "ml.generate_data",
+        "app"
+    ]
+    for mod in modules:
+        try:
+            __import__(mod)
+            results[mod] = "OK"
+        except Exception as e:
+            results[mod] = f"ERROR: {e} | {traceback.format_exc()}"
+
+    return jsonify({
+        "status": "online",
+        "service": "Digital Twin Athlete Diagnostics",
+        "python_version": sys.version,
+        "cwd": os.getcwd(),
+        "root_dir": ROOT_DIR,
+        "files_in_root": os.listdir(ROOT_DIR) if os.path.exists(ROOT_DIR) else [],
+        "modules": results
+    }), 200
+
+
+# Try to load production app
+_prod_app = None
+_prod_err = None
 try:
-    from app import app
-
-    class VercelPathNormalizer:
-        """WSGI middleware ensuring PATH_INFO correctly routes to Flask endpoints under Vercel rewrites."""
-
-        def __init__(self, wsgi_app):
-            self.wsgi_app = wsgi_app
-
-        def __call__(self, environ, start_response):
-            qs = environ.get("QUERY_STRING", "")
-            if "__endpoint=" in qs:
-                params = urllib.parse.parse_qs(qs)
-                endpoint = params.pop("__endpoint", [""])[0]
-                if endpoint:
-                    environ["PATH_INFO"] = "/api/" + endpoint.lstrip("/")
-                    new_qs = urllib.parse.urlencode([(k, v) for k, vs in params.items() for v in vs])
-                    environ["QUERY_STRING"] = new_qs
-            return self.wsgi_app(environ, start_response)
-
-    app.wsgi_app = VercelPathNormalizer(app.wsgi_app)
-
+    import app as prod_module
+    _prod_app = prod_module.app
 except Exception as e:
-    err_trace = traceback.format_exc()
-    from flask import Flask, jsonify
-    app = Flask(__name__)
+    _prod_err = f"{e}\n{traceback.format_exc()}"
 
-    @app.route("/", defaults={"path": ""})
-    @app.route("/<path:path>", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
-    def vercel_import_error_handler(path=""):
+
+@app.route("/api", defaults={"subpath": ""}, methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
+@app.route("/api/<path:subpath>", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
+def proxy_to_prod(subpath=""):
+    if subpath in ("health", "test-imports"):
+        return diagnostic()
+
+    if _prod_app is None:
         return jsonify({
             "success": False,
-            "error": "Digital Twin Vercel Import Error",
-            "message": str(e),
-            "traceback": err_trace
+            "error": "Production app failed to import during cold start",
+            "traceback": _prod_err
         }), 500
+
+    # Dispatch request into production Flask app
+    with _prod_app.test_request_context(
+        path="/api/" + subpath if subpath else "/api",
+        base_url=request.base_url,
+        query_string=request.query_string,
+        method=request.method,
+        headers=dict(request.headers),
+        data=request.get_data()
+    ):
+        try:
+            return _prod_app.full_dispatch_request()
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": f"Dispatch error: {e}",
+                "traceback": traceback.format_exc()
+            }), 500
