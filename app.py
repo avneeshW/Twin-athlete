@@ -304,6 +304,23 @@ def serve_index():
     return send_from_directory(folder, "index.html")
 
 
+@app.route("/api")
+@app.route("/api/")
+def api_root():
+    return jsonify({
+        "status": "online",
+        "service": "Digital Twin Athlete API",
+        "version": "2.4.0",
+        "endpoints": [
+            "/api/dashboard-data",
+            "/api/athletes",
+            "/api/status",
+            "/api/model-card",
+            "/api/simulate-step"
+        ]
+    }), 200
+
+
 @app.route("/api/dashboard-data", methods=["GET"])
 def get_dashboard_data():
     """Returns telemetry data matching the athlete cockpit overview."""

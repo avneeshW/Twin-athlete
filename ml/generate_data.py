@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import sys
 import argparse
@@ -26,12 +27,12 @@ DEFAULT_OUTPUT_CSV = os.path.join(DEFAULT_DATA_DIR, "synthetic_athlete_dataset.c
 
 def generate_athlete_dataset(
     days: int = DEFAULT_DAYS,
-    sleep_hours: float | list | str | None = DEFAULT_USER_SLEEP_HOURS,
+    sleep_hours=DEFAULT_USER_SLEEP_HOURS,
     sleep_variability: float = DEFAULT_SLEEP_VARIABILITY,
     output_csv: str = DEFAULT_OUTPUT_CSV,
     seed: int = 42,
     **kwargs
-) -> pd.DataFrame:
+):
     """
     Generates synthetic athlete longitudinal data with user-defined sleeping hours.
     
