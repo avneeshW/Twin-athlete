@@ -19,137 +19,201 @@ import sqlite3
 import threading
 from typing import Dict, Any, List, Optional
 
-DEFAULT_DB_FILE = "twin_athlete.db"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DEFAULT_DB_FILE = os.path.join(BASE_DIR, "twin_athlete.db")
 
 
 class StorageVault:
-    """Thread-safe SQLite storage vault with WAL mode."""
+    """Thread-safe SQLite storage vault with WAL mode and resilient fallback."""
 
     def __init__(self, db_path: Optional[str] = None):
-        self.db_path = db_path or os.environ.get("TWIN_DB_FILE", DEFAULT_DB_FILE)
+        raw_path = db_path or os.environ.get("TWIN_DB_FILE") or DEFAULT_DB_FILE
+        if raw_path != ":memory:" and not str(raw_path).startswith("file:") and not os.path.isabs(raw_path):
+            self.db_path = os.path.abspath(os.path.join(BASE_DIR, raw_path))
+        else:
+            self.db_path = raw_path
         self._lock = threading.Lock()
+        if self.db_path != ":memory:" and not str(self.db_path).startswith("file:"):
+            try:
+                os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+            except Exception:
+                pass
         self._init_db()
 
     def _get_connection(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path, timeout=10.0, check_same_thread=False)
-        conn.row_factory = sqlite3.Row
-        # Enable WAL mode and normal synchronous settings for speed + durability
-        # (Note: In-memory :memory: databases do not support WAL mode)
-        if self.db_path != ":memory:":
-            conn.execute("PRAGMA journal_mode=WAL;")
-        conn.execute("PRAGMA synchronous=NORMAL;")
-        return conn
+        is_memory = (self.db_path == ":memory:" or str(self.db_path).startswith("file:"))
+        try:
+            if str(self.db_path).startswith("file:"):
+                conn = sqlite3.connect(self.db_path, uri=True, timeout=10.0, check_same_thread=False)
+            else:
+                conn = sqlite3.connect(self.db_path, timeout=10.0, check_same_thread=False)
+            conn.row_factory = sqlite3.Row
+            if not is_memory:
+                try:
+                    conn.execute("PRAGMA journal_mode=WAL;")
+                except sqlite3.OperationalError:
+                    try:
+                        conn.execute("PRAGMA journal_mode=DELETE;")
+                    except Exception:
+                        pass
+            try:
+                conn.execute("PRAGMA synchronous=NORMAL;")
+            except Exception:
+                pass
+            return conn
+        except sqlite3.OperationalError as e:
+            # Fallback when the specified DB path cannot be opened (permissions, directory missing, locked)
+            print(f"[StorageVault] Warning: Unable to open database at '{self.db_path}': {e}. Attempting fallback...")
+            # Try user TEMP directory
+            temp_db = os.path.join(os.environ.get("TEMP", os.path.expanduser("~")), "twin_athlete.db")
+            if self.db_path != temp_db:
+                try:
+                    conn = sqlite3.connect(temp_db, timeout=10.0, check_same_thread=False)
+                    conn.row_factory = sqlite3.Row
+                    try:
+                        conn.execute("PRAGMA journal_mode=WAL;")
+                    except Exception:
+                        pass
+                    try:
+                        conn.execute("PRAGMA synchronous=NORMAL;")
+                    except Exception:
+                        pass
+                    self.db_path = temp_db
+                    return conn
+                except Exception:
+                    pass
+            # Final fallback: shared in-memory DB
+            self.db_path = "file:twin_athlete_mem?mode=memory&cache=shared"
+            conn = sqlite3.connect(self.db_path, uri=True, check_same_thread=False)
+            conn.row_factory = sqlite3.Row
+            return conn
+
+    def _run_schema_migrations(self, conn: sqlite3.Connection):
+        """Executes table and index creations with safe migrations."""
+        with conn:
+            # 1. Athlete Baseline Profile Table
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS athlete_baselines (
+                    athlete_id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    sport TEXT,
+                    position TEXT DEFAULT 'Midfield Runner',
+                    age INTEGER,
+                    height_cm REAL,
+                    weight_kg REAL,
+                    resting_hr_baseline REAL,
+                    max_hr REAL,
+                    vo2_max REAL,
+                    chronic_load_baseline REAL,
+                    typical_sleep_baseline REAL,
+                    history_days INTEGER,
+                    dominant_leg TEXT,
+                    active_squad INTEGER DEFAULT 1,
+                    updated_at REAL
+                );
+            """)
+
+            # Safe migration for existing databases missing position or active_squad
+            for col_def in ["position TEXT DEFAULT 'Midfield Runner'", "active_squad INTEGER DEFAULT 1"]:
+                try:
+                    conn.execute(f"ALTER TABLE athlete_baselines ADD COLUMN {col_def};")
+                except sqlite3.OperationalError:
+                    pass
+
+            # 2. Prediction vs Actual Feedback Ledger Table
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS feedback_ledger (
+                    id TEXT PRIMARY KEY,
+                    athlete_id TEXT DEFAULT 'ATH-0824',
+                    date TEXT NOT NULL,
+                    metric TEXT NOT NULL,
+                    scenario TEXT NOT NULL,
+                    model_version TEXT NOT NULL,
+                    predicted REAL NOT NULL,
+                    observed REAL,
+                    error REAL,
+                    percentage_error REAL,
+                    status TEXT NOT NULL,
+                    status_color TEXT NOT NULL,
+                    created_at REAL NOT NULL,
+                    verified_at REAL
+                );
+            """)
+
+            # Safe migration for existing databases missing athlete_id
+            try:
+                conn.execute("ALTER TABLE feedback_ledger ADD COLUMN athlete_id TEXT DEFAULT 'ATH-0824';")
+            except sqlite3.OperationalError:
+                pass
+
+            # 3. Device to Athlete Hardware Mappings Table
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS device_mappings (
+                    device_id TEXT PRIMARY KEY,
+                    athlete_id TEXT NOT NULL,
+                    updated_at REAL NOT NULL
+                );
+            """)
+
+            # 4. Workout Session History Table
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS session_history (
+                    session_id TEXT PRIMARY KEY,
+                    athlete_id TEXT NOT NULL,
+                    start_time REAL NOT NULL,
+                    end_time REAL NOT NULL,
+                    duration_sec REAL NOT NULL,
+                    avg_hr REAL NOT NULL,
+                    peak_hr REAL NOT NULL,
+                    avg_spo2 REAL NOT NULL,
+                    calories REAL NOT NULL,
+                    steps INTEGER NOT NULL,
+                    training_load REAL NOT NULL,
+                    activity TEXT NOT NULL,
+                    hr_zone_distribution TEXT,
+                    created_at REAL NOT NULL
+                );
+            """)
+
+            # 5. Audit Log Table
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS audit_events (
+                    event_id TEXT PRIMARY KEY,
+                    timestamp TEXT NOT NULL,
+                    event_type TEXT NOT NULL,
+                    severity TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    details TEXT NOT NULL,
+                    created_at REAL NOT NULL
+                );
+            """)
+
+            # Indices for rapid querying
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback_ledger(status);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_feedback_athlete ON feedback_ledger(athlete_id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_session_athlete ON session_history(athlete_id, start_time);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_device_athlete ON device_mappings(athlete_id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_time ON audit_events(created_at);")
 
     def _init_db(self):
         """Initializes tables and indices if they do not exist."""
         with self._lock:
             conn = self._get_connection()
             try:
-                with conn:
-                    # 1. Athlete Baseline Profile Table
-                    conn.execute("""
-                        CREATE TABLE IF NOT EXISTS athlete_baselines (
-                            athlete_id TEXT PRIMARY KEY,
-                            name TEXT NOT NULL,
-                            sport TEXT,
-                            position TEXT DEFAULT 'Midfield Runner',
-                            age INTEGER,
-                            height_cm REAL,
-                            weight_kg REAL,
-                            resting_hr_baseline REAL,
-                            max_hr REAL,
-                            vo2_max REAL,
-                            chronic_load_baseline REAL,
-                            typical_sleep_baseline REAL,
-                            history_days INTEGER,
-                            dominant_leg TEXT,
-                            active_squad INTEGER DEFAULT 1,
-                            updated_at REAL
-                        );
-                    """)
-
-                    # Safe migration for existing databases missing position or active_squad
-                    for col_def in ["position TEXT DEFAULT 'Midfield Runner'", "active_squad INTEGER DEFAULT 1"]:
-                        try:
-                            conn.execute(f"ALTER TABLE athlete_baselines ADD COLUMN {col_def};")
-                        except sqlite3.OperationalError:
-                            pass
-
-                    # 2. Prediction vs Actual Feedback Ledger Table
-                    conn.execute("""
-                        CREATE TABLE IF NOT EXISTS feedback_ledger (
-                            id TEXT PRIMARY KEY,
-                            athlete_id TEXT DEFAULT 'ATH-0824',
-                            date TEXT NOT NULL,
-                            metric TEXT NOT NULL,
-                            scenario TEXT NOT NULL,
-                            model_version TEXT NOT NULL,
-                            predicted REAL NOT NULL,
-                            observed REAL,
-                            error REAL,
-                            percentage_error REAL,
-                            status TEXT NOT NULL,
-                            status_color TEXT NOT NULL,
-                            created_at REAL NOT NULL,
-                            verified_at REAL
-                        );
-                    """)
-
-                    # Safe migration for existing databases missing athlete_id
-                    try:
-                        conn.execute("ALTER TABLE feedback_ledger ADD COLUMN athlete_id TEXT DEFAULT 'ATH-0824';")
-                    except sqlite3.OperationalError:
-                        pass
-
-                    # 3. Device to Athlete Hardware Mappings Table
-                    conn.execute("""
-                        CREATE TABLE IF NOT EXISTS device_mappings (
-                            device_id TEXT PRIMARY KEY,
-                            athlete_id TEXT NOT NULL,
-                            updated_at REAL NOT NULL
-                        );
-                    """)
-
-                    # 4. Workout Session History Table
-                    conn.execute("""
-                        CREATE TABLE IF NOT EXISTS session_history (
-                            session_id TEXT PRIMARY KEY,
-                            athlete_id TEXT NOT NULL,
-                            start_time REAL NOT NULL,
-                            end_time REAL NOT NULL,
-                            duration_sec REAL NOT NULL,
-                            avg_hr REAL NOT NULL,
-                            peak_hr REAL NOT NULL,
-                            avg_spo2 REAL NOT NULL,
-                            calories REAL NOT NULL,
-                            steps INTEGER NOT NULL,
-                            training_load REAL NOT NULL,
-                            activity TEXT NOT NULL,
-                            hr_zone_distribution TEXT,
-                            created_at REAL NOT NULL
-                        );
-                    """)
-
-                    # 5. Audit Log Table
-                    conn.execute("""
-                        CREATE TABLE IF NOT EXISTS audit_events (
-                            event_id TEXT PRIMARY KEY,
-                            timestamp TEXT NOT NULL,
-                            event_type TEXT NOT NULL,
-                            severity TEXT NOT NULL,
-                            source TEXT NOT NULL,
-                            details TEXT NOT NULL,
-                            created_at REAL NOT NULL
-                        );
-                    """)
-
-                    # Indices for rapid querying
-                    conn.execute("CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback_ledger(status);")
-                    conn.execute("CREATE INDEX IF NOT EXISTS idx_feedback_athlete ON feedback_ledger(athlete_id);")
-                    conn.execute("CREATE INDEX IF NOT EXISTS idx_session_athlete ON session_history(athlete_id, start_time);")
-                    conn.execute("CREATE INDEX IF NOT EXISTS idx_device_athlete ON device_mappings(athlete_id);")
-                    conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_time ON audit_events(created_at);")
-            finally:
+                self._run_schema_migrations(conn)
+            except sqlite3.OperationalError as oe:
+                print(f"[StorageVault] Schema migration error on '{self.db_path}': {oe}. Switching to shared in-memory DB...")
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+                self.db_path = "file:twin_athlete_mem?mode=memory&cache=shared"
+                conn = self._get_connection()
+                try:
+                    self._run_schema_migrations(conn)
+                finally:
+                    conn.close()
+            else:
                 conn.close()
 
     # =========================================================================
@@ -455,4 +519,12 @@ class StorageVault:
 
 
 # Centralized storage singleton
-vault = StorageVault()
+try:
+    vault = StorageVault()
+except Exception as e:
+    print(f"[twin.storage] Warning: StorageVault init error: {e}. Falling back to in-memory vault.")
+    try:
+        vault = StorageVault(db_path=":memory:")
+    except Exception:
+        vault = None
+

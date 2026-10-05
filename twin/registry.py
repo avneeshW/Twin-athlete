@@ -105,6 +105,12 @@ class AthleteRegistry:
 
     def __init__(self, storage_vault=None):
         self.vault = storage_vault or vault
+        if self.vault is None:
+            try:
+                from twin.storage import StorageVault
+                self.vault = StorageVault()
+            except Exception as e:
+                print(f"[AthleteRegistry] Vault init fallback: {e}")
         self._twins: Dict[str, DigitalTwin] = {}
         self.active_athlete_id: str = "ATH-0824"
         self._init_squad()
@@ -446,4 +452,13 @@ class AthleteRegistry:
 
 
 # Centralized registry singleton
-registry = AthleteRegistry()
+try:
+    registry = AthleteRegistry()
+except Exception as e:
+    print(f"[twin.registry] Warning: AthleteRegistry init error: {e}. Falling back to in-memory registry.")
+    try:
+        from twin.storage import StorageVault
+        registry = AthleteRegistry(storage_vault=StorageVault(db_path=":memory:"))
+    except Exception:
+        registry = None
+

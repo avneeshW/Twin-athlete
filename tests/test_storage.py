@@ -161,6 +161,25 @@ class TestStorageVault(unittest.TestCase):
         self.assertEqual(events[0]["event_id"], "EVT-TEST-01")
         self.assertEqual(events[0]["details"]["drift_offset"], 0.02)
 
+    def test_default_db_file_is_absolute(self):
+        """Verify DEFAULT_DB_FILE is resolved to an absolute path."""
+        from twin.storage import DEFAULT_DB_FILE
+        self.assertTrue(os.path.isabs(DEFAULT_DB_FILE))
+        self.assertTrue(DEFAULT_DB_FILE.endswith("twin_athlete.db"))
+
+    def test_fallback_on_unopenable_path(self):
+        """Verify StorageVault does not crash when initialized with an unopenable path."""
+        # A path in a non-existent drive or restricted folder
+        bad_path = "Z:\\non_existent_folder_xyz\\vault.db"
+        vault = StorageVault(db_path=bad_path)
+        self.assertIsNotNone(vault)
+        # Should still be able to save and retrieve an athlete profile
+        vault.save_athlete_profile({"athlete_id": "ATH-TEST", "name": "Fallback Player"})
+        retrieved = vault.get_athlete_profile("ATH-TEST")
+        self.assertIsNotNone(retrieved)
+        self.assertEqual(retrieved["name"], "Fallback Player")
+
 
 if __name__ == "__main__":
     unittest.main()
+

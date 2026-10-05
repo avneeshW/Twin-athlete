@@ -104,13 +104,15 @@ def get_registry():
                 registry = AthleteRegistry()
         except Exception:
             try:
-                import registry_engine
-                if getattr(registry_engine, "registry", None) is not None:
-                    registry = registry_engine.registry
-                elif hasattr(registry_engine, "AthleteRegistry"):
-                    registry = registry_engine.AthleteRegistry()
-            except Exception as e:
-                print(f"[app] Notice: registry init fallback error: {e}")
+                from twin.registry import AthleteRegistry
+                registry = AthleteRegistry()
+            except Exception:
+                try:
+                    from twin.storage import StorageVault
+                    from twin.registry import AthleteRegistry
+                    registry = AthleteRegistry(storage_vault=StorageVault(db_path=":memory:"))
+                except Exception as e:
+                    print(f"[app] Notice: registry init fallback error: {e}")
     return registry
 
 try:
@@ -1124,8 +1126,15 @@ def register_new_athlete():
             global registry
             registry = reg
         except Exception as e:
-            app.logger.error(f"Failed to instantiate AthleteRegistry: {e}")
-            return jsonify({"success": False, "error": f"Athlete registry engine is currently unavailable: {e}"}), 503
+            app.logger.warning(f"Failed to instantiate standard AthleteRegistry: {e}. Trying in-memory fallback...")
+            try:
+                from twin.storage import StorageVault
+                from twin.registry import AthleteRegistry
+                reg = AthleteRegistry(storage_vault=StorageVault(db_path=":memory:"))
+                registry = reg
+            except Exception as e2:
+                app.logger.error(f"Failed to instantiate AthleteRegistry fallback: {e2}")
+                return jsonify({"success": False, "error": f"Athlete registry engine is currently unavailable: {e}"}), 503
 
     try:
         twin = reg.register_athlete(data)
