@@ -17,6 +17,7 @@ class TestVercelDeployment(unittest.TestCase):
         with open(p_path, "r", encoding="utf-8") as f:
             content = f.read()
         self.assertIn("requires-python = \">=3.12\"", content)
+        self.assertIn("entrypoint = \"app:app\"", content)
 
     def test_vercel_json_exists_and_valid(self):
         vj_path = os.path.join(ROOT_DIR, "vercel.json")
@@ -25,13 +26,7 @@ class TestVercelDeployment(unittest.TestCase):
             data = json.load(f)
         self.assertIn("rewrites", data)
         destinations = [r.get("destination") for r in data["rewrites"]]
-        self.assertTrue(any("/api/index" in d for d in destinations))
-
-    def test_api_entrypoint_exists_and_exports_app(self):
-        entry_path = os.path.join(ROOT_DIR, "api", "index.py")
-        self.assertTrue(os.path.exists(entry_path), "api/index.py must exist")
-        from api.index import app as entry_app
-        self.assertIsNotNone(entry_app)
+        self.assertTrue(any("/app.py" in d for d in destinations))
 
     def test_vercelignore_exists(self):
         vi_path = os.path.join(ROOT_DIR, ".vercelignore")
