@@ -174,13 +174,21 @@ def handle_options_preflight():
 
 @app.errorhandler(500)
 def handle_500(err):
-    if request.path.startswith("/api/"):
-        return jsonify({"success": False, "error": f"Internal server error: {str(err)}"}), 500
-    return err
+    return jsonify({"success": False, "error": f"Internal server error: {str(err)}"}), 500
+
+@app.errorhandler(Exception)
+def handle_exception(err):
+    import traceback
+    return jsonify({
+        "success": False,
+        "error": f"Server exception: {str(err)}",
+        "type": type(err).__name__,
+        "traceback": traceback.format_exc()
+    }), 500
 
 @app.errorhandler(404)
 def handle_404(err):
-    if request.path.startswith("/api/"):
+    if request.path.startswith("/api") or request.path.startswith("/api/"):
         return jsonify({"success": False, "error": f"API endpoint not found: {request.path}"}), 404
     folder = app.static_folder or "static"
     idx = os.path.join(folder, "index.html")
@@ -306,6 +314,8 @@ def serve_index():
 
 @app.route("/api")
 @app.route("/api/")
+@app.route("/api/index")
+@app.route("/api/index.py")
 def api_root():
     return jsonify({
         "status": "online",
@@ -322,6 +332,7 @@ def api_root():
 
 
 @app.route("/api/dashboard-data", methods=["GET"])
+@app.route("/dashboard-data", methods=["GET"])
 def get_dashboard_data():
     """Returns telemetry data matching the athlete cockpit overview."""
     timeframe = request.args.get("timeframe", "1H").upper()
