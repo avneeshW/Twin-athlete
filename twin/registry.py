@@ -212,7 +212,12 @@ class AthleteRegistry:
         # 1. Load profiles from storage or seed defaults
         for athlete_data in default_squad:
             aid = athlete_data["athlete_id"]
-            prof_data = self.vault.get_athlete_profile(aid) if self.vault else None
+            prof_data = None
+            if self.vault:
+                try:
+                    prof_data = self.vault.get_athlete_profile(aid)
+                except Exception as e:
+                    print(f"[AthleteRegistry] Warning reading profile {aid}: {e}")
             if not prof_data:
                 prof = ai_coach_engine.AthleteProfile(athlete_id=aid)
                 prof.name = athlete_data["name"]
@@ -229,7 +234,10 @@ class AthleteRegistry:
                 prof.history_days = athlete_data["history_days"]
                 prof.dominant_leg = athlete_data["dominant_leg"]
                 if self.vault:
-                    self.vault.save_athlete_profile(prof.to_dict())
+                    try:
+                        self.vault.save_athlete_profile(prof.to_dict())
+                    except Exception as e:
+                        print(f"[AthleteRegistry] Warning saving profile {aid}: {e}")
             else:
                 prof = ai_coach_engine.AthleteProfile(athlete_id=aid)
                 prof.position = prof_data.get("position", athlete_data["position"])
@@ -272,9 +280,12 @@ class AthleteRegistry:
         }
         for dev, aid in default_device_maps.items():
             if self.vault:
-                existing = self.vault.get_athlete_for_device(dev)
-                if not existing:
-                    self.vault.save_device_mapping(dev, aid)
+                try:
+                    existing = self.vault.get_athlete_for_device(dev)
+                    if not existing:
+                        self.vault.save_device_mapping(dev, aid)
+                except Exception as e:
+                    print(f"[AthleteRegistry] Warning mapping device {dev}: {e}")
             if aid in self._twins:
                 self._twins[aid].device_id = dev
 
@@ -351,7 +362,10 @@ class AthleteRegistry:
                 except (ValueError, TypeError):
                     setattr(prof, k, v)
         if self.vault:
-            self.vault.save_athlete_profile(prof.to_dict())
+            try:
+                self.vault.save_athlete_profile(prof.to_dict())
+            except Exception as e:
+                print(f"[AthleteRegistry] Warning saving athlete to vault: {e}")
         twin = DigitalTwin(prof, storage_vault=self.vault)
         if "fatigue" in profile_data:
             try:

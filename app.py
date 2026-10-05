@@ -91,6 +91,28 @@ except Exception:
         registry = None
         print(f"[app] Notice: registry import error: {e}")
 
+def get_registry():
+    """Lazily retrieves or initializes the athlete registry singleton."""
+    global registry
+    if registry is None:
+        try:
+            from twin.registry import registry as reg
+            if reg is not None:
+                registry = reg
+            else:
+                from twin.registry import AthleteRegistry
+                registry = AthleteRegistry()
+        except Exception:
+            try:
+                import registry_engine
+                if getattr(registry_engine, "registry", None) is not None:
+                    registry = registry_engine.registry
+                elif hasattr(registry_engine, "AthleteRegistry"):
+                    registry = registry_engine.AthleteRegistry()
+            except Exception as e:
+                print(f"[app] Notice: registry init fallback error: {e}")
+    return registry
+
 try:
     from twin.storage import vault
 except Exception:
@@ -1026,17 +1048,21 @@ def record_outcome():
 @app.route("/api/coach/team-overview", methods=["GET"])
 def get_team_overview():
     """Multi-athlete squad overview for Coach View powered by AthleteRegistry."""
+    reg = get_registry()
+    if reg is None:
+        return jsonify({"team_name": "Sync FC (Collegiate Squad)", "athletes": []}), 200
+
     # Synchronize live telemetry values from active device into active athlete
-    active_twin = registry.get_active_twin()
-    latest = engine.get_latest_state()
-    if active_twin.athlete_id == "ATH-0824":
+    active_twin = reg.get_active_twin()
+    latest = engine.get_latest_state() if engine else {}
+    if active_twin and active_twin.athlete_id == "ATH-0824":
         active_twin.current_fatigue = latest.get("twin_status", {}).get("fatigue_value", active_twin.current_fatigue)
         active_twin.current_recovery = latest.get("twin_status", {}).get("recovery_value", active_twin.current_recovery)
 
-    if engine.last_packet_time is not None:
+    if engine and getattr(engine, "last_packet_time", None) is not None and active_twin:
         active_twin.wearable_connected = (time.time() - engine.last_packet_time < 5.0)
 
-    summary = registry.get_squad_summary()
+    summary = reg.get_squad_summary()
     summary["team_name"] = "Sync FC (Collegiate Squad)"
     summary["avg_readiness"] = summary.get("average_readiness", 80.0)
     summary["athletes"] = summary.get("roster", [])
@@ -1046,9 +1072,12 @@ def get_team_overview():
 @app.route("/api/athletes", methods=["GET"])
 def list_squad_athletes():
     """Returns roster list of all athletes in registry."""
+    reg = get_registry()
+    if reg is None:
+        return jsonify({"active_athlete_id": "ATH-0824", "athletes": []}), 200
     return jsonify({
-        "active_athlete_id": registry.get_active_athlete_id(),
-        "athletes": registry.list_athletes()
+        "active_athlete_id": reg.get_active_athlete_id(),
+        "athletes": reg.list_athletes()
     }), 200
 
 
@@ -1060,9 +1089,13 @@ def switch_active_athlete():
     if not athlete_id:
         return jsonify({"success": False, "error": "Field 'athlete_id' is required."}), 400
 
-    success = registry.set_active_athlete(athlete_id)
+    reg = get_registry()
+    if reg is None:
+        return jsonify({"success": False, "error": "Athlete registry engine is currently unavailable."}), 503
+
+    success = reg.set_active_athlete(athlete_id)
     if success:
-        active_profile = registry.get_active_profile()
+        active_profile = reg.get_active_profile()
         return jsonify({
             "success": True,
             "message": f"Active athlete switched to {active_profile.name} ({athlete_id})",
@@ -1083,14 +1116,25 @@ def register_new_athlete():
     if not name or not str(name).strip():
         return jsonify({"success": False, "error": "Athlete 'name' is required."}), 400
 
-    if registry is None:
-        return jsonify({"success": False, "error": "Athlete registry engine is currently unavailable."}), 503
+    reg = get_registry()
+    if reg is None:
+        try:
+            from twin.registry import AthleteRegistry
+            reg = AthleteRegistry()
+            global registry
+            registry = reg
+        except Exception as e:
+            app.logger.error(f"Failed to instantiate AthleteRegistry: {e}")
+            return jsonify({"success": False, "error": f"Athlete registry engine is currently unavailable: {e}"}), 503
 
     try:
-        twin = registry.register_athlete(data)
+        twin = reg.register_athlete(data)
         device_id = data.get("device_id")
         if device_id and str(device_id).strip():
-            registry.map_device(str(device_id).strip(), twin.athlete_id)
+            try:
+                reg.map_device(str(device_id).strip(), twin.athlete_id)
+            except Exception as me:
+                app.logger.warning(f"Failed to map device: {me}")
 
         return jsonify({
             "success": True,
@@ -1115,19 +1159,20 @@ def remove_squad_athlete(athlete_id=None):
     if not athlete_id:
         return jsonify({"success": False, "error": "Athlete ID is required."}), 400
 
-    if registry is None:
+    reg = get_registry()
+    if reg is None:
         return jsonify({"success": False, "error": "Athlete registry engine is currently unavailable."}), 503
 
     try:
-        if len(registry._twins) <= 1:
+        if len(reg._twins) <= 1:
             return jsonify({"success": False, "error": "Cannot remove the only athlete in the squad."}), 400
 
-        success = registry.remove_athlete(athlete_id)
+        success = reg.remove_athlete(athlete_id)
         if success:
             return jsonify({
                 "success": True,
                 "message": f"Athlete '{athlete_id}' removed from squad.",
-                "active_athlete_id": registry.get_active_athlete_id()
+                "active_athlete_id": reg.get_active_athlete_id()
             }), 200
         return jsonify({"success": False, "error": f"Athlete '{athlete_id}' not found."}), 404
     except Exception as e:
@@ -1138,7 +1183,8 @@ def remove_squad_athlete(athlete_id=None):
 @app.route("/api/devices/mappings", methods=["GET"])
 def get_device_mappings():
     """Returns all hardware device_id -> athlete_id mappings."""
-    mappings = registry.vault.get_all_device_mappings() if registry.vault else {}
+    reg = get_registry()
+    mappings = reg.vault.get_all_device_mappings() if (reg and reg.vault) else {}
     return jsonify({"mappings": mappings}), 200
 
 
@@ -1151,7 +1197,11 @@ def map_hardware_device():
     if not device_id or not athlete_id:
         return jsonify({"success": False, "error": "Fields 'device_id' and 'athlete_id' are required."}), 400
 
-    success = registry.map_device(device_id, athlete_id)
+    reg = get_registry()
+    if reg is None:
+        return jsonify({"success": False, "error": "Athlete registry engine is currently unavailable."}), 503
+
+    success = reg.map_device(device_id, athlete_id)
     if success:
         return jsonify({
             "success": True,
