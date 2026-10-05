@@ -150,6 +150,30 @@ def get_model_card_path() -> str:
 STATIC_DIR = os.path.join(BASE_DIR, "public") if os.path.isdir(os.path.join(BASE_DIR, "public")) else os.path.join(BASE_DIR, "static")
 app = Flask(__name__, static_folder=STATIC_DIR, static_url_path="")
 
+
+class VercelPathNormalizer:
+    """WSGI middleware ensuring PATH_INFO reflects the original client request path under Vercel rewrites."""
+
+    def __init__(self, wsgi_app):
+        self.wsgi_app = wsgi_app
+
+    def __call__(self, environ, start_response):
+        matched = (
+            environ.get("HTTP_X_MATCHED_PATH")
+            or environ.get("HTTP_X_FORWARDED_PATH")
+            or environ.get("HTTP_X_FORWARDED_URI")
+            or environ.get("HTTP_X_NOW_ROUTE_MATCHES")
+        )
+        if matched and (matched.startswith("/api") or matched.startswith("/")):
+            environ["PATH_INFO"] = matched.split("?")[0]
+        elif environ.get("PATH_INFO") == "/app.py":
+            path = environ.get("HTTP_X_FORWARDED_URI") or environ.get("HTTP_X_MATCHED_PATH") or "/"
+            environ["PATH_INFO"] = path.split("?")[0]
+        return self.wsgi_app(environ, start_response)
+
+
+app.wsgi_app = VercelPathNormalizer(app.wsgi_app)
+
 # ==============================================================================
 # SECURITY HEADERS & CORS MIDDLEWARE (Phase 16)
 # ==============================================================================
