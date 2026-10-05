@@ -823,23 +823,9 @@
           </div>
         </div>
 
-        <!-- AI Natural-Language Insights & Weekly Athlete Report Row -->
-        <div class="analytics-ai-row" style="display:grid;grid-template-columns:1.3fr 1fr;gap:18px;margin-bottom:20px;">
-          <!-- Card 1: AI Performance Insights -->
-          <div class="card" style="padding:20px;">
-            <div class="subpanel-header" style="margin-bottom:14px;">
-              <div style="display:flex;align-items:center;gap:8px;">
-                <span style="font-size:1.2rem;">🧠</span>
-                <span class="subpanel-title" style="font-size:1.02rem;">AI Performance Insights</span>
-              </div>
-              <span class="badge-pill pill-blue">Natural Language Engine</span>
-            </div>
-            <div class="ai-insights-list" id="aiInsightsList">
-              <!-- Dynamically populated via JS -->
-            </div>
-          </div>
-
-          <!-- Card 2: Weekly Athlete Report Summary -->
+        <!-- Weekly Athlete Report Summary Row -->
+        <div class="analytics-ai-row" style="display:grid;grid-template-columns:1fr;margin-bottom:20px;">
+          <!-- Weekly Athlete Report Summary -->
           <div class="card" style="padding:20px;display:flex;flex-direction:column;justify-content:space-between;">
             <div>
               <div class="subpanel-header" style="margin-bottom:12px;">
@@ -861,7 +847,6 @@
             <div
               style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border-card);display:flex;justify-content:space-between;align-items:center;font-size:0.75rem;color:var(--text-muted);">
               <span>Report Generated: <strong id="weeklyReportGenDate">Today</strong></span>
-              <span style="color:#10B981;font-weight:700;">✓ Ready for Physio Review</span>
             </div>
           </div>
         </div>
@@ -926,8 +911,8 @@
           </div>
           <div class="card" style="padding:14px;">
             <span class="metric-label">Mean Daily Load</span>
-            <div class="metric-num" id="analyticsLoadVal" style="font-size:1.25rem;margin-top:4px;">348 AU</div>
-            <span style="font-size:0.72rem;color:var(--text-muted);">TRIMP Workload</span>
+            <div class="metric-num" id="analyticsLoadVal" style="font-size:1.25rem;margin-top:4px;">84%</div>
+            <span style="font-size:0.72rem;color:var(--text-muted);">Target Capacity</span>
           </div>
           <div class="card" style="padding:14px;">
             <span class="metric-label">Performance Capacity</span>
@@ -948,34 +933,6 @@
             <span class="metric-label">Minimum Recovery</span>
             <div class="metric-num" id="analyticsMinRecoveryVal" style="font-size:1.25rem;margin-top:4px;">62.0%</div>
             <span style="font-size:0.72rem;color:var(--text-muted);">Readiness floor</span>
-          </div>
-        </div>
-
-        <div class="analytics-card-grid">
-          <div class="card" style="padding:18px;">
-            <div class="subpanel-header">
-              <span class="subpanel-title">Fatigue Index vs. Recovery Score (180 Days)</span>
-              <div class="legend-group">
-                <span class="legend-tag"><span class="dot dot-x" style="background:#EF4444;"></span> Fatigue</span>
-                <span class="legend-tag"><span class="dot dot-y"></span> Recovery</span>
-              </div>
-            </div>
-            <div class="canvas-box" style="height:190px;">
-              <canvas id="analyticsFatigueRecoveryChart" width="560" height="190"></canvas>
-            </div>
-          </div>
-
-          <div class="card" style="padding:18px;">
-            <div class="subpanel-header">
-              <span class="subpanel-title">Daily Training Workload &amp; Performance</span>
-              <div class="legend-group">
-                <span class="legend-tag"><span class="dot dot-x"></span> Load</span>
-                <span class="legend-tag"><span class="dot dot-z" style="background:#8B5CF6;"></span> Performance</span>
-              </div>
-            </div>
-            <div class="canvas-box" style="height:190px;">
-              <canvas id="analyticsLoadPerfChart" width="560" height="190"></canvas>
-            </div>
           </div>
         </div>
 
@@ -1054,7 +1011,7 @@
                 <line x1="5" y1="12" x2="19" y2="12" />
                 <polyline points="12 5 19 12 12 19" />
               </svg>
-              <span class="flow-connector-label" id="flowConnectorLoad">+42 AU Load</span>
+              <span class="flow-connector-label" id="flowConnectorLoad">+42% Load</span>
             </div>
 
             <!-- Step 2: Training Exertion -->
@@ -1334,7 +1291,7 @@
               </div>
               <h4 class="comp-title">High Intensity / 90 min</h4>
               <div class="comp-kpi-row">
-                <div><span class="comp-kpi-lbl">Load:</span> <strong class="comp-kpi-val">94 AU</strong></div>
+                <div><span class="comp-kpi-lbl">Load:</span> <strong class="comp-kpi-val">94%</strong></div>
                 <div><span class="comp-kpi-lbl">Est. Burn:</span> <strong class="comp-kpi-val">1,180 kcal</strong></div>
               </div>
               <div class="comp-metrics-list">
@@ -1368,7 +1325,7 @@
               </div>
               <h4 class="comp-title">Moderate Intensity / 60 min</h4>
               <div class="comp-kpi-row">
-                <div><span class="comp-kpi-lbl">Load:</span> <strong class="comp-kpi-val">54 AU</strong></div>
+                <div><span class="comp-kpi-lbl">Load:</span> <strong class="comp-kpi-val">54%</strong></div>
                 <div><span class="comp-kpi-lbl">Est. Burn:</span> <strong class="comp-kpi-val">680 kcal</strong></div>
               </div>
               <div class="comp-metrics-list">
@@ -1402,7 +1359,7 @@
               </div>
               <h4 class="comp-title">Low Intensity / 45 min</h4>
               <div class="comp-kpi-row">
-                <div><span class="comp-kpi-lbl">Load:</span> <strong class="comp-kpi-val">28 AU</strong></div>
+                <div><span class="comp-kpi-lbl">Load:</span> <strong class="comp-kpi-val">28%</strong></div>
                 <div><span class="comp-kpi-lbl">Est. Burn:</span> <strong class="comp-kpi-val">340 kcal</strong></div>
               </div>
               <div class="comp-metrics-list">
@@ -2292,9 +2249,9 @@ Content-Type: application/json
             <span style="font-size:0.72rem;color:#10B981;font-weight:700;" id="wkPerfChange">+3.8%</span>
           </div>
           <div style="background:#F1F6FB;padding:12px;border-radius:10px;text-align:center;">
-            <span style="font-size:0.7rem;color:var(--text-muted);font-weight:600;display:block;">Total Workload</span>
+            <span style="font-size:0.7rem;color:var(--text-muted);font-weight:600;display:block;">Load Capacity</span>
             <strong id="wkTotalLoad"
-              style="font-size:1.15rem;color:var(--text-dark);display:block;margin-top:2px;">328.5 AU</strong>
+              style="font-size:1.15rem;color:var(--text-dark);display:block;margin-top:2px;">82%</strong>
             <span style="font-size:0.72rem;color:var(--text-muted);" id="wkHours">6.5 hours</span>
           </div>
           <div style="background:#F1F6FB;padding:12px;border-radius:10px;text-align:center;">

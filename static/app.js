@@ -1397,7 +1397,7 @@ async function loadAnalyticsView() {
       const minRecoveryEl = document.getElementById("analyticsMinRecoveryVal");
 
       if (sleepEl) sleepEl.textContent = `${s.mean_sleep || 7.8} h`;
-      if (loadEl) loadEl.textContent = `${Math.round(s.mean_load || 348)} AU`;
+      if (loadEl) loadEl.textContent = `${Math.min(100, Math.round(((s.mean_load || 42) / 50.0) * 100))}%`;
       if (perfEl) perfEl.textContent = `${(s.mean_performance || 79.4).toFixed(1)}`;
       if (rhrEl) rhrEl.textContent = `${Math.round(s.mean_resting_hr || 54)} BPM`;
       if (peakFatigueEl) peakFatigueEl.textContent = `${(s.peak_fatigue || 48.2).toFixed(1)}%`;
@@ -1578,7 +1578,7 @@ function populateAnalyticsTable(history) {
       <tr>
         <td><strong>Day ${dayNum}</strong></td>
         <td>${sleep} h</td>
-        <td>${load} AU</td>
+        <td>${Math.min(100, Math.round(load))}%</td>
         <td><span style="color:#ef4444">${fatigue}%</span></td>
         <td><span style="color:#10b981">${recovery}%</span></td>
         <td><strong>${perf}</strong></td>
@@ -1842,7 +1842,7 @@ async function runScheduleSimulation() {
       const sumOverreach = document.getElementById("simSumOverreach");
       const sumHighRisk = document.getElementById("simSumHighRisk");
 
-      if (sumLoad) sumLoad.textContent = `${Math.round(s.total_workload)} AU`;
+      if (sumLoad) sumLoad.textContent = `${Math.min(100, Math.round((s.total_workload / 400.0) * 100))}% Capacity`;
       if (sumFatigue) sumFatigue.textContent = `${s.peak_fatigue.toFixed(1)}%`;
       if (sumRecovery) sumRecovery.textContent = `${s.min_recovery.toFixed(1)}%`;
       if (sumReadiness) sumReadiness.textContent = `${s.avg_readiness.toFixed(1)}`;
@@ -2085,7 +2085,7 @@ function showScheduleTooltip(e, container, day) {
       <span style="color:#38BDF8;">Readiness: <strong>${(day["Performance"] || 0).toFixed(1)}</strong></span>
       <span style="color:#FF453A;">Fatigue: <strong>${(day["Fatigue (%)"] || 0).toFixed(1)}%</strong></span>
     </div>
-    <div style="font-size:0.7rem;color:#8E8E93;">Planned Workload: ${loadAU} AU | ${durMin}m (${intensity})</div>
+    <div style="font-size:0.7rem;color:#8E8E93;">Planned Workload: ${Math.min(100, Math.round(loadAU))}% Capacity | ${durMin}m (${intensity})</div>
   `;
   tooltip.style.display = "block";
 
@@ -2130,7 +2130,7 @@ function populateScheduleTable(days) {
         <td><strong>${dayLabel}</strong></td>
         <td>${dur > 0 ? `Running • ${dur}m` : "Rest / Active Recovery"}</td>
         <td>${dur > 0 ? `Factor: ${intVal}` : "Rest"}</td>
-        <td><strong>${load} AU</strong></td>
+        <td><strong>${Math.min(100, Math.round(load))}%</strong></td>
         <td><span style="color:#ef4444">${fatigue}%</span></td>
         <td><span style="color:#10b981">${recovery}%</span></td>
         <td><strong>${perf}</strong></td>
@@ -3598,7 +3598,7 @@ async function loadDigitalTwinCoach() {
 
     const twLoadVal = document.getElementById("twinLoadVal");
     const twLoadLabel = document.getElementById("twinLoadLabel");
-    if (twLoadVal) twLoadVal.textContent = `${Math.round(twin.training_load || 42)} AU`;
+    if (twLoadVal) twLoadVal.textContent = `${Math.min(100, Math.round(twin.training_load || 42))}%`;
     if (twLoadLabel) twLoadLabel.textContent = twin.training_load_label || "Moderate";
 
     // Overall State Badge
@@ -3728,7 +3728,7 @@ function renderWeeklyReportSummary(report) {
   const r = report.recovery || {};
 
   container.innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <div style="background:#F1F6FB;padding:10px 12px;border-radius:8px;">
         <span style="font-size:0.68rem;color:var(--text-muted);font-weight:700;display:block;">Avg Readiness</span>
         <strong style="font-size:1.1rem;color:var(--text-dark);">${p.average_score || 86.4}%</strong>
@@ -3736,13 +3736,9 @@ function renderWeeklyReportSummary(report) {
       </div>
       <div style="background:#F1F6FB;padding:10px 12px;border-radius:8px;">
         <span style="font-size:0.68rem;color:var(--text-muted);font-weight:700;display:block;">Weekly Load</span>
-        <strong style="font-size:1.1rem;color:var(--text-dark);">${t.total_load || 328.5} AU</strong>
+        <strong style="font-size:1.1rem;color:var(--text-dark);">${Math.min(100, Math.round(((t.total_load || 328.5) / 400.0) * 100))}% Capacity</strong>
         <span style="font-size:0.7rem;color:var(--text-muted);">${t.completed_hours || '6.5 hours'}</span>
       </div>
-    </div>
-    <div style="background:#F8FAFC;border:1px solid var(--border-card);border-radius:8px;padding:10px 12px;font-size:0.78rem;color:var(--text-muted);line-height:1.45;">
-      <strong style="color:var(--text-dark);display:block;margin-bottom:2px;">AI Synthesis:</strong>
-      ${report.ai_summary ? report.ai_summary.slice(0, 160) + "..." : "Training consistency is stable with optimal readiness."}
     </div>
   `;
 }
@@ -3832,7 +3828,7 @@ function initWeeklyReportModal() {
 
       if (avgP) avgP.textContent = p.average_score || 86.4;
       if (pChg) pChg.textContent = p.performance_change || "+3.8%";
-      if (totL) totL.textContent = `${t.total_load || 328.5} AU`;
+      if (totL) totL.textContent = `${Math.min(100, Math.round(((t.total_load || 328.5) / 400.0) * 100))}%`;
       if (hrs) hrs.textContent = t.completed_hours || "6.5 hours";
       if (freq) freq.textContent = t.training_frequency || "5 Sessions";
       if (avgI) avgI.textContent = `${t.avg_intensity || '72%'} avg int`;
@@ -3920,7 +3916,7 @@ async function initWhatIfComparativeScenarios() {
       if (flowCurrRec) flowCurrRec.textContent = `${Math.round(curr.recovery || 78)}%`;
 
       if (customSc) {
-        if (flowConnectorLoad) flowConnectorLoad.textContent = `+${Math.round(customSc.daily_load)} AU Load`;
+        if (flowConnectorLoad) flowConnectorLoad.textContent = `+${Math.min(100, Math.round(customSc.daily_load))}% Load`;
         if (flowPlannedDur) flowPlannedDur.textContent = `${customSc.duration_min} min`;
         if (flowPlannedInt) flowPlannedInt.textContent = `@ ${customSc.intensity_label}`;
         if (flowPlannedCals) flowPlannedCals.textContent = `${Math.round(customSc.duration_min * customSc.intensity_val * 16.5)} kcal`;
@@ -3974,7 +3970,7 @@ async function initWhatIfComparativeScenarios() {
         const cRiskText = document.getElementById("scCustom_riskText");
 
         if (cTitle) cTitle.textContent = `${customSc.duration_min} min @ ${customSc.intensity_label}`;
-        if (cLoad) cLoad.textContent = `${Math.round(customSc.daily_load)} AU`;
+        if (cLoad) cLoad.textContent = `${Math.min(100, Math.round(customSc.daily_load))}%`;
         if (cBurn) cBurn.textContent = `${Math.round(customSc.duration_min * customSc.intensity_val * 16.5)} kcal`;
         if (cFat) cFat.textContent = `${Math.round(customSc.predicted_fatigue)}%`;
         if (cDFat) {
