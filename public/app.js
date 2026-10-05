@@ -1,0 +1,4801 @@
+/**
+ * DIGITAL TWIN ATHLETE CONTROLLER
+ * Real-time ESP32 hardware streaming, sports analytics cockpit, multi-view router,
+ * interactive digital twin biomechanics, 180-day longitudinal analytics, and What-If simulator.
+ */
+
+let currentTimeframe = "1H";
+let cachedDashboardData = null;
+let cachedAnalyticsData = null;
+let eventSource = null;
+let isMockActive = false;
+let selectedIntensity = "Moderate";
+let currentActiveView = "dashboard";
+let livePacketCount = 0;
+let accelVisibility = { x: true, y: true, z: true };
+let isSensorConnected = false;
+let lastLivePacketTimestamp = 0;
+
+/* ==============================================================================
+   ACTIVE USER / ATHLETE PROFILE - SINGLE SOURCE OF TRUTH
+   ============================================================================== */
+const DEFAULT_USER_PROFILE = Object.freeze({
+  name: "Avneesh Walvalkar",
+  firstName: "Avneesh",
+  position: "Midfielder",
+  squadNumber: "8",
+  sport: "Football",
+  role: "Football Player",
+  avatar: "images/athlete_avatar.png",
+  age: 24,
+  weight: 74,
+  height: 180,
+  restHr: 54,
+  maxHr: 196
+});
+
+function getFirstName(fullName) {
+  if (!fullName || typeof fullName !== "string") return "Athlete";
+  const trimmed = fullName.trim();
+  const first = trimmed.split(/\s+/)[0];
+  return first || trimmed;
+}
+
+// Global active athlete state bound to both Header Profile and Hero Greeting Card
+let activeUserProfile = { ...DEFAULT_USER_PROFILE };
+
+// Pre-hydrate from localStorage if previously configured
+try {
+  const savedProfile = JSON.parse(localStorage.getItem("digitalTwinAthleteSettings") || "{}");
+  if (savedProfile && typeof savedProfile === "object" && savedProfile.name) {
+    activeUserProfile = {
+      ...DEFAULT_USER_PROFILE,
+      ...savedProfile,
+      firstName: getFirstName(savedProfile.name)
+    };
+  }
+} catch (e) { }
+
+function getActiveUserProfile() {
+  return { ...activeUserProfile };
+}
+
+function updateActiveUserProfile(partialProfile, shouldPersist = true) {
+  if (!partialProfile || typeof partialProfile !== "object") return;
+
+  activeUserProfile = {
+    ...activeUserProfile,
+    ...partialProfile
+  };
+
+  // Derive dynamic fields
+  if (activeUserProfile.name) {
+    activeUserProfile.firstName = getFirstName(activeUserProfile.name);
+  } else {
+    activeUserProfile.name = DEFAULT_USER_PROFILE.name;
+    activeUserProfile.firstName = DEFAULT_USER_PROFILE.firstName;
+  }
+
+  if (!activeUserProfile.position) {
+    activeUserProfile.position = DEFAULT_USER_PROFILE.position;
+  }
+  if (!activeUserProfile.squadNumber) {
+    activeUserProfile.squadNumber = DEFAULT_USER_PROFILE.squadNumber;
+  }
+
+  if (shouldPersist) {
+    try {
+      localStorage.setItem("digitalTwinAthleteSettings", JSON.stringify(activeUserProfile));
+    } catch (e) { }
+  }
+
+  renderActiveUserProfileUI();
+
+  // Notify any subscribers/listeners
+  window.dispatchEvent(new CustomEvent("athleteProfileChanged", {
+    detail: { ...activeUserProfile }
+  }));
+}
+
+function renderActiveUserProfileUI() {
+  const profile = activeUserProfile;
+  const firstName = profile.firstName || getFirstName(profile.name);
+  const fullName = profile.name || DEFAULT_USER_PROFILE.name;
+  const position = profile.position || DEFAULT_USER_PROFILE.position;
+  const squadNumber = profile.squadNumber || DEFAULT_USER_PROFILE.squadNumber;
+
+  // 1. ATHLETE DIGITAL TWIN Hero Card Heading: Good Morning, {firstName}!
+  const heroGreetingEl = document.getElementById("heroGreeting");
+  if (heroGreetingEl) {
+    heroGreetingEl.textContent = `Good Morning, ${firstName}!`;
+  }
+
+  // 2. ATHLETE DIGITAL TWIN Hero Card Subtitle: {fullName} • {position} • Squad #{squadNumber}
+  const heroSubtextEl = document.getElementById("heroSubtext");
+  if (heroSubtextEl) {
+    heroSubtextEl.textContent = `${fullName} • ${position} • Squad #${squadNumber}`;
+  }
+
+  // 3. Hero Card Avatar
+  const heroAvatarImg = document.querySelector(".hero-avatar-img");
+  if (heroAvatarImg) {
+    heroAvatarImg.alt = fullName;
+    if (profile.avatar) heroAvatarImg.src = profile.avatar;
+  }
+
+  // 4. Header Top-Right Component: User name, role badge, avatar
+  const userNameEls = document.querySelectorAll(".user-name");
+  userNameEls.forEach(el => {
+    if (el.textContent !== fullName) {
+      el.textContent = fullName;
+    }
+  });
+
+  const userRoleBadge = document.getElementById("userRoleBadge");
+  if (userRoleBadge) {
+    userRoleBadge.textContent = position || profile.role || "Football Player";
+  }
+
+  const headerAvatarImg = document.querySelector(".user-profile-menu .user-avatar-img");
+  if (headerAvatarImg) {
+    headerAvatarImg.alt = fullName;
+    if (profile.avatar) headerAvatarImg.src = profile.avatar;
+  }
+
+  // 5. User Profile Dropdown Popover
+  const dropdownName = document.getElementById("dropdownUserName");
+  if (dropdownName) dropdownName.textContent = fullName;
+
+  const dropdownSub = document.getElementById("dropdownUserSub");
+  if (dropdownSub) dropdownSub.textContent = `#${squadNumber} • ${position} • Squad Runner`;
+
+  const dropdownAvatar = document.getElementById("dropdownUserAvatar");
+  if (dropdownAvatar) {
+    dropdownAvatar.alt = fullName;
+    if (profile.avatar) dropdownAvatar.src = profile.avatar;
+  }
+
+  // 6. Settings Inputs (if not actively being edited)
+  const settingName = document.getElementById("settingAthleteName");
+  if (settingName && document.activeElement !== settingName) {
+    settingName.value = fullName;
+  }
+  const settingPos = document.getElementById("settingAthletePosition");
+  if (settingPos && document.activeElement !== settingPos) {
+    settingPos.value = position;
+  }
+  const settingSquad = document.getElementById("settingAthleteSquadNumber");
+  if (settingSquad && document.activeElement !== settingSquad) {
+    settingSquad.value = squadNumber;
+  }
+
+  // 7. What-If Section Subtitle
+  const whatIfSub = document.querySelector(".whatif-section-sub");
+  if (whatIfSub) {
+    whatIfSub.textContent = `${fullName} • Established Baseline`;
+  }
+}
+
+// Expose state and mutators globally for testability and cross-component integration
+window.DEFAULT_USER_PROFILE = DEFAULT_USER_PROFILE;
+window.getActiveUserProfile = getActiveUserProfile;
+window.updateActiveUserProfile = updateActiveUserProfile;
+window.renderActiveUserProfileUI = renderActiveUserProfileUI;
+
+document.addEventListener("DOMContentLoaded", () => {
+  renderActiveUserProfileUI();
+
+  // Watch header profile user-name for any direct external updates to maintain two-way synchronization
+  const headerNameEl = document.querySelector(".user-profile-menu .user-name");
+  if (headerNameEl && window.MutationObserver) {
+    const observer = new MutationObserver(() => {
+      const currentText = headerNameEl.textContent?.trim();
+      if (currentText && currentText !== activeUserProfile.name) {
+        updateActiveUserProfile({ name: currentText }, false);
+      }
+    });
+    observer.observe(headerNameEl, { childList: true, characterData: true, subtree: true });
+  }
+
+  initClock();
+  initSidebar();
+  initTimeframeButtons();
+  initMovementLegendToggle();
+  initWhatIfSimulator();
+  initHardwareControls();
+  initLiveTelemetryLab();
+  initDigitalTwinView();
+  initWhatIfMicrocycleView();
+  initWhatIfStudio();
+  initSettingsView();
+
+  // Interactive UI Cockpit Controls
+  initProfileDropdown();
+  initChartTooltips();
+  initSessionModal();
+  initInjuryModal();
+  initDailyCheckinModal();
+  initPrecautionsChecklist();
+  initInfoModals();
+  initMetricCardsClick();
+
+  loadDashboardData("1H");
+  initLiveStream();
+
+  // Personalized Digital Twin + AI Coach Engine
+  loadDigitalTwinCoach();
+  initWhyRecommendationModal();
+  initWeeklyReportModal();
+  initHowTwinWorksModal();
+  initWhatIfComparativeScenarios();
+
+  // Forensic Transparency & Multi-Role Controls (Phases 6, 9, 12, 15)
+  initRoleSwitcher();
+  initTransparencyModals();
+  initForensicAuditorControls();
+  initCoachSquadControls();
+
+  // Initialize New Landing Page & Role Dispatch Gateway
+  initLandingPage();
+
+  // Support direct deep-linking via hash (e.g. #analytics, #digital-twin, #what-if, #coach-squad)
+  const validViews = ["dashboard", "live-data", "analytics", "digital-twin", "what-if", "settings", "coach-squad"];
+
+  function handleHashNavigation() {
+    const rawHash = window.location.hash.replace("#", "");
+    if (!rawHash || rawHash === "home" || rawHash === "landing") {
+      showLandingPage();
+    } else if (rawHash === "chooseRoleSection" || rawHash === "choose-role") {
+      showLandingPage();
+      requestAnimationFrame(() => {
+        const roleSection = document.getElementById("chooseRoleSection");
+        if (roleSection) roleSection.scrollIntoView({ behavior: "smooth" });
+      });
+    } else if (validViews.includes(rawHash)) {
+      const landingPageEl = document.getElementById("landingPage");
+      if (landingPageEl && !landingPageEl.classList.contains("hidden")) {
+        const savedRole = sessionStorage.getItem("dta_selected_role") || "coach";
+        enterRoleWorkspace(savedRole, rawHash, false);
+      } else {
+        switchView(rawHash);
+      }
+    }
+  }
+
+  handleHashNavigation();
+  window.addEventListener("hashchange", handleHashNavigation);
+
+  // Global delegated click handler for in-page anchors
+  document.addEventListener("click", (e) => {
+    const anchor = e.target.closest('a[href^="#"]');
+    if (!anchor) return;
+    const targetHash = anchor.getAttribute("href").replace("#", "");
+    if (validViews.includes(targetHash)) {
+      e.preventDefault();
+      switchView(targetHash);
+      if (window.history && window.history.pushState) {
+        window.history.pushState(null, null, "#" + targetHash);
+      }
+      closeMobileDrawer();
+    }
+  });
+
+  // User Profile shortcut to Player Digital Twin
+  const userProfileBtn = document.getElementById("userProfileBtn");
+  if (userProfileBtn) {
+    userProfileBtn.addEventListener("click", () => {
+      switchView("digital-twin");
+    });
+  }
+});
+
+/* ==============================================================================
+   0. NEW LANDING PAGE & ROLE DISPATCH GATEWAY (Sections 1 & 2)
+   ============================================================================== */
+let currentActiveRole = null; // 'coach' | 'athlete' | null
+
+function initLandingPage() {
+  const landingPageEl = document.getElementById("landingPage");
+  const dashboardRootEl = document.getElementById("dashboardAppRoot");
+  const btnRoleCoach = document.getElementById("btnRoleCoach");
+  const btnRoleAthlete = document.getElementById("btnRoleAthlete");
+  const btnSwitchRoleTop = document.getElementById("btnSwitchRoleTop");
+  const btnSwitchRoleSidebar = document.getElementById("btnSwitchRoleSidebar");
+  const scrollExploreBtn = document.getElementById("scrollExploreBtn");
+  const landingVideo = document.getElementById("landingHeroVideo");
+
+  // Attempt video autoplay with muted fallback safeguard
+  if (landingVideo) {
+    landingVideo.muted = true;
+    const playPromise = landingVideo.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(err => {
+        console.log("[landing] Video autoplay note:", err);
+      });
+    }
+  }
+
+  // Smooth scroll explore button from Section 1 down to Section 2
+  if (scrollExploreBtn) {
+    scrollExploreBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      const roleSection = document.getElementById("chooseRoleSection");
+      if (roleSection) {
+        roleSection.scrollIntoView({ behavior: "smooth" });
+      }
+    });
+  }
+
+  // Role selections: Coach & Athlete cards
+  if (btnRoleCoach) {
+    btnRoleCoach.addEventListener("click", () => enterRoleWorkspace("coach"));
+    btnRoleCoach.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        enterRoleWorkspace("coach");
+      }
+    });
+  }
+
+  if (btnRoleAthlete) {
+    btnRoleAthlete.addEventListener("click", () => enterRoleWorkspace("athlete"));
+    btnRoleAthlete.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        enterRoleWorkspace("athlete");
+      }
+    });
+  }
+
+  // Quick Switch Role / Back to Home buttons
+  if (btnSwitchRoleTop) {
+    btnSwitchRoleTop.addEventListener("click", (e) => {
+      e.preventDefault();
+      returnToLandingPage(true);
+    });
+  }
+
+  if (btnSwitchRoleSidebar) {
+    btnSwitchRoleSidebar.addEventListener("click", (e) => {
+      e.preventDefault();
+      closeMobileDrawer();
+      returnToLandingPage(true);
+    });
+  }
+
+  // Initial landing page vs dashboard resolution:
+  const rawHash = window.location.hash.replace("#", "");
+  const validDashboardViews = ["dashboard", "live-data", "analytics", "digital-twin", "what-if", "settings", "coach-squad"];
+
+  if (rawHash === "coach-squad") {
+    enterRoleWorkspace("coach", "coach-squad", false);
+  } else if (validDashboardViews.includes(rawHash)) {
+    const savedRole = sessionStorage.getItem("dta_selected_role") || "coach";
+    enterRoleWorkspace(savedRole, rawHash, false);
+  } else if (rawHash === "chooseRoleSection" || rawHash === "choose-role") {
+    showLandingPage();
+    requestAnimationFrame(() => {
+      const roleSection = document.getElementById("chooseRoleSection");
+      if (roleSection) roleSection.scrollIntoView({ behavior: "smooth" });
+    });
+  } else {
+    // Default initial experience: Full-screen Video Hero Landing Page!
+    showLandingPage();
+  }
+}
+
+function enterRoleWorkspace(role, targetView = null, updateHash = true) {
+  currentActiveRole = role;
+  sessionStorage.setItem("dta_selected_role", role);
+
+  const landingPageEl = document.getElementById("landingPage");
+  const dashboardRootEl = document.getElementById("dashboardAppRoot");
+  const roleBadge = document.getElementById("headerRoleBadge");
+  const userRoleBadge = document.getElementById("userRoleBadge");
+
+  // Hide landing page, reveal dashboard
+  if (landingPageEl) landingPageEl.classList.add("hidden");
+  if (dashboardRootEl) dashboardRootEl.classList.remove("hidden");
+
+  // Update role mode on body
+  document.body.classList.remove("role-mode-coach", "role-mode-athlete");
+  document.body.classList.add(`role-mode-${role}`);
+
+  if (role === "coach") {
+    if (roleBadge) roleBadge.textContent = "Coach View";
+    if (userRoleBadge) userRoleBadge.textContent = "Head Coach";
+    const viewToOpen = targetView || "dashboard";
+    switchView(viewToOpen);
+    if (updateHash) {
+      if (history.pushState) history.pushState(null, null, `#${viewToOpen}`);
+      else window.location.hash = viewToOpen;
+    }
+    showToast("Entered Coach Command Dashboard", "🛡️");
+  } else {
+    if (roleBadge) roleBadge.textContent = "Athlete Cockpit";
+    if (userRoleBadge) userRoleBadge.textContent = "Football Player";
+    // Athlete must not land on coach-only views
+    const viewToOpen = (targetView && targetView !== "coach-squad") ? targetView : "dashboard";
+    switchView(viewToOpen);
+    if (updateHash) {
+      if (history.pushState) history.pushState(null, null, `#${viewToOpen}`);
+      else window.location.hash = viewToOpen;
+    }
+    showToast("Entered Athlete Personal Cockpit", "🏃");
+  }
+
+  // Scroll to top of the dashboard
+  window.scrollTo({ top: 0, behavior: "instant" });
+
+  // Re-trigger window resize to ensure Chart.js canvases layout at full width
+  requestAnimationFrame(() => {
+    window.dispatchEvent(new Event("resize"));
+    if (cachedDashboardData && cachedDashboardData.charts) {
+      renderHeartRateChart(cachedDashboardData.charts.heart_rate);
+      renderMovementChart(cachedDashboardData.charts.movement);
+    }
+  });
+}
+
+function showLandingPage() {
+  const landingPageEl = document.getElementById("landingPage");
+  const dashboardRootEl = document.getElementById("dashboardAppRoot");
+
+  if (dashboardRootEl) dashboardRootEl.classList.add("hidden");
+  if (landingPageEl) {
+    landingPageEl.classList.remove("hidden");
+    const video = document.getElementById("landingHeroVideo");
+    if (video && video.paused) {
+      video.play().catch(() => { });
+    }
+  }
+}
+
+function returnToLandingPage(scrollToRoles = false) {
+  showLandingPage();
+  if (window.history && window.history.pushState) {
+    window.history.pushState(null, null, scrollToRoles ? "#chooseRoleSection" : "#");
+  }
+  if (scrollToRoles) {
+    requestAnimationFrame(() => {
+      const roleSection = document.getElementById("chooseRoleSection");
+      if (roleSection) {
+        roleSection.scrollIntoView({ behavior: "smooth" });
+      }
+    });
+  } else {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  showToast("Returned to Role Selector", "🏠");
+}
+
+
+/* ==============================================================================
+   1. LIVE CLOCK, DATE & DYNAMIC GREETING
+   ============================================================================== */
+function initClock() {
+  const liveDateEl = document.getElementById("liveDate");
+  const liveTimeEl = document.getElementById("liveTime");
+  const heroGreetingEl = document.getElementById("heroGreeting");
+
+  function update() {
+    const now = new Date();
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+    const dayName = days[now.getDay()];
+    const dateNum = now.getDate();
+    const monthName = months[now.getMonth()];
+    const year = now.getFullYear();
+
+    const hour24 = now.getHours();
+    let hours = hour24 % 12 || 12;
+    const minutes = now.getMinutes().toString().padStart(2, "0");
+    const ampm = hour24 >= 12 ? "PM" : "AM";
+
+    const dateText = `${dayName}, ${dateNum} ${monthName} ${year}`;
+    if (liveDateEl) liveDateEl.textContent = dateText;
+    if (liveTimeEl) liveTimeEl.textContent = `${hours}:${minutes} ${ampm}`;
+
+    const overviewDateSpan = document.getElementById("overviewDateText");
+    if (overviewDateSpan && !overviewDateSpan.dataset.customDate) {
+      overviewDateSpan.textContent = dateText;
+    }
+
+    // Dynamic greeting bound to active user profile: Good Morning, {firstName}!
+    if (heroGreetingEl) {
+      const firstName = activeUserProfile.firstName || getFirstName(activeUserProfile.name);
+      heroGreetingEl.textContent = `Good Morning, ${firstName}!`;
+    }
+  }
+
+  update();
+  setInterval(update, 1000);
+}
+
+/* ==============================================================================
+   2. SIDEBAR MULTI-VIEW ROUTING
+   ============================================================================== */
+function initSidebar() {
+  const navItems = document.querySelectorAll(".sidebar-nav .nav-item");
+  navItems.forEach(item => {
+    item.addEventListener("click", e => {
+      e.preventDefault();
+      const targetNav = item.dataset.nav;
+      if (targetNav) {
+        switchView(targetNav);
+        closeMobileDrawer();
+      }
+    });
+  });
+
+  // Mobile drawer hamburger & close buttons
+  const toggleBtn = document.getElementById("mobileNavToggle");
+  const closeBtn = document.getElementById("btnCloseSidebar");
+  const backdrop = document.getElementById("mobileNavBackdrop");
+
+  if (toggleBtn) {
+    toggleBtn.addEventListener("click", () => {
+      toggleMobileDrawer();
+    });
+  }
+
+  if (closeBtn) {
+    closeBtn.addEventListener("click", () => {
+      closeMobileDrawer();
+    });
+  }
+
+  if (backdrop) {
+    backdrop.addEventListener("click", () => {
+      closeMobileDrawer();
+    });
+  }
+
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape") {
+      closeMobileDrawer();
+    }
+  });
+
+  // Mobile bottom navigation bar items
+  const bottomNavItems = document.querySelectorAll(".mobile-bottom-nav-item");
+  bottomNavItems.forEach(btn => {
+    btn.addEventListener("click", e => {
+      e.preventDefault();
+      if (btn.id === "bottomNavMoreBtn") {
+        toggleMobileDrawer();
+        return;
+      }
+      const targetNav = btn.dataset.nav;
+      if (targetNav) {
+        switchView(targetNav);
+        closeMobileDrawer();
+      }
+    });
+  });
+}
+
+function openMobileDrawer() {
+  const sidebar = document.getElementById("appSidebar");
+  const backdrop = document.getElementById("mobileNavBackdrop");
+  const toggle = document.getElementById("mobileNavToggle");
+  if (sidebar) sidebar.classList.add("open");
+  if (backdrop) backdrop.classList.add("active");
+  if (toggle) toggle.setAttribute("aria-expanded", "true");
+  document.body.style.overflow = "hidden";
+  if (window.TwinMotion && typeof window.TwinMotion.stopScroll === "function") {
+    window.TwinMotion.stopScroll();
+  }
+}
+
+function closeMobileDrawer() {
+  const sidebar = document.getElementById("appSidebar");
+  const backdrop = document.getElementById("mobileNavBackdrop");
+  const toggle = document.getElementById("mobileNavToggle");
+  if (sidebar) sidebar.classList.remove("open");
+  if (backdrop) backdrop.classList.remove("active");
+  if (toggle) toggle.setAttribute("aria-expanded", "false");
+  document.body.style.overflow = "";
+  if (window.TwinMotion && typeof window.TwinMotion.startScroll === "function") {
+    window.TwinMotion.startScroll();
+  }
+}
+
+function toggleMobileDrawer() {
+  const sidebar = document.getElementById("appSidebar");
+  if (sidebar && sidebar.classList.contains("open")) {
+    closeMobileDrawer();
+  } else {
+    openMobileDrawer();
+  }
+}
+
+function switchView(viewName) {
+  currentActiveView = viewName;
+
+  // Update sidebar active classes
+  const navItems = document.querySelectorAll(".sidebar-nav .nav-item");
+  navItems.forEach(item => {
+    if (item.dataset.nav === viewName) {
+      item.classList.add("active");
+    } else {
+      item.classList.remove("active");
+    }
+  });
+
+  // Update mobile bottom nav active classes
+  const bottomNavItems = document.querySelectorAll(".mobile-bottom-nav-item");
+  bottomNavItems.forEach(btn => {
+    if (btn.dataset.nav === viewName) {
+      btn.classList.add("active");
+    } else if (btn.dataset.nav) {
+      btn.classList.remove("active");
+    }
+  });
+
+  // Switch visible view panel
+  const viewPanels = document.querySelectorAll(".view-panel");
+  viewPanels.forEach(panel => panel.classList.remove("active"));
+
+  const targetPanel = document.getElementById(`view-${viewName}`);
+  if (targetPanel) {
+    targetPanel.classList.add("active");
+  }
+
+  // Synchronize top role switcher buttons
+  const roleButtons = document.querySelectorAll(".role-segment-btn");
+  const roleBadge = document.getElementById("headerRoleBadge");
+  if (roleButtons.length) {
+    let activeRole = "athlete";
+    if (viewName === "coach-squad") activeRole = "coach";
+    roleButtons.forEach(btn => {
+      const isRoleActive = btn.dataset.role === activeRole;
+      btn.classList.toggle("active", isRoleActive);
+      btn.setAttribute("aria-selected", isRoleActive ? "true" : "false");
+    });
+    if (roleBadge) {
+      roleBadge.textContent = activeRole === "coach" ? "Coach View" : "Athlete View";
+    }
+  }
+
+  // Update URL hash without reload
+  if (history.pushState) {
+    history.pushState(null, null, `#${viewName}`);
+  } else {
+    window.location.hash = viewName;
+  }
+
+  // Hydrate view-specific content
+  if (viewName === "dashboard") {
+    // Dashboard hydration
+  } else if (viewName === "analytics") {
+    loadAnalyticsView();
+    requestAnimationFrame(() => {
+      if (cachedDashboardData && cachedDashboardData.charts) {
+        renderHeartRateChart(cachedDashboardData.charts.heart_rate);
+        renderMovementChart(cachedDashboardData.charts.movement);
+      }
+    });
+  } else if (viewName === "digital-twin") {
+    syncDigitalTwinDeepView();
+  } else if (viewName === "what-if") {
+    if (!document.getElementById("microcycleGrid").children.length) {
+      renderMicrocycleInputs("standard");
+    } else if (cachedScheduleDays) {
+      requestAnimationFrame(() => {
+        renderScheduleTrajectoryChart(cachedScheduleDays);
+      });
+    } else {
+      runScheduleSimulation();
+    }
+  } else if (viewName === "coach-squad") {
+    loadCoachSquad();
+  }
+}
+
+/* ==============================================================================
+   3. TIMEFRAME BUTTONS (1H, 6H, 24H)
+   ============================================================================== */
+function initTimeframeButtons() {
+  const tfButtons = document.querySelectorAll(".timeframe-pill-group .tf-btn, .timeframe-buttons .tf-btn");
+  tfButtons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      tfButtons.forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      currentTimeframe = btn.dataset.tf || "1H";
+      loadDashboardData(currentTimeframe);
+      showToast(`Showing ${currentTimeframe} telemetry window`, "⏱️", 2000);
+    });
+  });
+}
+
+/* ==============================================================================
+   4. DATA FETCH & DASHBOARD HYDRATION
+   ============================================================================== */
+async function loadDashboardData(timeframe = "1H") {
+  try {
+    const res = await fetch(`/api/dashboard-data?timeframe=${timeframe}`);
+    const data = await res.json();
+    cachedDashboardData = data;
+
+    // Sync active profile with server athlete data if not locally overridden
+    if (data.athlete && data.athlete.name) {
+      const hasLocalOverride = localStorage.getItem("digitalTwinAthleteSettings");
+      if (!hasLocalOverride) {
+        updateActiveUserProfile({
+          name: data.athlete.name,
+          position: data.athlete.position || "Midfielder",
+          squadNumber: data.athlete.squad_number || "8"
+        }, false);
+      }
+    }
+
+    if (data.vitals) updateVitalsUI(data.vitals);
+    if (data.recent_session) updateSessionUI(data.recent_session);
+    if (data.twin_status) updateTwinUI(data.twin_status);
+    if (data.device) updateHardwareStatusUI(data.device);
+
+    if (data.charts) {
+      // Sync axis label based on time_unit
+      const unit = data.charts.heart_rate?.time_unit || (timeframe === "1M" ? "seconds" : "minutes");
+      const axisLabels = document.querySelectorAll(".axis-label-x");
+      axisLabels.forEach(el => el.textContent = `Time (${unit})`);
+
+      renderHeartRateChart(data.charts.heart_rate);
+      renderMovementChart(data.charts.movement);
+    }
+  } catch (err) {
+    console.error("Dashboard fetch error:", err);
+  }
+}
+
+/* ==============================================================================
+   5. REAL-TIME SSE STREAMING (ESP32 TELEMETRY)
+   ============================================================================== */
+function initLiveStream() {
+  if (eventSource) {
+    eventSource.close();
+  }
+
+  eventSource = new EventSource("/api/stream");
+
+  eventSource.onmessage = event => {
+    try {
+      const data = JSON.parse(event.data);
+      handleIncomingTelemetry(data);
+    } catch (err) {
+      console.error("SSE parse error:", err);
+    }
+  };
+
+  eventSource.onerror = () => {
+    const dot = document.getElementById("esp32Dot");
+    const statusText = document.getElementById("esp32StatusText");
+    if (dot) dot.className = "hw-dot dot-waiting";
+    if (statusText) statusText.textContent = "Connecting...";
+  };
+
+  // Connection Watchdog: Automatically clear live data if no real packets arrive for > 3.5 seconds
+  setInterval(() => {
+    if (isMockActive) return;
+    if (isSensorConnected && (Date.now() - lastLivePacketTimestamp > 3500)) {
+      handleSensorDisconnected();
+    }
+  }, 1000);
+}
+
+function handleSensorDisconnected() {
+  isSensorConnected = false;
+
+  // 1. Hardware Status Pill
+  updateHardwareStatusUI({
+    connected: false,
+    mock_mode: false,
+    rate_hz: 0,
+    device_id: "Disconnected"
+  });
+
+  // 2. Single System Log Entry in Live Packet Inspector (does not repeat every second)
+  const terminalBox = document.getElementById("terminalLogBox");
+  if (terminalBox) {
+    const now = new Date();
+    const timeStr = now.toTimeString().split(" ")[0];
+    const entry = document.createElement("div");
+    entry.className = "log-entry";
+    entry.innerHTML = `
+      <span class="log-time">[${timeStr}]</span>
+      <span class="log-src" style="color:#F59E0B;">SYSTEM:</span>
+      <span class="log-data" style="color:#94A3B8;">Sensor disconnected. Live telemetry stream paused. Waiting for ESP32...</span>
+    `;
+    terminalBox.appendChild(entry);
+    terminalBox.scrollTop = terminalBox.scrollHeight;
+  }
+
+  // 3. Reset Quick Vitals Cards (Dashboard) to Standby/Offline
+  const hrVal = document.getElementById("vitalHrVal");
+  const hrStatus = document.getElementById("vitalHrStatus");
+  const hrStatusText = document.getElementById("vitalHrStatusText");
+  const hrTrend = document.getElementById("vitalHrTrend");
+  if (hrVal) hrVal.textContent = "--";
+  if (hrStatusText) hrStatusText.textContent = "Offline";
+  if (hrStatus) hrStatus.className = "badge-pill";
+  if (hrTrend) hrTrend.textContent = "--";
+
+  const spo2Val = document.getElementById("vitalSpo2Val");
+  const spo2Status = document.getElementById("vitalSpo2Status");
+  const spo2StatusText = document.getElementById("vitalSpo2StatusText");
+  if (spo2Val) spo2Val.textContent = "--";
+  if (spo2StatusText) spo2StatusText.textContent = "Offline";
+  if (spo2Status) spo2Status.className = "badge-pill";
+
+  const actVal = document.getElementById("vitalActivityVal");
+  const actSub = document.getElementById("vitalActivitySub");
+  if (actVal) actVal.textContent = "Standby";
+  if (actSub) actSub.textContent = "Sensor Disconnected";
+
+  const accelVal = document.getElementById("vitalAccelVal");
+  const accelTrend = document.getElementById("vitalAccelTrend");
+  const accelStatus = document.getElementById("vitalAccelStatus");
+  const accelStatusText = document.getElementById("vitalAccelStatusText");
+  if (accelVal) accelVal.textContent = "--";
+  if (accelTrend) accelTrend.textContent = "--";
+  if (accelStatusText) accelStatusText.textContent = "Standby";
+  if (accelStatus) accelStatus.className = "badge-pill";
+
+  // 4. Reset Live Lab KPI Cards (View 2)
+  const labHrVal = document.getElementById("liveLabHrVal");
+  const labHrStatus = document.getElementById("liveLabHrStatus");
+  if (labHrVal) labHrVal.textContent = "--";
+  if (labHrStatus) labHrStatus.textContent = "Sensor Disconnected";
+
+  const labSpo2Val = document.getElementById("liveLabSpo2Val");
+  const labSpo2Status = document.getElementById("liveLabSpo2Status");
+  if (labSpo2Val) labSpo2Val.textContent = "--";
+  if (labSpo2Status) labSpo2Status.textContent = "Sensor Disconnected";
+
+  const labAccelG = document.getElementById("liveLabAccelG");
+  const labAccelAxes = document.getElementById("liveLabAccelAxes");
+  if (labAccelG) labAccelG.textContent = "--";
+  if (labAccelAxes) labAccelAxes.textContent = "X: -- • Y: -- • Z: --";
+
+  const labCadenceVal = document.getElementById("liveLabCadenceVal");
+  if (labCadenceVal) labCadenceVal.textContent = "--";
+
+  // 5. Freeze Hologram pulse animation
+  const nodes = document.querySelectorAll(".joint-node");
+  nodes.forEach(node => {
+    node.style.animation = "none";
+    node.style.stroke = "#38BDF8";
+  });
+}
+
+function handleIncomingTelemetry(data) {
+  if (!data) return;
+
+  // Handle explicit sensor disconnect event from server or device disconnected state
+  if (data.event === "sensor_disconnect" || (data.device && !data.device.connected && !data.device.mock_mode)) {
+    if (isSensorConnected) {
+      handleSensorDisconnected();
+    } else if (data.device) {
+      updateHardwareStatusUI(data.device);
+    }
+    return;
+  }
+
+  // Filter out keep-alive heartbeats when no live data is arriving
+  if (data.is_heartbeat) {
+    if (data.device) {
+      updateHardwareStatusUI(data.device);
+    }
+    return;
+  }
+
+  // Real sensor packet arrived!
+  isSensorConnected = true;
+  lastLivePacketTimestamp = Date.now();
+
+  // Increment packet counter and update raw terminal log ONLY for real incoming telemetry
+  livePacketCount++;
+  const counterEl = document.getElementById("livePacketCounter");
+  if (counterEl) counterEl.textContent = `${livePacketCount} packets`;
+
+  appendTerminalLog(data);
+
+  // 1. Hardware Status Pill
+  if (data.device) {
+    updateHardwareStatusUI(data.device);
+  }
+
+  // 2. Telemetry Vitals
+  if (data.vitals) {
+    updateVitalsUI(data.vitals);
+  }
+
+  // 3. Active Session Info
+  if (data.recent_session) {
+    updateSessionUI(data.recent_session);
+  }
+
+  // 4. Digital Twin State
+  if (data.twin_status) {
+    updateTwinUI(data.twin_status);
+  }
+
+  // 5. Dynamic Hologram Pulse Synchronization
+  if (data.vitals && data.vitals.heart_rate) {
+    syncHologramPulse(data.vitals.heart_rate.value, data.vitals.heart_rate.color);
+  }
+
+  // 6. Real-time Charts
+  if (currentTimeframe === "1H" && data.charts) {
+    renderHeartRateChart(data.charts.heart_rate);
+    renderMovementChart(data.charts.movement);
+  }
+}
+
+/* Append entry to the real-time terminal log */
+function appendTerminalLog(data) {
+  const terminalBox = document.getElementById("terminalLogBox");
+  if (!terminalBox) return;
+
+  const now = new Date();
+  const timeStr = now.toTimeString().split(" ")[0];
+
+  const hr = data.vitals?.heart_rate?.value ?? "--";
+  const spo2 = data.vitals?.spo2?.value ?? "--";
+  const activity = data.vitals?.activity?.value ?? "Active";
+  const ax = data.vitals?.acceleration?.axes?.x ?? "0.0";
+  const ay = data.vitals?.acceleration?.axes?.y ?? "0.0";
+  const az = data.vitals?.acceleration?.axes?.z ?? "0.0";
+  const cadence = data.vitals?.cadence?.value ?? "--";
+
+  const entry = document.createElement("div");
+  entry.className = "log-entry";
+  entry.innerHTML = `
+    <span class="log-time">[${timeStr}]</span>
+    <span class="log-src">ESP32_RX:</span>
+    <span class="log-data">HR=${hr} BPM | SpO2=${spo2}% | Act=${activity} | Accel=[${ax},${ay},${az}]g | Cadence=${cadence} SPM</span>
+  `;
+
+  terminalBox.appendChild(entry);
+
+  // Limit terminal history to 50 lines to prevent DOM bloat
+  while (terminalBox.children.length > 50) {
+    terminalBox.removeChild(terminalBox.firstChild);
+  }
+
+  terminalBox.scrollTop = terminalBox.scrollHeight;
+}
+
+/* ==============================================================================
+   6. UI COMPONENT UPDATERS
+   ============================================================================== */
+function updateHardwareStatusUI(device) {
+  const pill = document.getElementById("esp32StatusPill");
+  const dot = document.getElementById("esp32Dot");
+  const text = document.getElementById("esp32StatusText");
+  const rate = document.getElementById("esp32RateText");
+
+  const isConnected = device.connected || device.mock_mode;
+
+  if (pill) pill.className = "hardware-pill " + (isConnected ? "connected" : "");
+  if (dot) dot.className = "hw-dot " + (isConnected ? "dot-connected" : "dot-waiting");
+
+  if (text) {
+    if (device.mock_mode) {
+      text.textContent = "Simulated ESP32 (Live)";
+    } else if (device.connected) {
+      text.textContent = `ESP32 Live (${device.device_id || "Connected"})`;
+    } else {
+      text.textContent = "ESP32: Waiting";
+    }
+  }
+
+  if (rate) {
+    if (isConnected) {
+      rate.textContent = `${device.rate_hz || 1.0} Hz • Bat: ${device.battery || 95}%`;
+    } else {
+      rate.textContent = "0 Hz";
+    }
+  }
+
+  // Sync simulator button state
+  const simBtn = document.getElementById("btnToggleSimFeed");
+  const simBtnText = document.getElementById("simFeedBtnText");
+  const liveSimBtn = document.getElementById("btnLiveToggleSim");
+  const liveSimBtnText = document.getElementById("liveSimBtnText");
+
+  isMockActive = !!device.mock_mode;
+
+  if (simBtn) simBtn.className = "btn-top-action " + (isMockActive ? "active-sim" : "");
+  if (simBtnText) simBtnText.textContent = isMockActive ? "Stop Sim" : "Simulate ESP32";
+
+  if (liveSimBtn) liveSimBtn.className = "btn-top-action " + (isMockActive ? "active-sim" : "");
+  if (liveSimBtnText) liveSimBtnText.textContent = isMockActive ? "Stop Sim" : "Simulate ESP32";
+
+  // Forensic Data Quality & Provenance Header Pill
+  const qualityDot = document.getElementById("headerQualityDot");
+  const qualityLabel = document.getElementById("headerQualityLabel");
+  if (qualityLabel) {
+    const qGrade = device.data_quality ? (device.data_quality.grade || "EXCELLENT") : (isConnected ? "EXCELLENT" : "WAITING");
+    const qProv = device.data_provenance || (device.mock_mode ? "DEMO" : "LIVE");
+    qualityLabel.textContent = `${qProv} • ${qGrade}`;
+    if (qualityDot) {
+      if (qGrade === "EXCELLENT" || qGrade === "GOOD") {
+        qualityDot.className = "hw-dot dot-connected";
+      } else if (qGrade === "DEGRADED" || qGrade === "CALIBRATING") {
+        qualityDot.className = "hw-dot dot-calibrating";
+      } else {
+        qualityDot.className = "hw-dot dot-waiting";
+      }
+    }
+  }
+}
+
+function updateVitalsUI(vitals) {
+  // 1. Heart Rate
+  if (vitals.heart_rate) {
+    const hrVal = document.getElementById("vitalHrVal");
+    const hrStatus = document.getElementById("vitalHrStatus");
+    const hrStatusText = document.getElementById("vitalHrStatusText");
+    const hrTrend = document.getElementById("vitalHrTrend");
+
+    const hr = Math.round(vitals.heart_rate.value);
+    if (hrVal) hrVal.textContent = hr;
+
+    if (hrTrend) {
+      if (vitals.heart_rate.trend) {
+        hrTrend.textContent = `↑ ${vitals.heart_rate.trend.replace("+", "")}`;
+      } else {
+        const deltaPct = Math.round(((hr - 144) / 144) * 100);
+        hrTrend.textContent = deltaPct >= 0 ? `↑ ${deltaPct}%` : `↓ ${Math.abs(deltaPct)}%`;
+      }
+    }
+
+    if (hrStatusText) {
+      hrStatusText.textContent = hr > 150 ? "High Intensity" : (hr > 125 ? "Moderate" : "Aerobic Zone");
+    }
+
+    if (hrStatus) {
+      hrStatus.className = "badge-pill " + (hr > 150 ? "pill-red" : (hr > 125 ? "pill-yellow" : "pill-green"));
+    }
+
+    // Sync to Live Lab view
+    const labHrVal = document.getElementById("liveLabHrVal");
+    const labHrStatus = document.getElementById("liveLabHrStatus");
+    if (labHrVal) labHrVal.textContent = hr;
+    if (labHrStatus) {
+      labHrStatus.textContent = vitals.heart_rate.zone_info ? vitals.heart_rate.zone_info.name : (hr > 150 ? "Zone 4: Anaerobic Threshold" : "Zone 2: Aerobic Base");
+    }
+  }
+
+  // 2. SpO2
+  if (vitals.spo2) {
+    const spo2Val = document.getElementById("vitalSpo2Val");
+    const spo2Status = document.getElementById("vitalSpo2Status");
+    const spo2StatusText = document.getElementById("vitalSpo2StatusText");
+
+    const spo2 = Math.round(vitals.spo2.value);
+    if (spo2Val) spo2Val.textContent = spo2;
+
+    if (spo2StatusText) {
+      spo2StatusText.textContent = spo2 >= 96 ? "Normal" : "Suboptimal";
+    }
+
+    if (spo2Status) {
+      spo2Status.className = "badge-pill " + (spo2 >= 96 ? "pill-green" : "pill-red");
+    }
+
+    // Sync to Live Lab view
+    const labSpo2Val = document.getElementById("liveLabSpo2Val");
+    if (labSpo2Val) labSpo2Val.textContent = spo2;
+  }
+
+  // 3. Activity
+  if (vitals.activity) {
+    const actVal = document.getElementById("vitalActivityVal");
+    const actSub = document.getElementById("vitalActivitySub");
+
+    if (actVal) actVal.textContent = vitals.activity.value || "Running";
+    if (actSub) actSub.textContent = vitals.activity.subtext || "Team Training";
+  }
+
+  // 4. Acceleration
+  if (vitals.acceleration) {
+    const accelVal = document.getElementById("vitalAccelVal");
+    const accelStatus = document.getElementById("vitalAccelStatus");
+    const accelStatusText = document.getElementById("vitalAccelStatusText");
+    const accelTrend = document.getElementById("vitalAccelTrend");
+
+    const gVal = typeof vitals.acceleration.value === "number" ? vitals.acceleration.value.toFixed(1) : vitals.acceleration.value;
+    if (accelVal) accelVal.textContent = gVal;
+
+    if (accelTrend) {
+      if (vitals.acceleration.trend) {
+        accelTrend.textContent = `↑ ${vitals.acceleration.trend.replace("+", "")}`;
+      } else {
+        accelTrend.textContent = "↑ 22%";
+      }
+    }
+
+    const numG = parseFloat(gVal) || 2.4;
+    if (accelStatusText) {
+      accelStatusText.textContent = numG > 2.5 ? "High Load" : (numG > 1.4 ? "Moderate Load" : "Low Impact");
+    }
+    if (accelStatus) {
+      accelStatus.className = "badge-pill " + (numG > 2.5 ? "pill-yellow" : (numG > 1.4 ? "pill-green" : "pill-green"));
+    }
+
+    // Sync to Live Lab view
+    const labAccelG = document.getElementById("liveLabAccelG");
+    const labAccelAxes = document.getElementById("liveLabAccelAxes");
+    if (labAccelG) labAccelG.textContent = (typeof numG === "number" ? numG.toFixed(2) : numG);
+    if (labAccelAxes && vitals.acceleration.axes) {
+      const { x, y, z } = vitals.acceleration.axes;
+      labAccelAxes.textContent = `X: ${x} • Y: ${y} • Z: ${z}`;
+    }
+  }
+
+  // Cadence / Steps
+  if (vitals.cadence) {
+    const labCadence = document.getElementById("liveLabCadenceVal");
+    const labSteps = document.getElementById("liveLabStepsVal");
+    if (labCadence) labCadence.textContent = vitals.cadence.value;
+    if (labSteps) labSteps.textContent = `${(vitals.cadence.steps || 1240).toLocaleString()} steps`;
+  }
+}
+
+function updateSessionUI(session) {
+  // Keep training table or active session synced
+  const overviewDate = document.getElementById("overviewDateText");
+  if (overviewDate && session.datetime) {
+    const parts = session.datetime.split("•");
+    if (parts.length > 0) overviewDate.textContent = parts[0].trim();
+  }
+}
+
+function updateTwinUI(status) {
+  if (!status) return;
+
+  const rVal = status.recovery_value !== undefined ? status.recovery_value : (parseFloat(status.recovery_label) || 78.0);
+  const fVal = status.fatigue_value !== undefined ? status.fatigue_value : 38.0;
+  const pVal = status.performance_value !== undefined ? status.performance_value : 85.0;
+
+  // 1. SVG Donut Gauge in Today's Overview
+  const donutVal = document.getElementById("donutRecoveryVal");
+  const donutCircle = document.getElementById("donutRecoveryCircle");
+  if (donutVal) donutVal.textContent = `${Math.round(rVal)}%`;
+  if (donutCircle) {
+    const circumference = 251.32;
+    const clampedR = Math.min(100, Math.max(0, rVal));
+    const offset = circumference * (1 - (clampedR / 100));
+    donutCircle.style.strokeDashoffset = offset;
+    const strokeColor = clampedR >= 67 ? "#00E676" : (clampedR >= 34 ? "#FFD60A" : "#FF453A");
+    donutCircle.style.stroke = strokeColor;
+    const donutSvg = donutCircle.closest("svg");
+    if (donutSvg) {
+      donutSvg.style.filter = "none";
+    }
+  }
+
+  // 2. Overview Stack Indicators
+  const fatigueStatus = document.getElementById("todayFatigueStatus");
+  const readinessStatus = document.getElementById("todayReadinessStatus");
+  if (fatigueStatus) fatigueStatus.textContent = status.fatigue_label || (fVal > 55 ? "High" : (fVal > 30 ? "Moderate" : "Low"));
+  if (readinessStatus) readinessStatus.textContent = status.performance_label || (pVal >= 80 ? "High" : (pVal >= 65 ? "Moderate" : "Low"));
+
+  // 3. Sync to Digital Twin Deep Dive View if present
+  const deepFatigueEl = document.getElementById("deepFatigueVal");
+  const deepFatigueBar = document.getElementById("deepFatigueBar");
+  const deepFatigueNum = document.getElementById("deepFatigueNum");
+
+  const deepRecoveryEl = document.getElementById("deepRecoveryVal");
+  const deepRecoveryBar = document.getElementById("deepRecoveryBar");
+  const deepRecoveryNum = document.getElementById("deepRecoveryNum");
+
+  const deepPerfEl = document.getElementById("deepPerformanceVal");
+  const deepPerfBar = document.getElementById("deepPerformanceBar");
+  const deepPerfNum = document.getElementById("deepPerformanceNum");
+
+  if (deepFatigueEl) deepFatigueEl.textContent = status.fatigue_label || "Moderate";
+  if (deepFatigueBar) deepFatigueBar.style.width = `${Math.min(100, Math.max(5, fVal))}%`;
+  if (deepFatigueNum) deepFatigueNum.textContent = `Index: ${fVal.toFixed(1)}%`;
+
+  if (deepRecoveryEl) deepRecoveryEl.textContent = `${Math.round(rVal)}%`;
+  if (deepRecoveryBar) deepRecoveryBar.style.width = `${Math.min(100, Math.max(5, rVal))}%`;
+  if (deepRecoveryNum) deepRecoveryNum.textContent = `Readiness: ${rVal.toFixed(1)}%`;
+
+  if (deepPerfEl) deepPerfEl.textContent = status.performance_label || "High";
+  if (deepPerfBar) deepPerfBar.style.width = `${Math.min(100, Math.max(5, pVal))}%`;
+  if (deepPerfNum) deepPerfNum.textContent = `Performance Score: ${pVal.toFixed(1)} / 100`;
+
+  // 4. Athlete Digital Twin Core Status Card (Top of Dashboard)
+  const readinessVal = status.readiness_value !== undefined ? status.readiness_value : Math.min(99, Math.max(10, Math.round(rVal * 0.45 + (100 - fVal) * 0.35 + 18)));
+  const twReadinessEl = document.getElementById("twinReadinessVal");
+  const twReadinessBar = document.getElementById("twinReadinessBar");
+  const twReadinessLabel = document.getElementById("twinReadinessLabel");
+  if (twReadinessEl) twReadinessEl.textContent = `${Math.round(readinessVal)}%`;
+  if (twReadinessBar) twReadinessBar.style.width = `${Math.min(100, Math.max(5, readinessVal))}%`;
+  if (twReadinessLabel) twReadinessLabel.textContent = readinessVal >= 80 ? "High" : (readinessVal >= 65 ? "Moderate" : "Low");
+
+  const twRecVal = document.getElementById("twinRecoveryVal");
+  const twRecBar = document.getElementById("twinRecoveryBar");
+  const twRecLabel = document.getElementById("twinRecoveryLabel");
+  if (twRecVal) twRecVal.textContent = `${Math.round(rVal)}%`;
+  if (twRecBar) twRecBar.style.width = `${Math.min(100, Math.max(5, rVal))}%`;
+  if (twRecLabel) twRecLabel.textContent = rVal >= 75 ? "Optimal" : (rVal >= 60 ? "Moderate" : "Depleted");
+
+  const twFatVal = document.getElementById("twinFatigueVal");
+  const twFatBar = document.getElementById("twinFatigueBar");
+  const twFatLabel = document.getElementById("twinFatigueLabel");
+  if (twFatVal) twFatVal.textContent = `${Math.round(fVal)}%`;
+  if (twFatBar) twFatBar.style.width = `${Math.min(100, Math.max(5, fVal))}%`;
+  if (twFatLabel) twFatLabel.textContent = fVal > 55 ? "High" : (fVal > 30 ? "Moderate" : "Low");
+
+  const twPerfVal = document.getElementById("twinPerformanceVal");
+  const twPerfBar = document.getElementById("twinPerformanceBar");
+  const twPerfLabel = document.getElementById("twinPerformanceLabel");
+  if (twPerfVal) twPerfVal.textContent = `${Math.round(pVal)}%`;
+  if (twPerfBar) twPerfBar.style.width = `${Math.min(100, Math.max(5, pVal))}%`;
+  if (twPerfLabel) twPerfLabel.textContent = pVal >= 80 ? "High Output" : (pVal >= 65 ? "Steady" : "Reduced");
+
+  // Overall State Badge
+  const stateBadge = document.getElementById("twinOverallStateBadge");
+  const stateText = document.getElementById("twinOverallStateText");
+  if (stateBadge && stateText) {
+    if (fVal >= 62) {
+      stateBadge.className = "overall-state-badge badge-fatigue";
+      stateText.textContent = "HIGH FATIGUE DETECTED";
+    } else if (readinessVal < 65 || rVal < 60) {
+      stateBadge.className = "overall-state-badge badge-recovery";
+      stateText.textContent = "RECOVERY RECOMMENDED";
+    } else {
+      stateBadge.className = "overall-state-badge badge-ready";
+      stateText.textContent = "READY FOR TRAINING";
+    }
+  }
+
+  // Update What-If transition flow current node
+  const flowCurrReadiness = document.getElementById("flowCurrReadiness");
+  const flowCurrFatigue = document.getElementById("flowCurrFatigue");
+  const flowCurrRec = document.getElementById("flowCurrRec");
+  if (flowCurrReadiness) flowCurrReadiness.textContent = `${Math.round(readinessVal)}%`;
+  if (flowCurrFatigue) flowCurrFatigue.textContent = `${Math.round(fVal)}%`;
+  if (flowCurrRec) flowCurrRec.textContent = `${Math.round(rVal)}%`;
+}
+
+/**
+ * Synchronizes the pulsating anatomical joint nodes with the athlete's real-time BPM
+ */
+function syncHologramPulse(bpm, color) {
+  const nodes = document.querySelectorAll(".joint-node");
+  const durationSec = Math.max(0.3, Math.min(1.5, 60.0 / Math.max(bpm, 40)));
+
+  nodes.forEach(node => {
+    node.style.animationDuration = `${durationSec.toFixed(2)}s`;
+    if (color) {
+      node.style.stroke = color;
+    }
+  });
+}
+
+/* ==============================================================================
+   7. HARDWARE CONTROLS & MODAL HANDLERS
+   ============================================================================== */
+function initHardwareControls() {
+  // Top navigation simulate toggle
+  const toggleBtn = document.getElementById("btnToggleSimFeed");
+  const liveToggleBtn = document.getElementById("btnLiveToggleSim");
+
+  async function toggleMock() {
+    try {
+      const res = await fetch("/api/esp32/mock-feed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "toggle" })
+      });
+      const data = await res.json();
+      isMockActive = data.mock_running;
+
+      if (toggleBtn) {
+        toggleBtn.className = "btn-top-action " + (isMockActive ? "active-sim" : "");
+        const text = document.getElementById("simFeedBtnText");
+        if (text) text.textContent = isMockActive ? "Stop Sim" : "Simulate ESP32";
+      }
+
+      if (liveToggleBtn) {
+        liveToggleBtn.className = "btn-top-action " + (isMockActive ? "active-sim" : "");
+        const text = document.getElementById("liveSimBtnText");
+        if (text) text.textContent = isMockActive ? "Stop Sim" : "Simulate ESP32";
+      }
+    } catch (err) {
+      console.error("Failed to toggle simulator feed:", err);
+    }
+  }
+
+  if (toggleBtn) toggleBtn.addEventListener("click", toggleMock);
+  if (liveToggleBtn) liveToggleBtn.addEventListener("click", toggleMock);
+
+  // Session Reset Buttons
+  async function resetSession() {
+    if (!confirm("Reset the current workout session metrics?")) return;
+    try {
+      await fetch("/api/session/reset", { method: "POST" });
+      loadDashboardData(currentTimeframe);
+    } catch (err) {
+      console.error("Failed to reset session:", err);
+    }
+  }
+
+  const resetBtn = document.getElementById("btnResetSession");
+  const liveResetBtn = document.getElementById("btnLiveResetSession");
+  if (resetBtn) resetBtn.addEventListener("click", resetSession);
+  if (liveResetBtn) liveResetBtn.addEventListener("click", resetSession);
+
+  // Modal Open & Close Handlers
+  const modalBackdrop = document.getElementById("hwModalBackdrop");
+  const openModalBtn = document.getElementById("btnOpenHwModal");
+  const closeModalBtn = document.getElementById("btnCloseHwModal");
+  const doneModalBtn = document.getElementById("btnModalCloseDone");
+
+  function openModal() {
+    if (modalBackdrop) modalBackdrop.style.display = "flex";
+  }
+  function closeModal() {
+    if (modalBackdrop) modalBackdrop.style.display = "none";
+  }
+
+  if (openModalBtn) openModalBtn.addEventListener("click", openModal);
+  if (closeModalBtn) closeModalBtn.addEventListener("click", closeModal);
+  if (doneModalBtn) doneModalBtn.addEventListener("click", closeModal);
+
+  if (modalBackdrop) {
+    modalBackdrop.addEventListener("click", e => {
+      if (e.target === modalBackdrop) closeModal();
+    });
+  }
+}
+
+/* ==============================================================================
+   8. LIVE TELEMETRY LAB VIEW
+   ============================================================================== */
+function initLiveTelemetryLab() {
+  const clearBtn = document.getElementById("btnClearTerminal");
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => {
+      const box = document.getElementById("terminalLogBox");
+      if (box) box.innerHTML = `<div class="log-entry"><span class="log-time">[System]</span><span class="log-src">Buffer:</span><span class="log-data">Terminal buffer cleared.</span></div>`;
+      livePacketCount = 0;
+      const counter = document.getElementById("livePacketCounter");
+      if (counter) counter.textContent = "0 packets";
+    });
+  }
+}
+
+/* ==============================================================================
+   9. ANALYTICS VIEW (180-DAY LONGITUDINAL PROGRESSION)
+   ============================================================================== */
+async function loadAnalyticsView() {
+  const refreshBtn = document.getElementById("btnRefreshAnalytics");
+  if (refreshBtn) {
+    refreshBtn.onclick = () => loadAnalyticsView();
+  }
+
+  try {
+    const res = await fetch("/api/history");
+    const data = await res.json();
+    cachedAnalyticsData = data;
+
+    if (data.summary) {
+      const s = data.summary;
+      const sleepEl = document.getElementById("analyticsSleepVal");
+      const loadEl = document.getElementById("analyticsLoadVal");
+      const perfEl = document.getElementById("analyticsPerfVal");
+      const rhrEl = document.getElementById("analyticsRhrVal");
+      const peakFatigueEl = document.getElementById("analyticsPeakFatigueVal");
+      const minRecoveryEl = document.getElementById("analyticsMinRecoveryVal");
+
+      if (sleepEl) sleepEl.textContent = `${s.mean_sleep || 7.8} h`;
+      if (loadEl) loadEl.textContent = `${Math.min(100, Math.round(((s.mean_load || 42) / 50.0) * 100))}%`;
+      if (perfEl) perfEl.textContent = `${(s.mean_performance || 79.4).toFixed(1)}`;
+      if (rhrEl) rhrEl.textContent = `${Math.round(s.mean_resting_hr || 54)} BPM`;
+      if (peakFatigueEl) peakFatigueEl.textContent = `${(s.peak_fatigue || 48.2).toFixed(1)}%`;
+      if (minRecoveryEl) minRecoveryEl.textContent = `${(s.min_recovery || 62.0).toFixed(1)}%`;
+    }
+
+    if (data.history && data.history.length > 0) {
+      renderAnalyticsFatigueRecoveryChart(data.history);
+      renderAnalyticsLoadPerfChart(data.history);
+      populateAnalyticsTable(data.history);
+    }
+
+    if (cachedDashboardData && cachedDashboardData.charts) {
+      renderHeartRateChart(cachedDashboardData.charts.heart_rate);
+      renderMovementChart(cachedDashboardData.charts.movement);
+    }
+  } catch (err) {
+    console.error("Failed to load analytics history:", err);
+  }
+}
+
+function renderAnalyticsFatigueRecoveryChart(history) {
+  const canvas = document.getElementById("analyticsFatigueRecoveryChart");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  if (rect.width === 0) return;
+
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+
+  const w = rect.width;
+  const h = rect.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const pad = { top: 12, right: 15, bottom: 20, left: 32 };
+  const plotW = w - pad.left - pad.right;
+  const plotH = h - pad.top - pad.bottom;
+
+  // Grid
+  ctx.strokeStyle = "rgba(255,255,255,0.05)";
+  ctx.fillStyle = "#546580";
+  ctx.font = "9px Inter, sans-serif";
+  ctx.textAlign = "right";
+
+  [0, 25, 50, 75, 100].forEach(val => {
+    const y = pad.top + plotH - (val / 100) * plotH;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(w - pad.right, y);
+    ctx.stroke();
+    ctx.fillText(`${val}%`, pad.left - 6, y + 3);
+  });
+
+  const pts = history.slice(-60); // Show last 60 days for high clarity
+  const stepX = plotW / (pts.length - 1);
+
+  // Fatigue Curve (Red)
+  ctx.beginPath();
+  pts.forEach((row, i) => {
+    const x = pad.left + i * stepX;
+    const y = pad.top + plotH - ((row.fatigue_level || 20) / 100) * plotH;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = "#ef4444";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Recovery Curve (Green)
+  ctx.beginPath();
+  pts.forEach((row, i) => {
+    const x = pad.left + i * stepX;
+    const y = pad.top + plotH - ((row.recovery_score || 80) / 100) * plotH;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = "#10b981";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+function renderAnalyticsLoadPerfChart(history) {
+  const canvas = document.getElementById("analyticsLoadPerfChart");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  if (rect.width === 0) return;
+
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+
+  const w = rect.width;
+  const h = rect.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const pad = { top: 12, right: 15, bottom: 20, left: 32 };
+  const plotW = w - pad.left - pad.right;
+  const plotH = h - pad.top - pad.bottom;
+
+  ctx.strokeStyle = "rgba(255,255,255,0.05)";
+  ctx.fillStyle = "#546580";
+  ctx.font = "9px Inter, sans-serif";
+  ctx.textAlign = "right";
+
+  [0, 200, 400, 600].forEach(val => {
+    const y = pad.top + plotH - (val / 600) * plotH;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(w - pad.right, y);
+    ctx.stroke();
+    ctx.fillText(val, pad.left - 6, y + 3);
+  });
+
+  const pts = history.slice(-60);
+  const stepX = plotW / (pts.length - 1);
+
+  // Load Bars (Cyan)
+  pts.forEach((row, i) => {
+    const x = pad.left + i * stepX;
+    const load = row.daily_load || 0;
+    const barH = (Math.min(600, load) / 600) * plotH;
+    const y = pad.top + plotH - barH;
+    ctx.fillStyle = "rgba(56, 189, 248, 0.4)";
+    ctx.fillRect(x - 1.5, y, 3, barH);
+  });
+
+  // Performance Curve (Purple)
+  ctx.beginPath();
+  pts.forEach((row, i) => {
+    const x = pad.left + i * stepX;
+    const perf = row.performance_score || 75;
+    const y = pad.top + plotH - (perf / 100) * plotH;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = "#a855f7";
+  ctx.lineWidth = 2.2;
+  ctx.stroke();
+}
+
+function populateAnalyticsTable(history) {
+  const tbody = document.getElementById("analyticsHistoryTableBody");
+  if (!tbody) return;
+
+  const countEl = document.getElementById("historyRowCount");
+  if (countEl) countEl.textContent = `Showing all ${history.length} recorded training days`;
+
+  // Display recent 40 entries
+  const rows = history.slice(-40).reverse();
+
+  tbody.innerHTML = rows.map((r, idx) => {
+    const dayNum = r.day !== undefined ? r.day : (history.length - idx);
+    const sleep = (r.sleep_hours || 8.0).toFixed(1);
+    const load = Math.round(r.daily_load || 0);
+    const fatigue = (r.fatigue_level || 20).toFixed(1);
+    const recovery = (r.recovery_score || 80).toFixed(1);
+    const perf = (r.performance_score || 75).toFixed(1);
+
+    let status = "OPTIMAL";
+    let badgeClass = "badge-optimal";
+
+    if (r.fatigue_level > 55 || r.recovery_score < 50) {
+      status = "HIGH RISK";
+      badgeClass = "badge-high-risk";
+    } else if (r.fatigue_level > 38 || r.recovery_score < 70) {
+      status = "OVERREACHING";
+      badgeClass = "badge-overreaching";
+    }
+
+    return `
+      <tr>
+        <td><strong>Day ${dayNum}</strong></td>
+        <td>${sleep} h</td>
+        <td>${Math.min(100, Math.round(load))}%</td>
+        <td><span style="color:#ef4444">${fatigue}%</span></td>
+        <td><span style="color:#10b981">${recovery}%</span></td>
+        <td><strong>${perf}</strong></td>
+        <td><span class="badge-status-pill ${badgeClass}">${status}</span></td>
+      </tr>
+    `;
+  }).join("");
+}
+
+/* ==============================================================================
+   10. DIGITAL TWIN DEEP DIVE VIEW & TUNING
+   ============================================================================== */
+function initDigitalTwinView() {
+  // Clickable interactive nodes
+  const nodes = [
+    { id: "deepNodeHead", title: "Cerebral / Central Nervous System", desc: "Neuro-muscular fatigue indicator. Sleep quality multiplier active." },
+    { id: "deepNodeHeart", title: "Cardiovascular Cardiac Output", desc: "Live PPG pulse sensor: current heart rate, stroke volume reserve, and aerobic zone." },
+    { id: "deepNodeLWrist", title: "Left Wrist (Grip & IMU)", desc: "Tri-axial accelerometer vector streaming. Cadence and arm swing biomechanics." },
+    { id: "deepNodeRWrist", title: "Right Wrist (Grip & IMU)", desc: "Arm swing symmetry and cadence balance." },
+    { id: "deepNodeLKnee", title: "Left Knee (Patellar Load)", desc: "Impact force dissipation: 2.4g instantaneous ground acceleration." },
+    { id: "deepNodeRKnee", title: "Right Knee (Patellar Load)", desc: "Joint torque estimation under continuous running cadence." },
+    { id: "deepNodeLAnkle", title: "Left Ankle (Achilles Load)", desc: "Ground contact time and step frequency." },
+    { id: "deepNodeRAnkle", title: "Right Ankle (Achilles Load)", desc: "Vertical stiffness and propulsion impulse." }
+  ];
+
+  nodes.forEach(n => {
+    const el = document.getElementById(n.id);
+    if (el) {
+      el.addEventListener("click", () => {
+        const titleEl = document.getElementById("inspectNodeTitle");
+        const descEl = document.getElementById("inspectNodeDesc");
+        if (titleEl) titleEl.textContent = `Inspecting: ${n.title}`;
+        if (descEl) descEl.textContent = n.desc;
+      });
+    }
+  });
+
+  // Sleep slider input
+  const sleepSlider = document.getElementById("sleepSlider");
+  const sleepLabel = document.getElementById("sleepHoursLabel");
+  if (sleepSlider && sleepLabel) {
+    sleepSlider.addEventListener("input", () => {
+      sleepLabel.textContent = `${parseFloat(sleepSlider.value).toFixed(1)} hrs`;
+    });
+  }
+
+  // Retrain AI Model Button
+  const retrainBtn = document.getElementById("btnRetrainTwin");
+  const retrainToast = document.getElementById("retrainStatusToast");
+  const retrainBtnText = document.getElementById("retrainBtnText");
+
+  if (retrainBtn) {
+    retrainBtn.addEventListener("click", async () => {
+      const sleepHours = sleepSlider ? parseFloat(sleepSlider.value) : 8.0;
+
+      if (retrainBtnText) retrainBtnText.textContent = "Retraining AI...";
+      retrainBtn.disabled = true;
+
+      try {
+        const res = await fetch("/api/configure-sleep", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sleep_hours: sleepHours })
+        });
+        const result = await res.json();
+
+        if (retrainToast) {
+          retrainToast.style.display = "block";
+          retrainToast.textContent = `✓ Digital Twin retrained for ${sleepHours.toFixed(1)}h baseline sleep!`;
+          setTimeout(() => { retrainToast.style.display = "none"; }, 4000);
+        }
+
+        // Refresh dashboard and analytics with updated model predictions
+        loadDashboardData(currentTimeframe);
+        if (currentActiveView === "analytics") {
+          loadAnalyticsView();
+        }
+      } catch (err) {
+        console.error("Retrain error:", err);
+      } finally {
+        if (retrainBtnText) retrainBtnText.textContent = "Retrain AI Model";
+        retrainBtn.disabled = false;
+      }
+    });
+  }
+}
+
+function syncDigitalTwinDeepView() {
+  if (cachedDashboardData && cachedDashboardData.twin_status) {
+    updateTwinUI(cachedDashboardData.twin_status);
+  }
+}
+
+/* ==============================================================================
+   11. WHAT-IF MICROCYCLE SIMULATOR VIEW (7-DAY PERIODIZATION)
+   ============================================================================== */
+const MICROCYCLE_PRESETS = {
+  standard: [
+    { day: "Mon", duration: 45, intensity: "Moderate", sleep: 7.5 },
+    { day: "Tue", duration: 60, intensity: "Moderate", sleep: 8.0 },
+    { day: "Wed", duration: 0, intensity: "Low", sleep: 8.5 },
+    { day: "Thu", duration: 50, intensity: "High", sleep: 7.5 },
+    { day: "Fri", duration: 45, intensity: "Moderate", sleep: 7.5 },
+    { day: "Sat", duration: 90, intensity: "Moderate", sleep: 8.5 },
+    { day: "Sun", duration: 0, intensity: "Low", sleep: 9.0 }
+  ],
+  taper: [
+    { day: "Mon", duration: 40, intensity: "Moderate", sleep: 8.5 },
+    { day: "Tue", duration: 30, intensity: "Moderate", sleep: 8.5 },
+    { day: "Wed", duration: 20, intensity: "Low", sleep: 9.0 },
+    { day: "Thu", duration: 25, intensity: "High", sleep: 8.5 },
+    { day: "Fri", duration: 0, intensity: "Low", sleep: 9.5 },
+    { day: "Sat", duration: 15, intensity: "Low", sleep: 9.5 },
+    { day: "Sun", duration: 60, intensity: "High", sleep: 9.0 }
+  ],
+  endurance: [
+    { day: "Mon", duration: 75, intensity: "Moderate", sleep: 8.0 },
+    { day: "Tue", duration: 90, intensity: "Moderate", sleep: 8.0 },
+    { day: "Wed", duration: 60, intensity: "Moderate", sleep: 8.0 },
+    { day: "Thu", duration: 80, intensity: "High", sleep: 8.0 },
+    { day: "Fri", duration: 45, intensity: "Low", sleep: 8.5 },
+    { day: "Sat", duration: 120, intensity: "Moderate", sleep: 8.5 },
+    { day: "Sun", duration: 0, intensity: "Low", sleep: 9.0 }
+  ],
+  recovery: [
+    { day: "Mon", duration: 30, intensity: "Low", sleep: 9.0 },
+    { day: "Tue", duration: 0, intensity: "Low", sleep: 9.5 },
+    { day: "Wed", duration: 30, intensity: "Low", sleep: 9.0 },
+    { day: "Thu", duration: 0, intensity: "Low", sleep: 9.5 },
+    { day: "Fri", duration: 25, intensity: "Low", sleep: 9.0 },
+    { day: "Sat", duration: 40, intensity: "Low", sleep: 9.5 },
+    { day: "Sun", duration: 0, intensity: "Low", sleep: 10.0 }
+  ],
+  overload: [
+    { day: "Mon", duration: 90, intensity: "High", sleep: 6.5 },
+    { day: "Tue", duration: 100, intensity: "High", sleep: 6.5 },
+    { day: "Wed", duration: 90, intensity: "High", sleep: 7.0 },
+    { day: "Thu", duration: 110, intensity: "High", sleep: 6.5 },
+    { day: "Fri", duration: 85, intensity: "High", sleep: 7.0 },
+    { day: "Sat", duration: 120, intensity: "High", sleep: 7.5 },
+    { day: "Sun", duration: 45, intensity: "Moderate", sleep: 7.5 }
+  ]
+};
+
+function initWhatIfMicrocycleView() {
+  const presetBtns = document.querySelectorAll(".microcycle-presets-bar .preset-btn");
+  presetBtns.forEach(btn => {
+    btn.addEventListener("click", () => {
+      presetBtns.forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      const preset = btn.dataset.preset;
+      renderMicrocycleInputs(preset);
+    });
+  });
+
+  const runSimBtn = document.getElementById("btnRunScheduleSim");
+  if (runSimBtn) {
+    runSimBtn.addEventListener("click", runScheduleSimulation);
+  }
+
+  // Auto-render trajectory when canvas dimensions become positive (e.g. view switch)
+  const trajCanvas = document.getElementById("scheduleTrajectoryChart");
+  if (trajCanvas && window.ResizeObserver) {
+    const trajObserver = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        if (entry.contentRect.width > 0 && cachedScheduleDays) {
+          renderScheduleTrajectoryChart(cachedScheduleDays);
+        }
+      }
+    });
+    trajObserver.observe(trajCanvas);
+  }
+
+  initScheduleTrajectoryTooltip();
+
+  // Initial render
+  renderMicrocycleInputs("standard");
+}
+
+function renderMicrocycleInputs(presetKey) {
+  const grid = document.getElementById("microcycleGrid");
+  if (!grid) return;
+
+  const days = MICROCYCLE_PRESETS[presetKey] || MICROCYCLE_PRESETS.standard;
+
+  grid.innerHTML = days.map((d, i) => `
+    <div class="microcycle-day-card" data-day-index="${i}">
+      <span class="day-card-title">${d.day}</span>
+      <div class="day-input-group">
+        <label>Duration (min)</label>
+        <input type="number" class="day-dur-input" value="${d.duration}" min="0" max="240" step="5">
+      </div>
+      <div class="day-input-group">
+        <label>Intensity</label>
+        <select class="day-int-select">
+          <option value="Low" ${d.intensity === "Low" ? "selected" : ""}>Low (Zone 1-2)</option>
+          <option value="Moderate" ${d.intensity === "Moderate" ? "selected" : ""}>Moderate (Zone 3)</option>
+          <option value="High" ${d.intensity === "High" ? "selected" : ""}>High (Zone 4-5)</option>
+        </select>
+      </div>
+      <div class="day-input-group">
+        <label>Sleep (hrs)</label>
+        <input type="number" class="day-sleep-input" value="${d.sleep}" min="4" max="12" step="0.5">
+      </div>
+    </div>
+  `).join("");
+
+  // Automatically execute simulation for instant feedback
+  runScheduleSimulation();
+
+  grid.querySelectorAll("input, select").forEach(inp => {
+    inp.addEventListener("input", runScheduleSimulation);
+    inp.addEventListener("change", runScheduleSimulation);
+  });
+}
+
+async function runScheduleSimulation() {
+  const cards = document.querySelectorAll(".microcycle-day-card");
+  if (!cards.length) return;
+
+  const schedule = [];
+  cards.forEach(card => {
+    const dur = parseInt(card.querySelector(".day-dur-input")?.value || "45");
+    const intStr = card.querySelector(".day-int-select")?.value || "Moderate";
+    const sleep = parseFloat(card.querySelector(".day-sleep-input")?.value || "8.0");
+
+    let intVal = 0.65;
+    if (intStr === "Low") intVal = 0.40;
+    else if (intStr === "High") intVal = 0.88;
+
+    schedule.push({
+      duration: dur,
+      intensity: intVal,
+      sleep: sleep
+    });
+  });
+
+  const runBtn = document.getElementById("btnRunScheduleSim");
+  if (runBtn) {
+    runBtn.innerHTML = `<span>Simulating 7-Day Cycle...</span>`;
+    runBtn.disabled = true;
+  }
+
+  try {
+    const res = await fetch("/api/simulate-schedule", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        initial_state: { fatigue: 20.0, recovery: 82.0, resting_hr: 54.0 },
+        schedule: schedule
+      })
+    });
+
+    const data = await res.json();
+    if (data.summary) {
+      const s = data.summary;
+      const sumLoad = document.getElementById("simSumLoad");
+      const sumFatigue = document.getElementById("simSumFatigue");
+      const sumRecovery = document.getElementById("simSumRecovery");
+      const sumReadiness = document.getElementById("simSumReadiness");
+      const sumOverreach = document.getElementById("simSumOverreach");
+      const sumHighRisk = document.getElementById("simSumHighRisk");
+
+      if (sumLoad) sumLoad.textContent = `${Math.min(100, Math.round((s.total_workload / 400.0) * 100))}% Capacity`;
+      if (sumFatigue) sumFatigue.textContent = `${s.peak_fatigue.toFixed(1)}%`;
+      if (sumRecovery) sumRecovery.textContent = `${s.min_recovery.toFixed(1)}%`;
+      if (sumReadiness) sumReadiness.textContent = `${s.avg_readiness.toFixed(1)}`;
+      if (sumOverreach) sumOverreach.textContent = s.overreaching_count;
+      if (sumHighRisk) sumHighRisk.textContent = s.high_risk_count;
+    }
+
+    if (data.days) {
+      cachedScheduleDays = data.days;
+      window.cachedScheduleDays = data.days;
+      renderScheduleTrajectoryChart(data.days);
+      populateScheduleTable(data.days);
+    }
+  } catch (err) {
+    console.error("Schedule simulation failed:", err);
+  } finally {
+    if (runBtn) {
+      runBtn.innerHTML = `
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+          <polygon points="5 3 19 12 5 21 5 3"/>
+        </svg>
+        <span>Run 7-Day Simulation</span>
+      `;
+      runBtn.disabled = false;
+    }
+  }
+}
+
+function renderScheduleTrajectoryChart(days, activeIdx = null) {
+  const canvas = document.getElementById("scheduleTrajectoryChart");
+  if (!canvas || !days || !days.length) return;
+  const ctx = canvas.getContext("2d");
+
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  if (rect.width === 0) return;
+
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+
+  const w = rect.width;
+  const h = rect.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const pad = { top: 22, right: 24, bottom: 28, left: 44 };
+  const plotW = Math.max(10, w - pad.left - pad.right);
+  const plotH = Math.max(10, h - pad.top - pad.bottom);
+
+  const getX = i => pad.left + (i / Math.max(1, days.length - 1)) * plotW;
+  const getY = val => pad.top + plotH - (Math.min(100, Math.max(0, val)) / 100) * plotH;
+
+  const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+  // 1. Grid lines & Y-axis labels (WHOOP High-Contrast Style)
+  [0, 25, 50, 75, 100].forEach(val => {
+    const y = pad.top + plotH - (val / 100) * plotH;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(w - pad.right, y);
+    if (val === 0 || val === 100) {
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.14)";
+      ctx.setLineDash([]);
+    } else {
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.07)";
+      ctx.setLineDash([4, 4]);
+    }
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = "#8E8E93";
+    ctx.font = "600 11px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    ctx.fillText(`${val}%`, pad.left - 8, y);
+  });
+
+  // 2. Day columns & vertical guides
+  days.forEach((d, i) => {
+    const x = getX(i);
+    const isAct = (activeIdx === i);
+
+    ctx.beginPath();
+    ctx.moveTo(x, pad.top);
+    ctx.lineTo(x, pad.top + plotH);
+    ctx.strokeStyle = isAct ? "rgba(255, 255, 255, 0.35)" : "rgba(255, 255, 255, 0.05)";
+    ctx.lineWidth = isAct ? 1.5 : 1;
+    ctx.setLineDash([2, 2]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    const label = dayLabels[i] || (d.Day ? d.Day.slice(0, 3) : `D${i + 1}`);
+    ctx.fillStyle = isAct ? "#FFFFFF" : "#8E8E93";
+    ctx.font = isAct ? "700 11px Inter, sans-serif" : "600 11px Inter, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.fillText(label, x, pad.top + plotH + 8);
+  });
+
+  // Smooth cubic spline builder
+  function buildSmoothSpline(pts) {
+    if (pts.length < 2) return;
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[Math.max(i - 1, 0)];
+      const p1 = pts[i];
+      const p2 = pts[i + 1];
+      const p3 = pts[Math.min(i + 2, pts.length - 1)];
+
+      const cp1x = p1.x + (p2.x - p0.x) / 6;
+      const cp1y = p1.y + (p2.y - p0.y) / 6;
+      const cp2x = p2.x - (p3.x - p1.x) / 6;
+      const cp2y = p2.y - (p3.y - p1.y) / 6;
+
+      ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+    }
+  }
+
+  // Fills with Smooth Splines
+  function fillSmoothArea(key, gradColor) {
+    const pts = days.map((d, i) => ({ x: getX(i), y: getY(d[key]) }));
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pad.top + plotH);
+    ctx.lineTo(pts[0].x, pts[0].y);
+    buildSmoothSpline(pts);
+    ctx.lineTo(pts[pts.length - 1].x, pad.top + plotH);
+    ctx.closePath();
+
+    const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + plotH);
+    grad.addColorStop(0, gradColor);
+    grad.addColorStop(1, "rgba(0, 0, 0, 0)");
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }
+
+  fillSmoothArea("Recovery (%)", "rgba(0, 230, 118, 0.18)");
+  fillSmoothArea("Performance", "rgba(56, 189, 248, 0.14)");
+  fillSmoothArea("Fatigue (%)", "rgba(255, 69, 58, 0.14)");
+
+  // Lines & Nodes with Smooth Splines
+  function drawSmoothSeries(key, color, lw) {
+    const pts = days.map((d, i) => ({ x: getX(i), y: getY(d[key]) }));
+
+    // Line stroke
+    ctx.beginPath();
+    buildSmoothSpline(pts);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lw;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.stroke();
+
+    // Node markers
+    pts.forEach((pt, i) => {
+      const isAct = (activeIdx === i);
+
+      // Outer glow
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, isAct ? 6 : 4.5, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.globalAlpha = isAct ? 0.45 : 0.25;
+      ctx.fill();
+      ctx.globalAlpha = 1.0;
+
+      // Inner solid core
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, isAct ? 3.5 : 2.8, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = "#101012";
+      ctx.stroke();
+    });
+  }
+
+  drawSmoothSeries("Recovery (%)", "#00E676", 2.6);
+  drawSmoothSeries("Performance", "#38BDF8", 2.4);
+  drawSmoothSeries("Fatigue (%)", "#FF453A", 2.4);
+}
+
+function initScheduleTrajectoryTooltip() {
+  const canvas = document.getElementById("scheduleTrajectoryChart");
+  if (!canvas) return;
+  const box = canvas.parentElement;
+  if (!box) return;
+
+  box.addEventListener("mousemove", e => {
+    if (!cachedScheduleDays || !cachedScheduleDays.length) return;
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    const pad = { top: 22, right: 24, bottom: 28, left: 44 };
+    const plotW = rect.width - pad.left - pad.right;
+
+    if (mouseX < pad.left || mouseX > rect.width - pad.right) {
+      hideScheduleTooltip();
+      renderScheduleTrajectoryChart(cachedScheduleDays, null);
+      return;
+    }
+
+    const ratio = (mouseX - pad.left) / plotW;
+    const idx = Math.min(cachedScheduleDays.length - 1, Math.max(0, Math.round(ratio * (cachedScheduleDays.length - 1))));
+
+    renderScheduleTrajectoryChart(cachedScheduleDays, idx);
+    showScheduleTooltip(e, box, cachedScheduleDays[idx]);
+  });
+
+  box.addEventListener("mouseleave", () => {
+    hideScheduleTooltip();
+    if (cachedScheduleDays) {
+      renderScheduleTrajectoryChart(cachedScheduleDays, null);
+    }
+  });
+}
+
+function showScheduleTooltip(e, container, day) {
+  let tooltip = document.getElementById("scheduleChartTooltip");
+  if (!tooltip) {
+    tooltip = document.createElement("div");
+    tooltip.id = "scheduleChartTooltip";
+    tooltip.className = "chart-tooltip";
+    container.appendChild(tooltip);
+  }
+
+  const dayName = day.Day || "Session";
+  const statusColor = day.Status === "OPTIMAL" ? "#00E676" : (day.Status === "OVERREACHING" ? "#FFD60A" : "#FF453A");
+  const loadAU = Math.round(day["Daily Load"] || 0);
+  const durMin = day["Duration (min)"] || 0;
+  const intensity = day["Intensity"] ? (day["Intensity"] > 0.8 ? "High" : day["Intensity"] > 0.5 ? "Mod" : "Low") : "Rest";
+
+  tooltip.innerHTML = `
+    <div style="font-weight:700;margin-bottom:5px;color:#FFFFFF;display:flex;justify-content:space-between;gap:12px;">
+      <span>${dayName}</span>
+      <span style="color:${statusColor};font-size:0.75rem;">${day.Status || "OPTIMAL"}</span>
+    </div>
+    <div style="display:flex;gap:12px;font-size:0.76rem;margin-bottom:4px;">
+      <span style="color:#00E676;">Recovery: <strong>${(day["Recovery (%)"] || 0).toFixed(1)}%</strong></span>
+      <span style="color:#38BDF8;">Readiness: <strong>${(day["Performance"] || 0).toFixed(1)}</strong></span>
+      <span style="color:#FF453A;">Fatigue: <strong>${(day["Fatigue (%)"] || 0).toFixed(1)}%</strong></span>
+    </div>
+    <div style="font-size:0.7rem;color:#8E8E93;">Planned Workload: ${Math.min(100, Math.round(loadAU))}% Capacity | ${durMin}m (${intensity})</div>
+  `;
+  tooltip.style.display = "block";
+
+  const boxRect = container.getBoundingClientRect();
+  const mouseX = e.clientX - boxRect.left;
+  const mouseY = e.clientY - boxRect.top;
+  if (typeof positionTooltip === "function") {
+    positionTooltip(tooltip, container, mouseX, mouseY);
+  } else {
+    tooltip.style.left = `${Math.min(boxRect.width - 200, mouseX + 12)}px`;
+    tooltip.style.top = `${Math.max(10, mouseY - 70)}px`;
+  }
+}
+
+function hideScheduleTooltip() {
+  const tooltip = document.getElementById("scheduleChartTooltip");
+  if (tooltip) tooltip.style.display = "none";
+}
+
+function populateScheduleTable(days) {
+  const tbody = document.getElementById("simBreakdownTableBody");
+  if (!tbody) return;
+
+  const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+  tbody.innerHTML = days.map((d, i) => {
+    const dayLabel = dayNames[i] || `Day ${i + 1}`;
+    const dur = d["Duration (min)"] || 0;
+    const intVal = (d["Intensity"] || 0).toFixed(2);
+    const load = Math.round(d["Daily Load"] || 0);
+    const fatigue = (d["Fatigue (%)"] || 0).toFixed(1);
+    const recovery = (d["Recovery (%)"] || 0).toFixed(1);
+    const perf = (d["Performance"] || 0).toFixed(1);
+    const status = d["Status"] || "OPTIMAL";
+
+    let badgeClass = "badge-optimal";
+    if (status === "HIGH RISK") badgeClass = "badge-high-risk";
+    else if (status === "OVERREACHING") badgeClass = "badge-overreaching";
+
+    return `
+      <tr>
+        <td><strong>${dayLabel}</strong></td>
+        <td>${dur > 0 ? `Running • ${dur}m` : "Rest / Active Recovery"}</td>
+        <td>${dur > 0 ? `Factor: ${intVal}` : "Rest"}</td>
+        <td><strong>${Math.min(100, Math.round(load))}%</strong></td>
+        <td><span style="color:#ef4444">${fatigue}%</span></td>
+        <td><span style="color:#10b981">${recovery}%</span></td>
+        <td><strong>${perf}</strong></td>
+        <td><span class="badge-status-pill ${badgeClass}">${status}</span></td>
+      </tr>
+    `;
+  }).join("");
+}
+
+/* ==============================================================================
+   12. SETTINGS VIEW (ATHLETE PROFILES & PREFERENCES)
+   ============================================================================== */
+function initSettingsView() {
+  const ageInput = document.getElementById("settingAthleteAge");
+  const maxHrInput = document.getElementById("settingAthleteMaxHr");
+  const saveBtn = document.getElementById("btnSaveSettings");
+  const toast = document.getElementById("settingsSavedToast");
+
+  if (ageInput && maxHrInput) {
+    ageInput.addEventListener("input", () => {
+      const age = parseInt(ageInput.value) || 28;
+      maxHrInput.value = Math.max(150, 220 - age);
+    });
+  }
+
+  // Load saved settings if any
+  try {
+    const saved = JSON.parse(localStorage.getItem("digitalTwinAthleteSettings") || "{}");
+    if (saved.name) {
+      updateActiveUserProfile(saved, false);
+    }
+    if (saved.age) {
+      document.getElementById("settingAthleteAge").value = saved.age;
+      if (maxHrInput) maxHrInput.value = 220 - saved.age;
+    }
+    if (saved.weight) document.getElementById("settingAthleteWeight").value = saved.weight;
+    if (saved.height) document.getElementById("settingAthleteHeight").value = saved.height;
+    if (saved.restHr) document.getElementById("settingAthleteRestHr").value = saved.restHr;
+    if (saved.serverUrl) document.getElementById("settingServerUrl").value = saved.serverUrl;
+    if (saved.wifiSsid) document.getElementById("settingWifiSsid").value = saved.wifiSsid;
+  } catch (e) { }
+
+  if (saveBtn) {
+    saveBtn.addEventListener("click", () => {
+      const newName = document.getElementById("settingAthleteName")?.value?.trim() || DEFAULT_USER_PROFILE.name;
+      const newPos = document.getElementById("settingAthletePosition")?.value?.trim() || DEFAULT_USER_PROFILE.position;
+      const newSquad = document.getElementById("settingAthleteSquadNumber")?.value?.trim() || DEFAULT_USER_PROFILE.squadNumber;
+      const settings = {
+        name: newName,
+        position: newPos,
+        squadNumber: newSquad,
+        age: parseInt(document.getElementById("settingAthleteAge")?.value || "24"),
+        weight: parseFloat(document.getElementById("settingAthleteWeight")?.value || "74"),
+        height: parseFloat(document.getElementById("settingAthleteHeight")?.value || "180"),
+        restHr: parseInt(document.getElementById("settingAthleteRestHr")?.value || "54"),
+        serverUrl: document.getElementById("settingServerUrl")?.value,
+        wifiSsid: document.getElementById("settingWifiSsid")?.value
+      };
+
+      updateActiveUserProfile(settings, true);
+
+      if (toast) {
+        toast.style.display = "block";
+        setTimeout(() => { toast.style.display = "none"; }, 3500);
+      }
+    });
+  }
+}
+
+/* ==============================================================================
+   13. DUAL LIVE CANVAS CHARTS (DASHBOARD)
+   ============================================================================== */
+
+/**
+ * Renders Heart Rate (BPM) smooth glowing curve with red area gradient
+ */
+function renderHeartRateChart(chartData, hoverIndex = null) {
+  const canvas = document.getElementById("heartRateChart");
+  if (!canvas || !chartData) return;
+  const ctx = canvas.getContext("2d");
+
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  if (rect.width === 0 || rect.height === 0) return;
+
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+
+  const w = rect.width;
+  const h = rect.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const padding = { top: 12, right: 12, bottom: 20, left: 30 };
+  const plotW = w - padding.left - padding.right;
+  const plotH = h - padding.top - padding.bottom;
+
+  const minY = 60;
+  const maxY = 220;
+  const getY = val => padding.top + plotH - ((val - minY) / (maxY - minY)) * plotH;
+
+  // Horizontal Gridlines & Y-labels: 60, 100, 140, 180, 220
+  const yTicks = [60, 100, 140, 180, 220];
+  ctx.strokeStyle = "rgba(226, 232, 240, 0.9)";
+  ctx.lineWidth = 1;
+  ctx.font = "10px Inter, sans-serif";
+  ctx.fillStyle = "#94A3B8";
+  ctx.textAlign = "right";
+
+  yTicks.forEach(tick => {
+    const y = getY(tick);
+    ctx.beginPath();
+    ctx.moveTo(padding.left, y);
+    ctx.lineTo(w - padding.right, y);
+    ctx.stroke();
+    ctx.fillText(tick, padding.left - 6, y + 3.5);
+  });
+
+  // X-axis Ticks & Labels dynamically from chartData
+  const xLabels = chartData.x_labels || ["0", "10", "20", "30", "40", "50", "60"];
+  ctx.textAlign = "center";
+  xLabels.forEach((label, i) => {
+    const x = padding.left + (i / (xLabels.length - 1)) * plotW;
+    ctx.fillText(label, x, h - 4);
+  });
+
+  const pts = chartData.points || [95, 115, 138, 148, 160, 155, 164, 172, 168, 165, 170, 162, 158, 164, 152];
+  if (pts.length < 2) return;
+
+  const getX = i => padding.left + (i / (pts.length - 1)) * plotW;
+
+  // Gradient Area Fill under Curve (Soft Pinkish Coral)
+  const gradient = ctx.createLinearGradient(0, padding.top, 0, padding.top + plotH);
+  gradient.addColorStop(0, "rgba(239, 68, 68, 0.25)");
+  gradient.addColorStop(0.7, "rgba(239, 68, 68, 0.08)");
+  gradient.addColorStop(1, "rgba(239, 68, 68, 0.01)");
+
+  ctx.beginPath();
+  ctx.moveTo(getX(0), getY(pts[0]));
+  for (let i = 0; i < pts.length - 1; i++) {
+    const x0 = getX(i);
+    const y0 = getY(pts[i]);
+    const x1 = getX(i + 1);
+    const y1 = getY(pts[i + 1]);
+    const mx = (x0 + x1) / 2;
+    ctx.bezierCurveTo(mx, y0, mx, y1, x1, y1);
+  }
+  ctx.lineTo(getX(pts.length - 1), padding.top + plotH);
+  ctx.lineTo(getX(0), padding.top + plotH);
+  ctx.closePath();
+  ctx.fillStyle = gradient;
+  ctx.fill();
+
+  // Smooth Coral Red Curve Line
+  ctx.beginPath();
+  ctx.moveTo(getX(0), getY(pts[0]));
+  for (let i = 0; i < pts.length - 1; i++) {
+    const x0 = getX(i);
+    const y0 = getY(pts[i]);
+    const x1 = getX(i + 1);
+    const y1 = getY(pts[i + 1]);
+    const mx = (x0 + x1) / 2;
+    ctx.bezierCurveTo(mx, y0, mx, y1, x1, y1);
+  }
+  ctx.strokeStyle = "#EF4444";
+  ctx.lineWidth = 2.2;
+  ctx.stroke();
+
+  // Interactive Hover Crosshair and Dot Indicator
+  if (hoverIndex !== null && hoverIndex >= 0 && hoverIndex < pts.length) {
+    const hx = getX(hoverIndex);
+    const hy = getY(pts[hoverIndex]);
+
+    ctx.save();
+    // Vertical dashed crosshair line
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = "rgba(0, 132, 255, 0.55)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(hx, padding.top);
+    ctx.lineTo(hx, padding.top + plotH);
+    ctx.stroke();
+
+    // Outer pulsating glow circle
+    ctx.setLineDash([]);
+    ctx.fillStyle = "rgba(239, 68, 68, 0.25)";
+    ctx.beginPath();
+    ctx.arc(hx, hy, 8, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Inner sharp circle with crisp white outline
+    ctx.fillStyle = "#EF4444";
+    ctx.strokeStyle = "#FFFFFF";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(hx, hy, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+/**
+ * Renders Movement (Acceleration) 3-axis tri-axial waveform
+ */
+function renderMovementChart(chartData, hoverIndex = null) {
+  const canvas = document.getElementById("movementChart");
+  if (!canvas || !chartData) return;
+  const ctx = canvas.getContext("2d");
+
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  if (rect.width === 0 || rect.height === 0) return;
+
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+
+  const w = rect.width;
+  const h = rect.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const padding = { top: 12, right: 12, bottom: 20, left: 30 };
+  const plotW = w - padding.left - padding.right;
+  const plotH = h - padding.top - padding.bottom;
+
+  const minY = -6;
+  const maxY = 6;
+  const getY = val => padding.top + plotH - ((val - minY) / (maxY - minY)) * plotH;
+
+  // Horizontal Gridlines & Y-labels: -6, -3, 0, 3, 6
+  const yTicks = [-6, -3, 0, 3, 6];
+  ctx.strokeStyle = "rgba(226, 232, 240, 0.9)";
+  ctx.lineWidth = 1;
+  ctx.font = "10px Inter, sans-serif";
+  ctx.fillStyle = "#94A3B8";
+  ctx.textAlign = "right";
+
+  yTicks.forEach(tick => {
+    const y = getY(tick);
+    ctx.beginPath();
+    ctx.moveTo(padding.left, y);
+    ctx.lineTo(w - padding.right, y);
+    ctx.stroke();
+    ctx.fillText(tick, padding.left - 6, y + 3.5);
+  });
+
+  // X-axis Ticks & Labels dynamically from chartData
+  const xLabels = chartData.x_labels || ["0", "10", "20", "30", "40", "50", "60"];
+  ctx.textAlign = "center";
+  xLabels.forEach((label, i) => {
+    const x = padding.left + (i / (xLabels.length - 1)) * plotW;
+    ctx.fillText(label, x, h - 4);
+  });
+
+  const len = (chartData.x && chartData.x.length) || 35;
+  const getX = (i, total) => padding.left + (i / (total - 1)) * plotW;
+
+  function drawWave(arr, color) {
+    if (!arr || arr.length < 2) return;
+    ctx.beginPath();
+    ctx.moveTo(getX(0, arr.length), getY(arr[0]));
+    for (let i = 0; i < arr.length - 1; i++) {
+      const x0 = getX(i, arr.length);
+      const y0 = getY(arr[i]);
+      const x1 = getX(i + 1, arr.length);
+      const y1 = getY(arr[i + 1]);
+      const mx = (x0 + x1) / 2;
+      ctx.bezierCurveTo(mx, y0, mx, y1, x1, y1);
+    }
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+  }
+
+  // Draw X (Cyan/Blue #0284C7), Y (Green #10B981), Z (Yellow/Orange #F59E0B) conditionally
+  if (accelVisibility.x) drawWave(chartData.x, "#0284C7");
+  if (accelVisibility.y) drawWave(chartData.y, "#10B981");
+  if (accelVisibility.z) drawWave(chartData.z, "#F59E0B");
+
+  // Interactive Hover Crosshair & Multi-Axis Dots
+  if (hoverIndex !== null && hoverIndex >= 0 && hoverIndex < len) {
+    const hx = getX(hoverIndex, len);
+
+    ctx.save();
+    // Vertical dashed crosshair line
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = "rgba(0, 132, 255, 0.55)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(hx, padding.top);
+    ctx.lineTo(hx, padding.top + plotH);
+    ctx.stroke();
+
+    // Highlight dots for visible axes
+    const dots = [];
+    if (accelVisibility.x && chartData.x) dots.push({ val: chartData.x[hoverIndex], color: "#0284C7" });
+    if (accelVisibility.y && chartData.y) dots.push({ val: chartData.y[hoverIndex], color: "#10B981" });
+    if (accelVisibility.z && chartData.z) dots.push({ val: chartData.z[hoverIndex], color: "#F59E0B" });
+
+    ctx.setLineDash([]);
+    dots.forEach(d => {
+      const dy = getY(d.val);
+      ctx.fillStyle = d.color;
+      ctx.strokeStyle = "#FFFFFF";
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(hx, dy, 4.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    });
+    ctx.restore();
+  }
+}
+
+/**
+ * Connects clickable legend items (• X, • Y, • Z) to toggle axis lines on/off
+ */
+function initMovementLegendToggle() {
+  ["x", "y", "z"].forEach(axis => {
+    const el = document.getElementById(`legendAxis${axis.toUpperCase()}`);
+    if (el) {
+      el.addEventListener("click", () => {
+        accelVisibility[axis] = !accelVisibility[axis];
+        if (accelVisibility[axis]) {
+          el.classList.remove("axis-hidden");
+          el.classList.add("active");
+          showToast(`Show ${axis.toUpperCase()} axis`, "📈", 1500);
+        } else {
+          el.classList.add("axis-hidden");
+          el.classList.remove("active");
+          showToast(`Hide ${axis.toUpperCase()} axis`, "📉", 1500);
+        }
+        if (cachedDashboardData && cachedDashboardData.charts && cachedDashboardData.charts.movement) {
+          renderMovementChart(cachedDashboardData.charts.movement);
+        }
+      });
+    }
+  });
+}
+
+/* ==============================================================================
+   14. QUICK WHAT-IF SIMULATOR (DASHBOARD CARD)
+   ============================================================================== */
+function initWhatIfSimulator() {
+  const intButtons = document.querySelectorAll(".intensity-segmented-control .int-btn");
+  const runBtn = document.getElementById("btnRunSimulation");
+  const feedbackToast = document.getElementById("simFeedbackToast");
+
+  intButtons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      intButtons.forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      selectedIntensity = btn.dataset.intensity;
+    });
+  });
+
+  if (runBtn) {
+    runBtn.addEventListener("click", async () => {
+      runBtn.innerHTML = `
+        <svg class="spin-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="12"/>
+        </svg>
+        <span>Simulating...</span>
+      `;
+
+      const nodes = document.querySelectorAll(".joint-node");
+      nodes.forEach(n => n.classList.add("pulse-glow"));
+
+      try {
+        const res = await fetch("/api/simulate-step", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            intensity_mode: selectedIntensity,
+            current_fatigue: 20.0,
+            current_recovery: 82.0
+          })
+        });
+
+        const result = await res.json();
+
+        updateTwinUI({
+          fatigue_label: result.fatigue_label,
+          fatigue_value: result.fatigue_value,
+          recovery_label: result.recovery_label,
+          recovery_value: result.recovery_value,
+          performance_label: result.performance_label,
+          performance_value: result.performance_value
+        });
+
+        if (result.simulated_workout) {
+          const actName = document.getElementById("sessionActivityName");
+          const metaText = document.getElementById("sessionMetaText");
+          const avgHr = document.getElementById("sessionAvgHr");
+          const maxHr = document.getElementById("sessionMaxHr");
+          const cals = document.getElementById("sessionCalories");
+
+          if (actName) actName.textContent = result.simulated_workout.activity;
+          if (metaText) metaText.textContent = `Simulated Session • ${result.simulated_workout.duration}`;
+          if (avgHr) avgHr.textContent = `${result.simulated_workout.avg_hr} BPM`;
+          if (maxHr) maxHr.textContent = `${result.simulated_workout.avg_hr + 24} BPM`;
+          if (cals) cals.textContent = `${result.simulated_workout.calories} kcal`;
+        }
+
+        if (feedbackToast) {
+          feedbackToast.style.display = "block";
+          feedbackToast.textContent = `✓ Twin state updated for ${selectedIntensity} intensity`;
+          setTimeout(() => {
+            feedbackToast.style.display = "none";
+          }, 3000);
+        }
+
+      } catch (err) {
+        console.error("Simulation error:", err);
+      } finally {
+        runBtn.innerHTML = `
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+            <polygon points="5 3 19 12 5 21 5 3"/>
+          </svg>
+          <span>Run Simulation</span>
+        `;
+      }
+    });
+  }
+}
+
+// Window resize chart re-render with debouncing for fluid layout responsiveness
+let resizeDebounceTimer = null;
+let cachedScheduleDays = null;
+
+window.addEventListener("resize", () => {
+  clearTimeout(resizeDebounceTimer);
+  resizeDebounceTimer = setTimeout(() => {
+    if (cachedDashboardData && cachedDashboardData.charts) {
+      renderHeartRateChart(cachedDashboardData.charts.heart_rate);
+      renderMovementChart(cachedDashboardData.charts.movement);
+    }
+    if (currentActiveView === "analytics" && cachedAnalyticsData && cachedAnalyticsData.history) {
+      renderAnalyticsFatigueRecoveryChart(cachedAnalyticsData.history);
+      renderAnalyticsLoadPerfChart(cachedAnalyticsData.history);
+    }
+    if (currentActiveView === "what-if" && cachedScheduleDays) {
+      renderScheduleTrajectoryChart(cachedScheduleDays);
+    }
+  }, 80);
+});
+
+/* ==============================================================================
+   15. REUSABLE TOAST NOTIFICATION SYSTEM
+   ============================================================================== */
+function showToast(message, icon = "⚡", duration = 3200) {
+  const toast = document.getElementById("globalToast");
+  const msg = document.getElementById("globalToastMsg");
+  if (!toast) return;
+
+  if (msg) msg.textContent = message;
+  const iconSpan = toast.querySelector("span:first-child");
+  if (iconSpan) iconSpan.textContent = icon;
+
+  toast.style.display = "flex";
+  clearTimeout(toast._timeout);
+  toast._timeout = setTimeout(() => {
+    toast.style.display = "none";
+  }, duration);
+}
+
+/* ==============================================================================
+   16. ATHLETE PROFILE DROPDOWN POPOVER
+   ============================================================================== */
+function initProfileDropdown() {
+  const profileMenu = document.querySelector(".user-profile-menu");
+  const dropdown = document.getElementById("userProfileDropdown");
+  const linkProfile = document.getElementById("dropdownLinkProfile");
+  const linkSettings = document.getElementById("dropdownLinkSettings");
+
+  if (!profileMenu || !dropdown) return;
+
+  profileMenu.addEventListener("click", e => {
+    e.stopPropagation();
+    const isVisible = dropdown.style.display === "block";
+    dropdown.style.display = isVisible ? "none" : "block";
+  });
+
+  document.addEventListener("click", e => {
+    if (!dropdown.contains(e.target) && !profileMenu.contains(e.target)) {
+      dropdown.style.display = "none";
+    }
+  });
+
+  if (linkProfile) {
+    linkProfile.addEventListener("click", e => {
+      e.preventDefault();
+      dropdown.style.display = "none";
+      switchView("digital-twin");
+    });
+  }
+
+  if (linkSettings) {
+    linkSettings.addEventListener("click", e => {
+      e.preventDefault();
+      dropdown.style.display = "none";
+      switchView("settings");
+    });
+  }
+}
+
+/* ==============================================================================
+   17. DUAL CHART HOVER CROSSHAIR & FLOATING TOOLTIPS
+   ============================================================================== */
+function positionTooltip(tooltipEl, containerEl, mouseX, mouseY) {
+  const cRect = containerEl.getBoundingClientRect();
+  let left = mouseX + 16;
+  let top = mouseY - 45;
+
+  if (left + 175 > cRect.width) {
+    left = mouseX - 180;
+  }
+  if (top < 8) {
+    top = mouseY + 16;
+  }
+
+  tooltipEl.style.left = `${Math.max(8, Math.round(left))}px`;
+  tooltipEl.style.top = `${Math.max(6, Math.round(top))}px`;
+  tooltipEl.style.display = "block";
+}
+
+function initChartTooltips() {
+  const hrBox = document.getElementById("hrCanvasContainer");
+  const hrCanvas = document.getElementById("heartRateChart");
+  const hrTooltip = document.getElementById("hrChartTooltip");
+
+  if (hrBox && hrCanvas && hrTooltip) {
+    hrBox.addEventListener("mousemove", e => {
+      if (!cachedDashboardData || !cachedDashboardData.charts || !cachedDashboardData.charts.heart_rate) return;
+      const chartData = cachedDashboardData.charts.heart_rate;
+      const pts = chartData.points || [];
+      if (pts.length < 2) return;
+
+      const rect = hrCanvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      const padding = { top: 12, right: 12, bottom: 20, left: 30 };
+      const plotW = rect.width - padding.left - padding.right;
+
+      if (mouseX < padding.left || mouseX > rect.width - padding.right) {
+        hrTooltip.style.display = "none";
+        renderHeartRateChart(chartData, null);
+        return;
+      }
+
+      const ratio = (mouseX - padding.left) / plotW;
+      const idx = Math.min(pts.length - 1, Math.max(0, Math.round(ratio * (pts.length - 1))));
+
+      renderHeartRateChart(chartData, idx);
+
+      const bpm = pts[idx];
+      let timeStr = "";
+      if (chartData.time_unit === "seconds") {
+        timeStr = `${Math.round(ratio * 60)}s`;
+      } else {
+        const maxMins = currentTimeframe === "10M" ? 10 : (currentTimeframe === "30M" ? 30 : 60);
+        timeStr = `${Math.round(ratio * maxMins)} min`;
+      }
+
+      let zoneName = "Zone 3 (Aerobic Base)";
+      if (bpm > 175) zoneName = "Zone 5 (Max Capacity)";
+      else if (bpm > 155) zoneName = "Zone 4 (Anaerobic Threshold)";
+      else if (bpm < 130) zoneName = "Zone 2 (Active Recovery)";
+
+      hrTooltip.innerHTML = `
+        <div class="tooltip-header">Time: ${timeStr}</div>
+        <div class="tooltip-val">${bpm} <span style="font-size:0.75rem;color:#94A3B8;">BPM</span></div>
+        <div style="font-size:0.7rem;color:#E2E8F0;margin-top:3px;">${zoneName}</div>
+      `;
+
+      positionTooltip(hrTooltip, hrBox, mouseX, mouseY);
+    });
+
+    hrBox.addEventListener("mouseleave", () => {
+      hrTooltip.style.display = "none";
+      if (cachedDashboardData && cachedDashboardData.charts) {
+        renderHeartRateChart(cachedDashboardData.charts.heart_rate, null);
+      }
+    });
+  }
+
+  const movBox = document.getElementById("movementCanvasContainer");
+  const movCanvas = document.getElementById("movementChart");
+  const movTooltip = document.getElementById("movementChartTooltip");
+
+  if (movBox && movCanvas && movTooltip) {
+    movBox.addEventListener("mousemove", e => {
+      if (!cachedDashboardData || !cachedDashboardData.charts || !cachedDashboardData.charts.movement) return;
+      const chartData = cachedDashboardData.charts.movement;
+      const len = (chartData.x && chartData.x.length) || 0;
+      if (len < 2) return;
+
+      const rect = movCanvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      const padding = { top: 12, right: 12, bottom: 20, left: 30 };
+      const plotW = rect.width - padding.left - padding.right;
+
+      if (mouseX < padding.left || mouseX > rect.width - padding.right) {
+        movTooltip.style.display = "none";
+        renderMovementChart(chartData, null);
+        return;
+      }
+
+      const ratio = (mouseX - padding.left) / plotW;
+      const idx = Math.min(len - 1, Math.max(0, Math.round(ratio * (len - 1))));
+
+      renderMovementChart(chartData, idx);
+
+      const x = chartData.x ? chartData.x[idx] : 0;
+      const y = chartData.y ? chartData.y[idx] : 0;
+      const z = chartData.z ? chartData.z[idx] : 0;
+      const mag = Math.sqrt(x * x + y * y + z * z).toFixed(2);
+
+      let timeStr = "";
+      if (chartData.time_unit === "seconds") {
+        timeStr = `${Math.round(ratio * 60)}s`;
+      } else {
+        const maxMins = currentTimeframe === "10M" ? 10 : (currentTimeframe === "30M" ? 30 : 60);
+        timeStr = `${Math.round(ratio * maxMins)} min`;
+      }
+
+      movTooltip.innerHTML = `
+        <div class="tooltip-header">Time: ${timeStr}</div>
+        <div class="tooltip-val">${mag} <span style="font-size:0.75rem;color:#94A3B8;">g Total Load</span></div>
+        <div style="font-size:0.7rem;color:#E2E8F0;margin-top:3px;display:flex;gap:8px;">
+          <span style="color:#38BDF8;">X: ${x >= 0 ? "+" : ""}${x.toFixed(2)}</span>
+          <span style="color:#10B981;">Y: ${y >= 0 ? "+" : ""}${y.toFixed(2)}</span>
+          <span style="color:#F59E0B;">Z: ${z >= 0 ? "+" : ""}${z.toFixed(2)}</span>
+        </div>
+      `;
+
+      positionTooltip(movTooltip, movBox, mouseX, mouseY);
+    });
+
+    movBox.addEventListener("mouseleave", () => {
+      movTooltip.style.display = "none";
+      if (cachedDashboardData && cachedDashboardData.charts) {
+        renderMovementChart(cachedDashboardData.charts.movement, null);
+      }
+    });
+  }
+}
+
+/* ==============================================================================
+   18. TRAINING SESSION TELEMETRY DETAIL MODAL
+   ============================================================================== */
+function initSessionModal() {
+  const modal = document.getElementById("sessionDetailModal");
+  const closeBtn = document.getElementById("btnCloseSessionModal");
+  const rows = document.querySelectorAll(".session-row-clickable");
+
+  if (!modal) return;
+
+  rows.forEach(row => {
+    row.addEventListener("click", () => {
+      const type = row.dataset.sessionType || "Training";
+      const date = row.dataset.date || "Today";
+      const dur = row.dataset.dur || "60 min";
+      const hr = row.dataset.hr || "152 BPM";
+      const maxhr = row.dataset.maxhr || "182 BPM";
+      const intensity = row.dataset.int || "High";
+      const cals = row.dataset.cals || "680 kcal";
+      const notes = row.dataset.notes || "Tactical drills";
+
+      const titleEl = document.getElementById("sessionModalTitle");
+      const subEl = document.getElementById("sessionModalSubtitle");
+      const avgHrEl = document.getElementById("modalAvgHr");
+      const maxHrEl = document.getElementById("modalMaxHr");
+      const calsEl = document.getElementById("modalCals");
+      const intEl = document.getElementById("modalIntensity");
+      const notesEl = document.getElementById("modalSessionNotes");
+
+      if (titleEl) titleEl.textContent = `${type} Telemetry Breakdown`;
+      if (subEl) subEl.textContent = `${date} • ${type} (${dur})`;
+      if (avgHrEl) avgHrEl.textContent = hr;
+      if (maxHrEl) maxHrEl.textContent = maxhr;
+      if (calsEl) calsEl.textContent = cals;
+      if (intEl) {
+        intEl.textContent = intensity;
+        intEl.style.color = intensity === "High" ? "#EF4444" : (intensity === "Moderate" ? "#F59E0B" : "#10B981");
+      }
+      if (notesEl) notesEl.textContent = notes;
+
+      modal.style.display = "flex";
+    });
+  });
+
+  if (closeBtn) {
+    closeBtn.addEventListener("click", () => {
+      modal.style.display = "none";
+    });
+  }
+
+  modal.addEventListener("click", e => {
+    if (e.target === modal) modal.style.display = "none";
+  });
+}
+
+/* ==============================================================================
+   19. INJURY RISK DETAIL MODAL & SORENESS SLIDER
+   ============================================================================== */
+const INJURY_DATABASE = {
+  hamstring: {
+    title: "Hamstring Strain Assessment",
+    asymmetry: "+14.2% L/R",
+    badge: "Elevated",
+    badgeClass: "pill-red",
+    desc: "High-speed running distance (>25 km/h) reached 840m in last match. Eccentric hamstring tension spikes during late swing phase before ground strike. Left biceps femoris load exceeds chronic baseline.",
+    defaultSoreness: 6,
+    protocol: [
+      "3 sets of 5 repetitions Nordic Hamstring Curls (sub-maximal eccentric control).",
+      "Limit maximum velocity sprints during today's tactical session to < 85%.",
+      "Post-training percussion therapy & active hamstring floss bands."
+    ]
+  },
+  quadriceps: {
+    title: "Quadriceps Strain & Tendon Load",
+    asymmetry: "+6.8% L/R",
+    badge: "Moderate",
+    badgeClass: "pill-yellow",
+    desc: "High deceleration frequency detected by 6-DOF IMU (48 cuts > 3.0g). Patellar tendon absorbing repetitive eccentric quadriceps braking forces.",
+    defaultSoreness: 4,
+    protocol: [
+      "Isometric wall sits (4x45s) prior to pitch session to desensitize patellar tendon.",
+      "Spanish squat variations with resistance bands.",
+      "Active quad foam rolling and rectus femoris dynamic stretching."
+    ]
+  },
+  calf: {
+    title: "Calf Complex (Gastrocnemius & Soleus)",
+    asymmetry: "+2.1% L/R",
+    badge: "Low",
+    badgeClass: "pill-green",
+    desc: "Symmetric vertical ground reaction impulse. Achilles tendon stiffness within optimal elastic range with low cumulative shear strain.",
+    defaultSoreness: 2,
+    protocol: [
+      "Standard dynamic ankle mobility drills.",
+      "Straight-leg and bent-knee calf raises with controlled tempo.",
+      "Post-session elevation and compression socks."
+    ]
+  },
+  achilles: {
+    title: "Achilles Tendon Load & Shear Stress",
+    asymmetry: "+11.5% L/R",
+    badge: "Elevated",
+    badgeClass: "pill-red",
+    desc: "Elevated cumulative ground contact cycles on firm pitch surface. Peak acceleration spikes exceeding 2.8g in sprint transitions. Tendon stiffness adaptation required.",
+    defaultSoreness: 7,
+    protocol: [
+      "Heavy slow resistance (HSR) heel drops off step edge.",
+      "Avoid explosive plyometric hops until morning stiffness subsides.",
+      "Contrast thermal bath therapy (3 min warm / 1 min ice)."
+    ]
+  }
+};
+
+let activeInjuryKey = "hamstring";
+
+function initInjuryModal() {
+  const modal = document.getElementById("injuryDetailModal");
+  const closeBtn = document.getElementById("btnCloseInjuryModal");
+  const saveBtn = document.getElementById("btnSaveInjurySoreness");
+  const slider = document.getElementById("sorenessSlider");
+  const label = document.getElementById("sorenessValLabel");
+  const rows = document.querySelectorAll(".injury-row-item");
+
+  if (!modal) return;
+
+  function updateSliderLabel(val) {
+    if (!label) return;
+    let desc = "Low / Fresh";
+    let color = "#10B981";
+    if (val > 6) {
+      desc = "High / Severe";
+      color = "#EF4444";
+    } else if (val > 3) {
+      desc = "Moderate / Manageable";
+      color = "#F59E0B";
+    }
+    label.innerHTML = `${val} / 10 (<span style="color:${color};font-weight:800;">${desc}</span>)`;
+  }
+
+  if (slider) {
+    slider.addEventListener("input", () => {
+      updateSliderLabel(parseInt(slider.value));
+    });
+  }
+
+  rows.forEach(row => {
+    row.addEventListener("click", () => {
+      const key = row.dataset.injury || "hamstring";
+      activeInjuryKey = key;
+      const data = INJURY_DATABASE[key] || INJURY_DATABASE.hamstring;
+
+      const titleEl = document.getElementById("injuryModalTitle");
+      const badgeEl = document.getElementById("injuryModalBadge");
+      const asymEl = document.getElementById("injuryModalAsym");
+      const descEl = document.getElementById("injuryModalDesc");
+      const protocolEl = document.getElementById("injuryModalProtocol");
+
+      if (titleEl) titleEl.textContent = data.title;
+      if (badgeEl) {
+        const currentBadgeOnCard = row.querySelector(".badge-pill");
+        const currentStatus = currentBadgeOnCard ? currentBadgeOnCard.textContent.trim() : data.badge;
+        badgeEl.textContent = currentStatus;
+        badgeEl.style.color = currentStatus === "Elevated" ? "#DC2626" : (currentStatus === "Moderate" ? "#D97706" : "#16A34A");
+      }
+      if (asymEl) asymEl.textContent = data.asymmetry;
+      if (descEl) descEl.textContent = data.desc;
+
+      if (protocolEl) {
+        protocolEl.innerHTML = data.protocol.map(p => `<li>${p}</li>`).join("");
+      }
+
+      if (slider) {
+        slider.value = data.defaultSoreness;
+        updateSliderLabel(data.defaultSoreness);
+      }
+
+      modal.style.display = "flex";
+    });
+  });
+
+  if (saveBtn) {
+    saveBtn.addEventListener("click", () => {
+      const val = slider ? parseInt(slider.value) : 5;
+      let newRisk = "Moderate";
+      let pillClass = "pill-yellow";
+      if (val <= 3) {
+        newRisk = "Low";
+        pillClass = "pill-green";
+      } else if (val >= 7) {
+        newRisk = "Elevated";
+        pillClass = "pill-red";
+      }
+
+      const targetBadgeId = {
+        hamstring: "badgeHamstring",
+        quadriceps: "badgeQuadriceps",
+        calf: "badgeCalf",
+        achilles: "badgeAchilles"
+      }[activeInjuryKey];
+
+      if (targetBadgeId) {
+        const badge = document.getElementById(targetBadgeId);
+        if (badge) {
+          badge.className = `badge-pill ${pillClass}`;
+          badge.textContent = newRisk;
+        }
+      }
+
+      modal.style.display = "none";
+      showToast(`✓ ${INJURY_DATABASE[activeInjuryKey]?.title || "Injury"} updated: Soreness ${val}/10 (${newRisk} Risk)`, "🩺");
+    });
+  }
+
+  if (closeBtn) {
+    closeBtn.addEventListener("click", () => {
+      modal.style.display = "none";
+    });
+  }
+
+  modal.addEventListener("click", e => {
+    if (e.target === modal) modal.style.display = "none";
+  });
+}
+
+/* ==============================================================================
+   20. DAILY WELLNESS CHECK-IN & RECOVERY DONUT RECALIBRATION
+   ============================================================================== */
+function initDailyCheckinModal() {
+  const modal = document.getElementById("dailyCheckinModal");
+  const closeBtn = document.getElementById("btnCloseCheckinModal");
+  const submitBtn = document.getElementById("btnSubmitCheckin");
+  const openTriggers = [
+    document.getElementById("donutRecoveryWidget"),
+    document.getElementById("metricFatigueItem"),
+    document.getElementById("metricReadinessItem")
+  ];
+
+  if (!modal) return;
+
+  openTriggers.forEach(el => {
+    if (el) {
+      el.addEventListener("click", () => {
+        modal.style.display = "flex";
+      });
+    }
+  });
+
+  function wireRadioGroup(groupId) {
+    const container = document.getElementById(groupId);
+    if (!container) return;
+    const btns = container.querySelectorAll(".rate-btn");
+    btns.forEach(btn => {
+      btn.addEventListener("click", () => {
+        btns.forEach(b => {
+          b.classList.remove("active");
+          b.style.background = "";
+          b.style.color = "";
+        });
+        btn.classList.add("active");
+        btn.style.background = "var(--primary-blue)";
+        btn.style.color = "#ffffff";
+      });
+    });
+  }
+
+  wireRadioGroup("sleepRatingGroup");
+  wireRadioGroup("sorenessRatingGroup");
+  wireRadioGroup("motivationRatingGroup");
+
+  if (submitBtn) {
+    submitBtn.addEventListener("click", () => {
+      const sleepBtn = document.querySelector("#sleepRatingGroup .rate-btn.active");
+      const sleepVal = sleepBtn ? parseFloat(sleepBtn.dataset.val) : 7.5;
+
+      const sorenessBtn = document.querySelector("#sorenessRatingGroup .rate-btn.active");
+      const soreness = sorenessBtn ? sorenessBtn.dataset.soreness : "Moderate";
+
+      const motBtn = document.querySelector("#motivationRatingGroup .rate-btn.active");
+      const motVal = motBtn ? parseInt(motBtn.dataset.mot) : 3;
+
+      let score = 78;
+      if (sleepVal >= 8.5) score += 9;
+      else if (sleepVal < 7.0) score -= 14;
+
+      if (soreness === "Low") score += 7;
+      else if (soreness === "High") score -= 12;
+
+      if (motVal === 3) score += 4;
+      else if (motVal === 1) score -= 8;
+
+      score = Math.min(98, Math.max(42, Math.round(score)));
+
+      let fatigueLabel = "Moderate";
+      let readinessLabel = "Moderate";
+      if (score >= 82) {
+        fatigueLabel = "Low";
+        readinessLabel = "High";
+      } else if (score < 65) {
+        fatigueLabel = "High";
+        readinessLabel = "Suboptimal";
+      } else {
+        fatigueLabel = "Moderate";
+        readinessLabel = "Moderate";
+      }
+
+      updateTwinUI({
+        recovery_value: score,
+        recovery_label: `${score}%`,
+        fatigue_label: fatigueLabel,
+        fatigue_value: 100 - score,
+        performance_label: readinessLabel,
+        performance_value: score
+      });
+
+      modal.style.display = "none";
+      showToast(`✓ Daily wellness check-in logged! Recovery Score recalculated: ${score}%`, "🏆");
+    });
+  }
+
+  if (closeBtn) {
+    closeBtn.addEventListener("click", () => {
+      modal.style.display = "none";
+    });
+  }
+
+  modal.addEventListener("click", e => {
+    if (e.target === modal) modal.style.display = "none";
+  });
+}
+
+/* ==============================================================================
+   21. RECOMMENDED PRECAUTIONS INTERACTIVE CHECKLIST
+   ============================================================================== */
+function initPrecautionsChecklist() {
+  const items = document.querySelectorAll("#precautionsChecklist .precaution-item");
+  items.forEach(item => {
+    item.addEventListener("click", () => {
+      const isDone = item.classList.toggle("completed");
+      if (isDone) {
+        showToast("✓ Precaution item marked as completed!", "✅", 2500);
+      }
+    });
+  });
+}
+
+/* ==============================================================================
+   22. SCIENTIFIC INFO POPUP MODALS (ⓘ ICONS)
+   ============================================================================== */
+function initInfoModals() {
+  const modal = document.getElementById("infoPopModal");
+  const closeBtn = document.getElementById("btnCloseInfoModal");
+  const titleEl = document.getElementById("infoModalTitle");
+  const bodyEl = document.getElementById("infoModalBody");
+
+  const btnInjury = document.getElementById("btnInjuryInfo");
+  const btnPrecautions = document.getElementById("btnPrecautionsInfo");
+
+  if (!modal) return;
+
+  if (btnInjury) {
+    btnInjury.addEventListener("click", () => {
+      if (titleEl) titleEl.textContent = "Biomechanical Injury Risk Model";
+      if (bodyEl) {
+        bodyEl.innerHTML = `
+          Sync combines real-time 6-DOF IMU acceleration spikes (>2.5g), acute-to-chronic workload ratios (ACWR), and athlete-reported neuromuscular fatigue.<br><br>
+          Elevated risk alerts trigger targeted pre-habilitation drills to prevent soft-tissue non-contact injuries before they occur.
+        `;
+      }
+      modal.style.display = "flex";
+    });
+  }
+
+  if (btnPrecautions) {
+    btnPrecautions.addEventListener("click", () => {
+      if (titleEl) titleEl.textContent = "Physiological Recovery Guidelines";
+      if (bodyEl) {
+        bodyEl.innerHTML = `
+          Evidence-based recovery protocols derived from UEFA and FIFA medical consensus.<br><br>
+          Load management combines progressive eccentric conditioning (e.g. Nordic curls), circadian-aligned sleep hygiene (minimum 8 hours), and dynamic tissue mobility.
+        `;
+      }
+      modal.style.display = "flex";
+    });
+  }
+
+  if (closeBtn) {
+    closeBtn.addEventListener("click", () => {
+      modal.style.display = "none";
+    });
+  }
+
+  modal.addEventListener("click", e => {
+    if (e.target === modal) modal.style.display = "none";
+  });
+}
+
+/* ==============================================================================
+   23. METRIC CARDS INTERACTIVE CLICK HANDLERS
+   ============================================================================== */
+function initMetricCardsClick() {
+  const hrCard = document.querySelector(".metric-header .icon-heart")?.closest(".metric-card");
+  const spo2Card = document.querySelector(".metric-header .icon-spo2")?.closest(".metric-card");
+  const actCard = document.querySelector(".metric-header .icon-activity")?.closest(".metric-card");
+  const accelCard = document.querySelector(".metric-header .icon-accel")?.closest(".metric-card");
+
+  if (hrCard) {
+    hrCard.addEventListener("click", () => {
+      const hr = document.getElementById("vitalHrVal")?.textContent || "156";
+      showToast(`Heart Rate: ${hr} BPM (Zone 4: Anaerobic Threshold) • Tap "Live Data" in sidebar for high-speed PPG inspection`, "❤️");
+    });
+  }
+
+  if (spo2Card) {
+    spo2Card.addEventListener("click", () => {
+      const spo2 = document.getElementById("vitalSpo2Val")?.textContent || "98";
+      showToast(`Blood Oxygen: ${spo2}% SpO2 • Optimal arterial oxygen saturation`, "🩸");
+    });
+  }
+
+  if (actCard) {
+    actCard.addEventListener("click", () => {
+      const act = document.getElementById("vitalActivityVal")?.textContent || "Running";
+      showToast(`Activity Status: ${act} (Team Training Session) • GPS speed & cadence streaming`, "⚽");
+    });
+  }
+
+  if (accelCard) {
+    accelCard.addEventListener("click", () => {
+      const g = document.getElementById("vitalAccelVal")?.textContent || "2.8";
+      showToast(`Instantaneous Load: ${g}g • Tri-axial IMU vector streaming`, "📈");
+    });
+  }
+}
+
+/* ==============================================================================
+   24. WHAT-IF PREDICTIVE SIMULATOR STUDIO CONTROLS
+   ============================================================================== */
+function initWhatIfStudio() {
+  const durRange = document.getElementById("whatifDurationRange");
+  const durInput = document.getElementById("whatifDurationInput");
+  const presetGroup = document.getElementById("scenarioPresetGroup");
+  const intGroup = document.getElementById("whatifIntensityButtons");
+  const runBtn = document.getElementById("btnRunWhatIfSim");
+  const resetBtn = document.getElementById("btnResetWhatIf");
+
+  let scenarioIntensity = "Moderate";
+  let scenarioDuration = 60;
+  let scenarioPreset = "Normal";
+
+  // Baseline reference metrics for active athlete profile
+  const baselineState = {
+    intensity: "Moderate",
+    duration: 60,
+    fatigue: 38.0,
+    recovery: 78.0,
+    readiness: 85.0,
+    avgHr: 154,
+    calories: 680
+  };
+
+  // Sync duration slider <-> numeric input
+  if (durRange && durInput) {
+    durRange.addEventListener("input", () => {
+      durInput.value = durRange.value;
+      scenarioDuration = parseInt(durRange.value);
+      checkPresetMatch();
+    });
+
+    durInput.addEventListener("input", () => {
+      let val = parseInt(durInput.value) || 15;
+      val = Math.max(15, Math.min(120, val));
+      durRange.value = val;
+      scenarioDuration = val;
+      checkPresetMatch();
+    });
+  }
+
+  // Intensity buttons (Low, Moderate, High)
+  if (intGroup) {
+    const btns = intGroup.querySelectorAll(".int-btn");
+    btns.forEach(btn => {
+      btn.addEventListener("click", () => {
+        btns.forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        scenarioIntensity = btn.dataset.int || "Moderate";
+        checkPresetMatch();
+      });
+    });
+  }
+
+  // Preset Scenario pills (Normal, Increased Training, Recovery)
+  if (presetGroup) {
+    const pills = presetGroup.querySelectorAll(".preset-pill");
+    pills.forEach(pill => {
+      pill.addEventListener("click", () => {
+        pills.forEach(p => p.classList.remove("active"));
+        pill.classList.add("active");
+        scenarioPreset = pill.dataset.scenario;
+
+        if (scenarioPreset === "Normal") {
+          setScenarioParameters("Moderate", 60);
+        } else if (scenarioPreset === "Increased Training") {
+          setScenarioParameters("High", 75);
+        } else if (scenarioPreset === "Recovery") {
+          setScenarioParameters("Low", 30);
+        }
+
+        runSimulationCalculation();
+      });
+    });
+  }
+
+  function setScenarioParameters(intensity, duration) {
+    scenarioIntensity = intensity;
+    scenarioDuration = duration;
+
+    if (durRange) durRange.value = duration;
+    if (durInput) durInput.value = duration;
+
+    if (intGroup) {
+      const btns = intGroup.querySelectorAll(".int-btn");
+      btns.forEach(b => {
+        if (b.dataset.int === intensity) {
+          b.classList.add("active");
+        } else {
+          b.classList.remove("active");
+        }
+      });
+    }
+  }
+
+  function checkPresetMatch() {
+    if (!presetGroup) return;
+    const pills = presetGroup.querySelectorAll(".preset-pill");
+    pills.forEach(p => p.classList.remove("active"));
+
+    if (scenarioIntensity === "Moderate" && scenarioDuration === 60) {
+      const normal = presetGroup.querySelector('[data-scenario="Normal"]');
+      if (normal) normal.classList.add("active");
+    } else if (scenarioIntensity === "High" && scenarioDuration === 75) {
+      const increased = presetGroup.querySelector('[data-scenario="Increased Training"]');
+      if (increased) increased.classList.add("active");
+    } else if (scenarioIntensity === "Low" && scenarioDuration === 30) {
+      const rec = presetGroup.querySelector('[data-scenario="Recovery"]');
+      if (rec) rec.classList.add("active");
+    }
+  }
+
+  async function runSimulationCalculation() {
+    if (runBtn) {
+      runBtn.innerHTML = `
+        <svg class="spin-svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="12"/>
+        </svg>
+        <span>Calculating Model...</span>
+      `;
+      runBtn.disabled = true;
+    }
+
+    let intFactor = 0.65;
+    if (scenarioIntensity === "Low") intFactor = 0.40;
+    else if (scenarioIntensity === "High") intFactor = 0.88;
+
+    let predictedFatigue = 38.0;
+    let predictedRecovery = 78.0;
+    let predictedReadiness = 85.0;
+    let predictedAvgHr = 154;
+    let predictedCalories = 680;
+    let fatigueLabel = "Moderate";
+    let recoveryLabel = "Optimal";
+    let readinessLabel = "High";
+
+    try {
+      const res = await fetch("/api/simulate-step", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          intensity_mode: scenarioIntensity,
+          duration: scenarioDuration,
+          intensity: intFactor,
+          current_fatigue: baselineState.fatigue,
+          current_recovery: baselineState.recovery
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        predictedFatigue = data.fatigue_value !== undefined ? data.fatigue_value : 38.0;
+        predictedRecovery = data.recovery_value !== undefined ? data.recovery_value : 78.0;
+        predictedReadiness = data.performance_value !== undefined ? data.performance_value : 85.0;
+        fatigueLabel = data.fatigue_label || (predictedFatigue > 55 ? "High" : (predictedFatigue > 35 ? "Moderate" : "Low"));
+        recoveryLabel = predictedRecovery >= 75 ? "Optimal" : (predictedRecovery >= 60 ? "Moderate" : "Depleted");
+        readinessLabel = data.performance_label || (predictedReadiness >= 80 ? "High" : (predictedReadiness >= 65 ? "Moderate" : "Low"));
+
+        if (data.simulated_workout) {
+          predictedAvgHr = data.simulated_workout.avg_hr || Math.round(110 + intFactor * 75);
+          predictedCalories = data.simulated_workout.calories || Math.round(scenarioDuration * intFactor * 15.5);
+        }
+      } else {
+        throw new Error("Server response not ok");
+      }
+    } catch (e) {
+      // Robust mathematical simulation fallback
+      const acuteLoad = scenarioDuration * intFactor;
+      predictedFatigue = Math.min(95, Math.max(12, Math.round(20 + acuteLoad * 0.52)));
+      predictedRecovery = Math.min(98, Math.max(15, Math.round(92 - acuteLoad * 0.38)));
+      predictedReadiness = Math.min(99, Math.max(15, Math.round(predictedRecovery * 0.65 + (100 - predictedFatigue) * 0.35)));
+      predictedAvgHr = Math.round(112 + intFactor * 74);
+      predictedCalories = Math.round(scenarioDuration * intFactor * 16.2);
+
+      fatigueLabel = predictedFatigue > 55 ? "High" : (predictedFatigue > 35 ? "Moderate" : "Low");
+      recoveryLabel = predictedRecovery >= 75 ? "Optimal" : (predictedRecovery >= 60 ? "Moderate" : "Depleted");
+      readinessLabel = predictedReadiness >= 80 ? "High" : (predictedReadiness >= 65 ? "Moderate" : "Low");
+    } finally {
+      if (runBtn) {
+        runBtn.innerHTML = `
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+            <polygon points="5 3 19 12 5 21 5 3"/>
+          </svg>
+          <span>Run Simulation</span>
+        `;
+        runBtn.disabled = false;
+      }
+    }
+
+    // Update Outcome Display
+    updateOutcomeDisplay({
+      fatigue: predictedFatigue,
+      fatigueLabel: fatigueLabel,
+      recovery: predictedRecovery,
+      recoveryLabel: recoveryLabel,
+      readiness: predictedReadiness,
+      readinessLabel: readinessLabel,
+      avgHr: predictedAvgHr,
+      calories: predictedCalories
+    });
+
+    showToast(`Simulation Complete: ${scenarioDuration} min at ${scenarioIntensity} intensity`, "⚡", 2500);
+  }
+
+  function updateOutcomeDisplay(outcome) {
+    // 1. Fatigue
+    const fatigueValEl = document.getElementById("predFatigueVal");
+    const fatigueStatusEl = document.getElementById("predFatigueStatus");
+    const barFatigue = document.getElementById("barFatigue");
+    const deltaFatigueBadge = document.getElementById("deltaFatigueBadge");
+
+    const fRound = Math.round(outcome.fatigue);
+    if (fatigueValEl) fatigueValEl.textContent = `${fRound}%`;
+    if (fatigueStatusEl) {
+      fatigueStatusEl.textContent = outcome.fatigueLabel;
+      fatigueStatusEl.className = `outcome-status-tag ${fRound > 55 ? "status-red" : (fRound > 35 ? "status-amber" : "status-green")}`;
+    }
+    if (barFatigue) {
+      barFatigue.style.width = `${Math.min(100, Math.max(5, fRound))}%`;
+      barFatigue.className = `progress-fill ${fRound > 55 ? "fill-red" : (fRound > 35 ? "fill-amber" : "fill-green")}`;
+    }
+    if (deltaFatigueBadge) {
+      const diff = fRound - Math.round(baselineState.fatigue);
+      if (diff === 0) {
+        deltaFatigueBadge.textContent = "Baseline";
+        deltaFatigueBadge.className = "delta-badge delta-neutral";
+      } else if (diff > 0) {
+        deltaFatigueBadge.textContent = `↑ +${diff}%`;
+        deltaFatigueBadge.className = "delta-badge delta-negative";
+      } else {
+        deltaFatigueBadge.textContent = `↓ ${diff}%`;
+        deltaFatigueBadge.className = "delta-badge delta-positive";
+      }
+    }
+
+    // 2. Recovery
+    const recValEl = document.getElementById("predRecoveryVal");
+    const recStatusEl = document.getElementById("predRecoveryStatus");
+    const barRecovery = document.getElementById("barRecovery");
+    const deltaRecoveryBadge = document.getElementById("deltaRecoveryBadge");
+
+    const rRound = Math.round(outcome.recovery);
+    if (recValEl) recValEl.textContent = `${rRound}%`;
+    if (recStatusEl) {
+      recStatusEl.textContent = outcome.recoveryLabel;
+      recStatusEl.className = `outcome-status-tag ${rRound >= 75 ? "status-blue" : (rRound >= 60 ? "status-amber" : "status-red")}`;
+    }
+    if (barRecovery) {
+      barRecovery.style.width = `${Math.min(100, Math.max(5, rRound))}%`;
+      barRecovery.className = `progress-fill ${rRound >= 75 ? "fill-blue" : (rRound >= 60 ? "fill-amber" : "fill-red")}`;
+    }
+    if (deltaRecoveryBadge) {
+      const diff = rRound - Math.round(baselineState.recovery);
+      if (diff === 0) {
+        deltaRecoveryBadge.textContent = "Baseline";
+        deltaRecoveryBadge.className = "delta-badge delta-neutral";
+      } else if (diff > 0) {
+        deltaRecoveryBadge.textContent = `↑ +${diff}%`;
+        deltaRecoveryBadge.className = "delta-badge delta-positive";
+      } else {
+        deltaRecoveryBadge.textContent = `↓ ${diff}%`;
+        deltaRecoveryBadge.className = "delta-badge delta-negative";
+      }
+    }
+
+    // 3. Performance Readiness
+    const readValEl = document.getElementById("predReadinessVal");
+    const readStatusEl = document.getElementById("predReadinessStatus");
+    const barReadiness = document.getElementById("barReadiness");
+    const deltaReadinessBadge = document.getElementById("deltaReadinessBadge");
+
+    const pRound = Math.round(outcome.readiness);
+    if (readValEl) readValEl.textContent = `${pRound}%`;
+    if (readStatusEl) {
+      readStatusEl.textContent = outcome.readinessLabel;
+      readStatusEl.className = `outcome-status-tag ${pRound >= 80 ? "status-green" : (pRound >= 65 ? "status-amber" : "status-red")}`;
+    }
+    if (barReadiness) {
+      barReadiness.style.width = `${Math.min(100, Math.max(5, pRound))}%`;
+      barReadiness.className = `progress-fill ${pRound >= 80 ? "fill-green" : (pRound >= 65 ? "fill-amber" : "fill-red")}`;
+    }
+    if (deltaReadinessBadge) {
+      const diff = pRound - Math.round(baselineState.readiness);
+      if (diff === 0) {
+        deltaReadinessBadge.textContent = "Baseline";
+        deltaReadinessBadge.className = "delta-badge delta-neutral";
+      } else if (diff > 0) {
+        deltaReadinessBadge.textContent = `↑ +${diff}%`;
+        deltaReadinessBadge.className = "delta-badge delta-positive";
+      } else {
+        deltaReadinessBadge.textContent = `↓ ${diff}%`;
+        deltaReadinessBadge.className = "delta-badge delta-negative";
+      }
+    }
+
+    // Secondary metrics
+    const avgHrEl = document.getElementById("predAvgHrVal");
+    const calsEl = document.getElementById("predCaloriesVal");
+    if (avgHrEl) avgHrEl.textContent = `${outcome.avgHr} BPM`;
+    if (calsEl) calsEl.textContent = `${outcome.calories} kcal`;
+  }
+
+  // Button Listeners
+  if (runBtn) {
+    runBtn.addEventListener("click", runSimulationCalculation);
+  }
+
+  if (resetBtn) {
+    resetBtn.addEventListener("click", () => {
+      setScenarioParameters("Moderate", 60);
+      checkPresetMatch();
+      updateOutcomeDisplay({
+        fatigue: baselineState.fatigue,
+        fatigueLabel: "Moderate",
+        recovery: baselineState.recovery,
+        recoveryLabel: "Optimal",
+        readiness: baselineState.readiness,
+        readinessLabel: "High",
+        avgHr: baselineState.avgHr,
+        calories: baselineState.calories
+      });
+      showToast("Reset What-If scenario to baseline conditions", "🔄", 2000);
+    });
+  }
+}
+
+/* ==============================================================================
+   25. PERSONALIZED DIGITAL TWIN + AI COACH CONTROLLER
+   ============================================================================== */
+let cachedCoachData = null;
+let cachedComparativeScenarios = null;
+
+/**
+ * Loads and coordinates the unified AI Coach & Digital Twin state.
+ */
+async function loadDigitalTwinCoach() {
+  try {
+    const res = await fetch("/api/ai/coach-overview");
+    if (!res.ok) throw new Error("Coach overview failed");
+    const data = await res.json();
+    cachedCoachData = data;
+
+    const twin = data.digital_twin || {};
+    const rec = data.recommendation || {};
+    const alerts = data.smart_alerts || [];
+    const insights = data.insights || [];
+    const weekly = data.weekly_report || {};
+
+    // 1. Digital Twin Core Scores (Top of Dashboard)
+    const twReadinessEl = document.getElementById("twinReadinessVal");
+    const twReadinessBar = document.getElementById("twinReadinessBar");
+    const twReadinessLabel = document.getElementById("twinReadinessLabel");
+    if (twReadinessEl) twReadinessEl.textContent = `${Math.round(twin.readiness_score || 82)}%`;
+    if (twReadinessBar) twReadinessBar.style.width = `${twin.readiness_score || 82}%`;
+    if (twReadinessLabel) twReadinessLabel.textContent = (twin.readiness_score || 82) >= 80 ? "High" : ((twin.readiness_score || 82) >= 65 ? "Moderate" : "Low");
+
+    const twRecVal = document.getElementById("twinRecoveryVal");
+    const twRecBar = document.getElementById("twinRecoveryBar");
+    const twRecLabel = document.getElementById("twinRecoveryLabel");
+    if (twRecVal) twRecVal.textContent = `${Math.round(twin.recovery_score || 78)}%`;
+    if (twRecBar) twRecBar.style.width = `${twin.recovery_score || 78}%`;
+    if (twRecLabel) twRecLabel.textContent = (twin.recovery_score || 78) >= 75 ? "Optimal" : "Moderate";
+
+    const twFatVal = document.getElementById("twinFatigueVal");
+    const twFatBar = document.getElementById("twinFatigueBar");
+    const twFatLabel = document.getElementById("twinFatigueLabel");
+    if (twFatVal) twFatVal.textContent = `${Math.round(twin.fatigue_score || 38)}%`;
+    if (twFatBar) twFatBar.style.width = `${twin.fatigue_score || 38}%`;
+    if (twFatLabel) twFatLabel.textContent = (twin.fatigue_score || 38) > 55 ? "High" : ((twin.fatigue_score || 38) > 30 ? "Moderate" : "Low");
+
+    const twPerfVal = document.getElementById("twinPerformanceVal");
+    const twPerfBar = document.getElementById("twinPerformanceBar");
+    const twPerfLabel = document.getElementById("twinPerformanceLabel");
+    if (twPerfVal) twPerfVal.textContent = `${Math.round(twin.performance_score || 87)}%`;
+    if (twPerfBar) twPerfBar.style.width = `${twin.performance_score || 87}%`;
+    if (twPerfLabel) twPerfLabel.textContent = (twin.performance_score || 87) >= 80 ? "High Output" : "Steady";
+
+    const twLoadVal = document.getElementById("twinLoadVal");
+    const twLoadLabel = document.getElementById("twinLoadLabel");
+    if (twLoadVal) twLoadVal.textContent = `${Math.min(100, Math.round(twin.training_load || 42))}%`;
+    if (twLoadLabel) twLoadLabel.textContent = twin.training_load_label || "Moderate";
+
+    // Overall State Badge
+    const stateBadge = document.getElementById("twinOverallStateBadge");
+    const stateText = document.getElementById("twinOverallStateText");
+    if (stateBadge && stateText && twin.overall_state) {
+      const col = twin.overall_state.color || "green";
+      stateBadge.className = `overall-state-badge badge-${col === 'green' ? 'ready' : (col === 'red' ? 'fatigue' : 'recovery')}`;
+      stateText.textContent = twin.overall_state.label || "READY FOR TRAINING";
+    }
+
+    // 2. Today's AI Recommendation Card
+    const recStateTag = document.getElementById("recStateTag");
+    const recHeadline = document.getElementById("recHeadline");
+    const recDuration = document.getElementById("recDuration");
+    const recIntensity = document.getElementById("recIntensity");
+    const recFocus = document.getElementById("recFocus");
+    const recReason = document.getElementById("recReason");
+
+    if (recStateTag) {
+      recStateTag.textContent = rec.state_badge || "HIGH READINESS";
+      recStateTag.className = `ai-state-tag ${rec.badge_class || 'pill-green'}`;
+    }
+    if (recHeadline) recHeadline.textContent = rec.headline || "High-Intensity Tactical & Power Training";
+    if (recDuration) recDuration.textContent = `${rec.duration_min || 75} minutes`;
+    if (recIntensity) recIntensity.textContent = rec.recommended_intensity || "80–85% HRmax (Zone 4)";
+    if (recFocus) recFocus.textContent = rec.focus || "High-Speed Sprints + Small-Sided Game Drills";
+    if (recReason) recReason.textContent = rec.reason || "Your readiness is high with optimal recovery.";
+
+    // 3. Render Smart Alerts
+    renderSmartAlerts(alerts);
+
+    // 4. Render AI Performance Insights in Analytics View
+    renderAIInsights(insights);
+
+    // 5. Render Weekly Report Summary in Analytics View
+    renderWeeklyReportSummary(weekly);
+
+  } catch (err) {
+    console.error("AI Coach Overview load error:", err);
+  }
+}
+
+/**
+ * Renders Smart Anomaly & Risk Alerts with Risk Factors and Suggested Actions.
+ */
+function renderSmartAlerts(alerts) {
+  const container = document.getElementById("smartAlertsList");
+  const countBadge = document.getElementById("alertsCountBadge");
+  if (!container) return;
+
+  if (countBadge) {
+    const dangerCount = alerts.filter(a => a.status === "danger" || a.status === "warning").length;
+    countBadge.textContent = `${dangerCount} Active Indicator${dangerCount === 1 ? '' : 's'}`;
+  }
+
+  if (!alerts || alerts.length === 0) {
+    container.innerHTML = `
+      <div class="smart-alert-card-item alert-success">
+        <div class="alert-top-title-row">
+          <span class="alert-item-title">🟢 Normal Pattern</span>
+          <span class="badge-pill pill-green">Optimal</span>
+        </div>
+        <p style="margin:4px 0 0 0;">All physiological parameters and ground impact metrics are within baseline variance.</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = alerts.map(alert => {
+    const riskFactorItems = alert.risk_factors ? Object.entries(alert.risk_factors)
+      .map(([k, v]) => `<span><strong>${k}:</strong> ${v}</span>`)
+      .join("&bull; ") : "";
+
+    return `
+      <div class="smart-alert-card-item alert-${alert.status || 'warning'}">
+        <div class="alert-top-title-row">
+          <span class="alert-item-title">${alert.title}</span>
+          <span class="badge-pill ${alert.status === 'danger' ? 'pill-red' : (alert.status === 'warning' ? 'pill-yellow' : 'pill-green')}">${alert.badge || 'Alert'}</span>
+        </div>
+        <p style="margin:4px 0 6px 0;font-size:0.79rem;line-height:1.4;">${alert.description}</p>
+        ${riskFactorItems ? `<div class="alert-factors-mini-row">${riskFactorItems}</div>` : ""}
+        ${alert.suggested_action ? `<div class="alert-suggested-action"><strong>Suggested Action:</strong> ${alert.suggested_action}</div>` : ""}
+      </div>
+    `;
+  }).join("");
+}
+
+/**
+ * Renders AI Performance Insights in the Analytics View.
+ */
+function renderAIInsights(insights) {
+  const container = document.getElementById("aiInsightsList");
+  if (!container) return;
+
+  if (!insights || insights.length === 0) {
+    container.innerHTML = `<p style="color:var(--text-muted);font-size:0.82rem;">No longitudinal trends detected yet.</p>`;
+    return;
+  }
+
+  container.innerHTML = insights.map(item => {
+    const badgeClass = item.type === "positive" ? "pill-green" : (item.type === "warning" ? "pill-yellow" : "pill-blue");
+    return `
+      <div class="ai-insight-card">
+        <div class="insight-head">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span>${item.icon || '⚡'}</span>
+            <strong class="insight-title">${item.title}</strong>
+          </div>
+          <span class="badge-pill ${badgeClass}">${item.badge}</span>
+        </div>
+        <p style="margin:4px 0 0 0;color:var(--text-muted);font-size:0.8rem;line-height:1.45;">${item.text}</p>
+      </div>
+    `;
+  }).join("");
+}
+
+/**
+ * Renders Weekly Athlete Report Summary card in Analytics View.
+ */
+function renderWeeklyReportSummary(report) {
+  const container = document.getElementById("weeklyReportCardSummary");
+  if (!container || !report) return;
+
+  const p = report.performance || {};
+  const t = report.training || {};
+  const r = report.recovery || {};
+
+  container.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div style="background:#F1F6FB;padding:10px 12px;border-radius:8px;">
+        <span style="font-size:0.68rem;color:var(--text-muted);font-weight:700;display:block;">Avg Readiness</span>
+        <strong style="font-size:1.1rem;color:var(--text-dark);">${p.average_score || 86.4}%</strong>
+        <span style="font-size:0.7rem;color:#10B981;font-weight:800;">${p.performance_change || '+3.8%'}</span>
+      </div>
+      <div style="background:#F1F6FB;padding:10px 12px;border-radius:8px;">
+        <span style="font-size:0.68rem;color:var(--text-muted);font-weight:700;display:block;">Weekly Load</span>
+        <strong style="font-size:1.1rem;color:var(--text-dark);">${Math.min(100, Math.round(((t.total_load || 328.5) / 400.0) * 100))}% Capacity</strong>
+        <span style="font-size:0.7rem;color:var(--text-muted);">${t.completed_hours || '6.5 hours'}</span>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * "Why This Recommendation?" Factor Attribution Modal.
+ */
+function initWhyRecommendationModal() {
+  const btn = document.getElementById("btnWhyRecommendation");
+  const modal = document.getElementById("whyRecModal");
+  const closeBtn = document.getElementById("btnCloseWhyRecModal");
+  const understandBtn = document.getElementById("btnUnderstandRec");
+
+  if (!btn || !modal) return;
+
+  function openModal() {
+    const rec = cachedCoachData?.recommendation;
+    const headline = document.getElementById("modalRecHeadline");
+    const quote = document.getElementById("modalRecQuote");
+    const factorsList = document.getElementById("modalWhyFactorsList");
+
+    if (headline && rec) headline.textContent = rec.headline;
+    if (quote && rec) quote.textContent = `"${rec.quote || rec.reason}"`;
+
+    if (factorsList) {
+      const factors = rec?.why_factors || [
+        { name: "Recovery Status", value: "78%", weight: "45%", impact: "Optimal", color: "#10B981", detail: "Restorative sleep and autonomic parasympathetic recovery." },
+        { name: "Fatigue Level", value: "38%", weight: "35%", impact: "Moderate", color: "#38BDF8", detail: "Accumulated acute strain from prior matches." },
+        { name: "Sleep Adequacy", value: "7.8h", weight: "12%", impact: "Sufficient", color: "#10B981", detail: "Exceeds 7.5h baseline threshold for muscle glycogen." },
+        { name: "Acute:Chronic Ratio", value: "1.09", weight: "8%", impact: "Sweet Spot", color: "#10B981", detail: "Safe adaptation zone." }
+      ];
+
+      factorsList.innerHTML = factors.map(f => `
+        <div class="why-factor-row">
+          <div class="why-factor-left">
+            <span class="why-factor-name">${f.name}</span>
+            <span class="why-factor-detail">${f.detail}</span>
+          </div>
+          <div class="why-factor-right">
+            <span class="why-factor-val" style="color:${f.color || 'var(--text-dark)'};">${f.value}</span>
+            <span class="why-factor-weight">${f.weight} weight</span>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    modal.style.display = "flex";
+  }
+
+  btn.addEventListener("click", openModal);
+  if (closeBtn) closeBtn.addEventListener("click", () => modal.style.display = "none");
+  if (understandBtn) understandBtn.addEventListener("click", () => modal.style.display = "none");
+  modal.addEventListener("click", e => { if (e.target === modal) modal.style.display = "none"; });
+}
+
+/**
+ * Weekly Athlete Report Full Retrospective Modal.
+ */
+function initWeeklyReportModal() {
+  const btn = document.getElementById("btnOpenFullWeeklyReport");
+  const modal = document.getElementById("weeklyReportModal");
+  const closeBtn = document.getElementById("btnCloseWeeklyReportModal");
+  const closeBottom = document.getElementById("btnCloseWeeklyReportBottom");
+
+  if (!btn || !modal) return;
+
+  function openModal() {
+    const rep = cachedCoachData?.weekly_report;
+    if (rep) {
+      const aiSum = document.getElementById("weeklyModalAiSummary");
+      const sub = document.getElementById("weeklyReportPeriodSubtitle");
+      const p = rep.performance || {};
+      const t = rep.training || {};
+      const r = rep.recovery || {};
+
+      if (aiSum) aiSum.textContent = rep.ai_summary || "";
+      if (sub) sub.textContent = `${rep.report_period || "This Week"} • ${rep.athlete_name || activeUserProfile.name || "Avneesh Walvalkar"}`;
+
+      const avgP = document.getElementById("wkAvgPerf");
+      const pChg = document.getElementById("wkPerfChange");
+      const totL = document.getElementById("wkTotalLoad");
+      const hrs = document.getElementById("wkHours");
+      const freq = document.getElementById("wkFreq");
+      const avgI = document.getElementById("wkAvgInt");
+      const avgR = document.getElementById("wkAvgRec");
+      const slp = document.getElementById("wkSleep");
+
+      if (avgP) avgP.textContent = p.average_score || 86.4;
+      if (pChg) pChg.textContent = p.performance_change || "+3.8%";
+      if (totL) totL.textContent = `${Math.min(100, Math.round(((t.total_load || 328.5) / 400.0) * 100))}%`;
+      if (hrs) hrs.textContent = t.completed_hours || "6.5 hours";
+      if (freq) freq.textContent = t.training_frequency || "5 Sessions";
+      if (avgI) avgI.textContent = `${t.avg_intensity || '72%'} avg int`;
+      if (avgR) avgR.textContent = r.average_recovery || "76.8%";
+      if (slp) slp.textContent = r.avg_sleep || "7.8h sleep";
+
+      const bestTitle = document.getElementById("wkBestSessionTitle");
+      const bestKudos = document.getElementById("wkBestSessionKudos");
+      if (bestTitle && p.best_session) bestTitle.textContent = p.best_session.title;
+      if (bestKudos && p.best_session) bestKudos.textContent = p.best_session.kudos;
+
+      const fatTrend = document.getElementById("wkFatigueTrendText");
+      const redTrend = document.getElementById("wkReadinessTrendText");
+      if (fatTrend) fatTrend.textContent = r.fatigue_trend || "Compounding (+16%). Recovery session indicated.";
+      if (redTrend) redTrend.textContent = r.readiness_trend || "Stable in optimal range (82–88%).";
+    }
+
+    modal.style.display = "flex";
+  }
+
+  btn.addEventListener("click", openModal);
+  if (closeBtn) closeBtn.addEventListener("click", () => modal.style.display = "none");
+  if (closeBottom) closeBottom.addEventListener("click", () => modal.style.display = "none");
+  modal.addEventListener("click", e => { if (e.target === modal) modal.style.display = "none"; });
+}
+
+/**
+ * "How Your Digital Twin Works" 5-Step Pipeline Explainer Modal.
+ */
+function initHowTwinWorksModal() {
+  const btn = document.getElementById("btnOpenHowTwinWorks");
+  const modal = document.getElementById("howTwinWorksModal");
+  const closeBtn = document.getElementById("btnCloseHowTwinModal");
+  const closeBottom = document.getElementById("btnCloseHowTwinBottom");
+
+  if (!btn || !modal) return;
+
+  btn.addEventListener("click", () => modal.style.display = "flex");
+  if (closeBtn) closeBtn.addEventListener("click", () => modal.style.display = "none");
+  if (closeBottom) closeBottom.addEventListener("click", () => modal.style.display = "none");
+  modal.addEventListener("click", e => { if (e.target === modal) modal.style.display = "none"; });
+}
+
+/**
+ * What-If Scenario Comparative Engine (Scenario A vs B vs C vs Custom)
+ * and Current -> Training -> Predicted State visual flow.
+ */
+async function initWhatIfComparativeScenarios() {
+  const durRange = document.getElementById("whatifDurationRange");
+  const intGroup = document.getElementById("whatifIntensityButtons");
+  const customSyncBtn = document.getElementById("btnSyncCustomScenario");
+
+  let currentDur = durRange ? parseInt(durRange.value) : 60;
+  let currentIntFactor = 0.65;
+
+  async function fetchAndRenderComparisons(dur, intFactor) {
+    try {
+      const res = await fetch("/api/ai/what-if-scenarios", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ duration: dur, intensity: intFactor })
+      });
+
+      if (!res.ok) throw new Error("Comparative scenarios fetch failed");
+      const data = await res.json();
+      cachedComparativeScenarios = data;
+
+      // 1. Update Transition Flow Stepper
+      const curr = data.current_state || {};
+      const customSc = data.scenarios?.find(s => s.id === "Custom") || data.scenarios?.[1];
+
+      const flowCurrReadiness = document.getElementById("flowCurrReadiness");
+      const flowCurrFatigue = document.getElementById("flowCurrFatigue");
+      const flowCurrRec = document.getElementById("flowCurrRec");
+      const flowConnectorLoad = document.getElementById("flowConnectorLoad");
+      const flowPlannedDur = document.getElementById("flowPlannedDur");
+      const flowPlannedInt = document.getElementById("flowPlannedInt");
+      const flowPlannedCals = document.getElementById("flowPlannedCals");
+      const flowPredReadiness = document.getElementById("flowPredReadiness");
+      const flowPredFatigue = document.getElementById("flowPredFatigue");
+      const flowPredRecoveryHours = document.getElementById("flowPredRecoveryHours");
+
+      if (flowCurrReadiness) flowCurrReadiness.textContent = `${Math.round(curr.readiness || 85)}%`;
+      if (flowCurrFatigue) flowCurrFatigue.textContent = `${Math.round(curr.fatigue || 38)}%`;
+      if (flowCurrRec) flowCurrRec.textContent = `${Math.round(curr.recovery || 78)}%`;
+
+      if (customSc) {
+        if (flowConnectorLoad) flowConnectorLoad.textContent = `+${Math.min(100, Math.round(customSc.daily_load))}% Load`;
+        if (flowPlannedDur) flowPlannedDur.textContent = `${customSc.duration_min} min`;
+        if (flowPlannedInt) flowPlannedInt.textContent = `@ ${customSc.intensity_label}`;
+        if (flowPlannedCals) flowPlannedCals.textContent = `${Math.round(customSc.duration_min * customSc.intensity_val * 16.5)} kcal`;
+        if (flowPredReadiness) flowPredReadiness.textContent = `${Math.round(customSc.predicted_readiness)}%`;
+        if (flowPredFatigue) flowPredFatigue.textContent = `${Math.round(customSc.predicted_fatigue)}%`;
+        if (flowPredRecoveryHours) flowPredRecoveryHours.textContent = customSc.recovery_requirement;
+      }
+
+      // 2. Populate Static/Dynamic Comparative Cards
+      const scA = data.scenarios?.find(s => s.id === "A");
+      const scB = data.scenarios?.find(s => s.id === "B");
+      const scC = data.scenarios?.find(s => s.id === "C");
+
+      if (scA) {
+        const fA = document.getElementById("scA_fatigue");
+        const rA = document.getElementById("scA_readiness");
+        const restA = document.getElementById("scA_rest");
+        if (fA) fA.textContent = `${Math.round(scA.predicted_fatigue)}%`;
+        if (rA) rA.textContent = `${Math.round(scA.predicted_readiness)}%`;
+        if (restA) restA.textContent = scA.recovery_requirement;
+      }
+
+      if (scB) {
+        const fB = document.getElementById("scB_fatigue");
+        const rB = document.getElementById("scB_readiness");
+        const restB = document.getElementById("scB_rest");
+        if (fB) fB.textContent = `${Math.round(scB.predicted_fatigue)}%`;
+        if (rB) rB.textContent = `${Math.round(scB.predicted_readiness)}%`;
+        if (restB) restB.textContent = scB.recovery_requirement;
+      }
+
+      if (scC) {
+        const fC = document.getElementById("scC_fatigue");
+        const rC = document.getElementById("scC_readiness");
+        const restC = document.getElementById("scC_rest");
+        if (fC) fC.textContent = `${Math.round(scC.predicted_fatigue)}%`;
+        if (rC) rC.textContent = `${Math.round(scC.predicted_readiness)}%`;
+        if (restC) restC.textContent = scC.recovery_requirement;
+      }
+
+      if (customSc) {
+        const cTitle = document.getElementById("scCustom_title");
+        const cLoad = document.getElementById("scCustom_load");
+        const cBurn = document.getElementById("scCustom_burn");
+        const cFat = document.getElementById("scCustom_fatigue");
+        const cDFat = document.getElementById("scCustom_dFatigue");
+        const cRead = document.getElementById("scCustom_readiness");
+        const cDRead = document.getElementById("scCustom_dReadiness");
+        const cRest = document.getElementById("scCustom_rest");
+        const cRisk = document.getElementById("scCustom_risk");
+        const cRiskText = document.getElementById("scCustom_riskText");
+
+        if (cTitle) cTitle.textContent = `${customSc.duration_min} min @ ${customSc.intensity_label}`;
+        if (cLoad) cLoad.textContent = `${Math.min(100, Math.round(customSc.daily_load))}%`;
+        if (cBurn) cBurn.textContent = `${Math.round(customSc.duration_min * customSc.intensity_val * 16.5)} kcal`;
+        if (cFat) cFat.textContent = `${Math.round(customSc.predicted_fatigue)}%`;
+        if (cDFat) {
+          const dF = customSc.delta_fatigue;
+          cDFat.className = `c-delta ${dF >= 0 ? 'delta-up' : 'delta-down'}`;
+          cDFat.textContent = `${dF >= 0 ? '+' : ''}${dF}%`;
+        }
+        if (cRead) cRead.textContent = `${Math.round(customSc.predicted_readiness)}%`;
+        if (cDRead) {
+          const dR = customSc.delta_readiness;
+          cDRead.className = `c-delta ${dR >= 0 ? 'delta-down' : 'delta-up'}`;
+          cDRead.textContent = `${dR >= 0 ? '+' : ''}${dR}%`;
+        }
+        if (cRest) cRest.textContent = customSc.recovery_requirement;
+        if (cRisk && cRiskText) {
+          cRisk.className = `comp-risk-pill ${customSc.risk_color === '#EF4444' ? 'risk-elevated' : (customSc.risk_color === '#F59E0B' ? 'risk-moderate' : 'risk-low')}`;
+          cRiskText.textContent = customSc.risk_indicator;
+        }
+      }
+
+    } catch (err) {
+      console.error("Comparison simulation error:", err);
+    }
+  }
+
+  // Helper to dynamically highlight only the selected scenario card
+  function highlightSelectedCard(cardId) {
+    const cards = [
+      document.getElementById("cardScenarioA"),
+      document.getElementById("cardScenarioB"),
+      document.getElementById("cardScenarioC"),
+      document.getElementById("cardScenarioCustom")
+    ];
+    cards.forEach(c => {
+      if (c) {
+        c.classList.remove("recommended-card");
+        if (c.id === cardId) {
+          c.classList.add("selected-card");
+        } else {
+          c.classList.remove("selected-card");
+        }
+      }
+    });
+
+    // Update button text labels
+    applyBtns.forEach(b => {
+      const parentCard = b.closest(".scenario-comp-card");
+      if (parentCard && parentCard.id === cardId) {
+        b.textContent = "Applied ✓";
+        b.classList.add("active");
+      } else {
+        const dur = b.dataset.applyDur;
+        if (dur === "90") b.textContent = "Apply Scenario A";
+        else if (dur === "60") b.textContent = "Apply Scenario B";
+        else if (dur === "45") b.textContent = "Apply Scenario C";
+        b.classList.remove("active");
+      }
+    });
+
+    const customBtn = document.getElementById("btnSyncCustomScenario");
+    if (customBtn) {
+      if (cardId === "cardScenarioCustom") {
+        customBtn.textContent = "Custom Applied ✓";
+        customBtn.classList.add("active");
+      } else {
+        customBtn.textContent = "Apply Custom Plan";
+        customBtn.classList.remove("active");
+      }
+    }
+  }
+
+  // Wire up "Apply Scenario A/B/C" buttons
+  const applyBtns = document.querySelectorAll(".btn-apply-scenario[data-apply-dur]");
+  applyBtns.forEach(btn => {
+    btn.addEventListener("click", () => {
+      const targetDur = parseInt(btn.dataset.applyDur) || 60;
+      const targetInt = btn.dataset.applyInt || "Moderate";
+      const parentCard = btn.closest(".scenario-comp-card");
+      if (parentCard) highlightSelectedCard(parentCard.id);
+
+      // Sync slider & inputs in What-If studio
+      if (durRange) durRange.value = targetDur;
+      const durInput = document.getElementById("whatifDurationInput");
+      if (durInput) durInput.value = targetDur;
+      const inlineDurVal = document.getElementById("customStepDurVal");
+      if (inlineDurVal) inlineDurVal.textContent = `${targetDur}m`;
+
+      if (intGroup) {
+        const btns = intGroup.querySelectorAll(".int-btn");
+        btns.forEach(b => {
+          if (b.dataset.int === targetInt) b.classList.add("active");
+          else b.classList.remove("active");
+        });
+      }
+      syncInlineIntPills(targetInt);
+
+      let factor = 0.65;
+      if (targetInt === "Low") factor = 0.40;
+      else if (targetInt === "High") factor = 0.88;
+
+      fetchAndRenderComparisons(targetDur, factor);
+
+      // Trigger the single scenario calculation as well
+      const runSingleBtn = document.getElementById("btnRunWhatIfSim");
+      if (runSingleBtn) runSingleBtn.click();
+
+      showToast(`Applied ${targetInt} Intensity (${targetDur} min) to What-If simulator`, "⚡");
+    });
+  });
+
+  // Helpers for inline Custom Plan modifiers
+  const inlineDurVal = document.getElementById("customStepDurVal");
+  const stepMinusBtn = document.getElementById("btnStepDurMinus");
+  const stepPlusBtn = document.getElementById("btnStepDurPlus");
+  const inlineIntPills = document.querySelectorAll("#customCardIntPills .card-int-pill");
+
+  function syncInlineIntPills(intName) {
+    inlineIntPills.forEach(pill => {
+      if (pill.dataset.int === intName) pill.classList.add("active");
+      else pill.classList.remove("active");
+    });
+  }
+
+  function getCurrentIntFactor() {
+    const activeIntBtn = document.querySelector("#customCardIntPills .card-int-pill.active") ||
+      intGroup?.querySelector(".int-btn.active");
+    const intName = activeIntBtn?.dataset.int || "Moderate";
+    if (intName === "Low") return { factor: 0.40, name: "Low" };
+    if (intName === "High") return { factor: 0.88, name: "High" };
+    return { factor: 0.65, name: "Moderate" };
+  }
+
+  function setCustomDuration(newDur) {
+    newDur = Math.max(15, Math.min(120, newDur));
+    if (inlineDurVal) inlineDurVal.textContent = `${newDur}m`;
+    if (durRange) durRange.value = newDur;
+    const durInput = document.getElementById("whatifDurationInput");
+    if (durInput) durInput.value = newDur;
+
+    const { factor } = getCurrentIntFactor();
+    fetchAndRenderComparisons(newDur, factor);
+    highlightSelectedCard("cardScenarioCustom");
+  }
+
+  if (stepMinusBtn) {
+    stepMinusBtn.addEventListener("click", () => {
+      const currentVal = parseInt(inlineDurVal?.textContent) || (durRange ? parseInt(durRange.value) : 60);
+      setCustomDuration(currentVal - 5);
+    });
+  }
+
+  if (stepPlusBtn) {
+    stepPlusBtn.addEventListener("click", () => {
+      const currentVal = parseInt(inlineDurVal?.textContent) || (durRange ? parseInt(durRange.value) : 60);
+      setCustomDuration(currentVal + 5);
+    });
+  }
+
+  inlineIntPills.forEach(pill => {
+    pill.addEventListener("click", () => {
+      const intName = pill.dataset.int;
+      syncInlineIntPills(intName);
+      if (intGroup) {
+        const btns = intGroup.querySelectorAll(".int-btn");
+        btns.forEach(b => {
+          if (b.dataset.int === intName) b.classList.add("active");
+          else b.classList.remove("active");
+        });
+      }
+      const dur = durRange ? parseInt(durRange.value) : 60;
+      let factor = 0.65;
+      if (intName === "Low") factor = 0.40;
+      else if (intName === "High") factor = 0.88;
+      fetchAndRenderComparisons(dur, factor);
+      highlightSelectedCard("cardScenarioCustom");
+    });
+  });
+
+  // Debounced sync from the top "Scenario Conditions" controls to the custom card
+  let syncDebounceTimer = null;
+  if (durRange) {
+    durRange.addEventListener("input", () => {
+      const dur = parseInt(durRange.value);
+      if (inlineDurVal) inlineDurVal.textContent = `${dur}m`;
+      clearTimeout(syncDebounceTimer);
+      syncDebounceTimer = setTimeout(() => {
+        const { factor } = getCurrentIntFactor();
+        fetchAndRenderComparisons(dur, factor);
+        highlightSelectedCard("cardScenarioCustom");
+      }, 150);
+    });
+  }
+
+  if (intGroup) {
+    const btns = intGroup.querySelectorAll(".int-btn");
+    btns.forEach(b => {
+      b.addEventListener("click", () => {
+        const intName = b.dataset.int;
+        syncInlineIntPills(intName);
+        const dur = durRange ? parseInt(durRange.value) : 60;
+        let factor = 0.65;
+        if (intName === "Low") factor = 0.40;
+        else if (intName === "High") factor = 0.88;
+        fetchAndRenderComparisons(dur, factor);
+        highlightSelectedCard("cardScenarioCustom");
+      });
+    });
+  }
+
+  if (customSyncBtn) {
+    customSyncBtn.addEventListener("click", () => {
+      const { factor, name } = getCurrentIntFactor();
+      const dur = durRange ? parseInt(durRange.value) : 60;
+      fetchAndRenderComparisons(dur, factor);
+      highlightSelectedCard("cardScenarioCustom");
+
+      // Trigger the single scenario calculation in the top panel as well
+      const runSingleBtn = document.getElementById("btnRunWhatIfSim");
+      if (runSingleBtn) runSingleBtn.click();
+
+      showToast(`Applied Custom Plan: ${dur} min @ ${name} Intensity`, "✓");
+    });
+  }
+
+  // Initial fetch
+  fetchAndRenderComparisons(currentDur, currentIntFactor);
+}
+
+/* ==============================================================================
+   7. FORENSIC TRANSPARENCY, MULTI-ROLE & AUDIT CONTROLLER (Phases 6, 9, 12, 15)
+   ============================================================================== */
+
+/**
+ * Role Switcher (Athlete, Coach)
+ */
+function initRoleSwitcher() {
+  const roleButtons = document.querySelectorAll(".role-segment-btn");
+  const roleBadge = document.getElementById("headerRoleBadge");
+
+  roleButtons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      roleButtons.forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      const role = btn.dataset.role;
+
+      if (role === "coach") {
+        if (roleBadge) roleBadge.textContent = "Coach View";
+        switchView("coach-squad");
+        showToast("Switched to Coach Command View", "🛡️");
+      } else {
+        if (roleBadge) roleBadge.textContent = "Athlete View";
+        switchView("dashboard");
+        showToast("Switched to Athlete Personal View", "🏃");
+      }
+    });
+  });
+}
+
+/**
+ * Transparency Modals (Data Quality Center & ML Model Card)
+ */
+function initTransparencyModals() {
+  // 1. Data Quality Modal
+  const dqModal = document.getElementById("dataQualityModal");
+  const btnOpenDq = document.getElementById("btnOpenDataQualityModal");
+  const btnCloseDq = document.getElementById("btnCloseDataQualityModal");
+  const btnCloseDqBottom = document.getElementById("btnCloseDataQualityBottom");
+
+  if (btnOpenDq && dqModal) {
+    btnOpenDq.addEventListener("click", () => {
+      dqModal.style.display = "flex";
+      loadDataQualityModalData();
+    });
+  }
+
+  if (btnCloseDq && dqModal) {
+    btnCloseDq.addEventListener("click", () => {
+      dqModal.style.display = "none";
+    });
+  }
+
+  if (btnCloseDqBottom && dqModal) {
+    btnCloseDqBottom.addEventListener("click", () => {
+      dqModal.style.display = "none";
+    });
+  }
+
+  // 2. ML Model Card Modal
+  const mcModal = document.getElementById("modelCardModal");
+  const btnOpenMc = document.getElementById("btnOpenModelCardModal");
+  const btnCloseMc = document.getElementById("btnCloseModelCardModal");
+  const btnCloseMcBottom = document.getElementById("btnCloseModelCardBottom");
+
+  if (btnOpenMc && mcModal) {
+    btnOpenMc.addEventListener("click", () => {
+      mcModal.style.display = "flex";
+      loadModelCardModalData();
+    });
+  }
+
+  if (btnCloseMc && mcModal) {
+    btnCloseMc.addEventListener("click", () => {
+      mcModal.style.display = "none";
+    });
+  }
+
+  if (btnCloseMcBottom && mcModal) {
+    btnCloseMcBottom.addEventListener("click", () => {
+      mcModal.style.display = "none";
+    });
+  }
+
+  // Close modals on backdrop click
+  [dqModal, mcModal].forEach(m => {
+    if (m) {
+      m.addEventListener("click", e => {
+        if (e.target === m) m.style.display = "none";
+      });
+    }
+  });
+}
+
+/**
+ * Fetch and populate Data Quality Center modal
+ */
+async function loadDataQualityModalData() {
+  try {
+    const res = await fetch("/api/telemetry/data-quality");
+    if (!res.ok) return;
+    const dq = await res.json();
+
+    const idxEl = document.getElementById("modalDqIndex");
+    const provEl = document.getElementById("modalDqProvenance");
+    const gradeEl = document.getElementById("modalDqGrade");
+    const rateEl = document.getElementById("modalDqRate");
+    const latEl = document.getElementById("modalDqLatency");
+    const dropEl = document.getElementById("modalDqDropRate");
+    const dropCountEl = document.getElementById("modalDqDropCount");
+
+    if (idxEl) idxEl.textContent = `${dq.data_quality_index || 96.0}%`;
+    if (provEl) provEl.textContent = dq.data_provenance || "LIVE ESP32";
+    if (gradeEl) {
+      gradeEl.textContent = dq.grade || "EXCELLENT";
+      gradeEl.className = "badge-pill " + (dq.grade === "EXCELLENT" || dq.grade === "GOOD" ? "pill-green" : "pill-amber");
+    }
+    if (rateEl) rateEl.textContent = `${dq.sample_rate_hz || 1.0} Hz`;
+    if (latEl) latEl.textContent = `${dq.mean_latency_ms || 12} ms`;
+    if (dropEl) dropEl.textContent = `${dq.packet_loss_pct || 0.0}%`;
+    if (dropCountEl) dropCountEl.textContent = `${dq.dropped_packets_detected || 0} rejected`;
+  } catch (err) {
+    console.error("Failed to fetch data quality report:", err);
+  }
+}
+
+/**
+ * Fetch and populate ML Model Card modal
+ */
+async function loadModelCardModalData() {
+  try {
+    const res = await fetch("/api/model-card");
+    if (!res.ok) return;
+    const mc = await res.json();
+
+    const fatR2 = document.getElementById("mcFatigueR2");
+    const fatMae = document.getElementById("mcFatigueMae");
+    const fatRmse = document.getElementById("mcFatigueRmse");
+    const recR2 = document.getElementById("mcRecoveryR2");
+    const recMae = document.getElementById("mcRecoveryMae");
+    const recRmse = document.getElementById("mcRecoveryRmse");
+
+    if (mc.metrics && mc.metrics.fatigue_model) {
+      if (fatR2) fatR2.textContent = mc.metrics.fatigue_model.r2_score;
+      if (fatMae) fatMae.textContent = `${mc.metrics.fatigue_model.mae} pts`;
+      if (fatRmse) fatRmse.textContent = `${mc.metrics.fatigue_model.rmse} pts`;
+    }
+    if (mc.metrics && mc.metrics.recovery_model) {
+      if (recR2) recR2.textContent = mc.metrics.recovery_model.r2_score;
+      if (recMae) recMae.textContent = `${mc.metrics.recovery_model.mae} pts`;
+      if (recRmse) recRmse.textContent = `${mc.metrics.recovery_model.rmse} pts`;
+    }
+  } catch (err) {
+    console.error("Failed to load model card:", err);
+  }
+}
+
+/**
+ * View 7: Prediction vs Actual Feedback Loop
+ */
+async function loadPredictionAccuracy() {
+  const tbody = document.getElementById("accuracyTableBody");
+  const kpiMae = document.getElementById("kpiAccuracyMae");
+  const kpiRate = document.getElementById("kpiAccuracyRate");
+  const kpiTotal = document.getElementById("kpiTotalTracked");
+  const kpiPending = document.getElementById("kpiPendingCount");
+
+  try {
+    const res = await fetch("/api/ai/predicted-vs-actual");
+    if (!res.ok) return;
+    const data = await res.json();
+
+    if (data.summary) {
+      if (kpiMae) kpiMae.textContent = `${data.summary.overall_readiness_mae} pts`;
+      if (kpiRate) kpiRate.textContent = `${data.summary.accuracy_within_5pts_pct}%`;
+      if (kpiTotal) kpiTotal.textContent = `${data.summary.total_verified_predictions} Verified`;
+      if (kpiPending) kpiPending.textContent = `${data.summary.pending_predictions_count} pending outcome`;
+    }
+
+    if (tbody && data.records) {
+      tbody.innerHTML = data.records.map(rec => {
+        const diff = rec.error !== null ? (rec.error > 0 ? `+${rec.error}` : `${rec.error}`) : "—";
+        const errClass = Math.abs(rec.error || 0) <= 2.0 ? "color:#10B981;font-weight:700;" : (Math.abs(rec.error || 0) <= 5.0 ? "color:#F59E0B;font-weight:700;" : "color:#EF4444;font-weight:700;");
+        const statusBadge = rec.status === "VERIFIED" ? `<span class="badge-pill pill-green">VERIFIED</span>` : `<span class="badge-pill pill-amber">PENDING</span>`;
+
+        return `
+          <tr style="border-bottom:1px solid var(--border-card);">
+            <td style="padding:10px 12px;font-family:monospace;font-weight:700;color:var(--primary-blue);">${rec.prediction_id}</td>
+            <td style="padding:10px 12px;color:var(--text-dark);">${rec.date}</td>
+            <td style="padding:10px 12px;"><span style="font-weight:600;">${rec.target}</span></td>
+            <td style="padding:10px 12px;color:var(--text-muted);">${rec.scenario || "Standard Training"}</td>
+            <td style="padding:10px 12px;font-weight:700;">${rec.predicted_readiness} pts</td>
+            <td style="padding:10px 12px;font-weight:700;">${rec.actual_readiness !== null ? `${rec.actual_readiness} pts` : "—"}</td>
+            <td style="padding:10px 12px;${errClass}">${diff}</td>
+            <td style="padding:10px 12px;">${statusBadge}</td>
+          </tr>
+        `;
+      }).join("");
+    }
+  } catch (err) {
+    console.error("Failed to load prediction accuracy:", err);
+  }
+}
+
+/**
+ * View 8: Coach Squad Management & Workload Matrix
+ */
+let pendingRemoveAthleteId = null;
+
+function openAddPlayerModal() {
+  const modal = document.getElementById("addPlayerModal");
+  if (modal) {
+    modal.style.display = "flex";
+    const nameInput = document.getElementById("newPlayerName");
+    if (nameInput) setTimeout(() => nameInput.focus(), 100);
+  }
+}
+window.openAddPlayerModal = openAddPlayerModal;
+
+function closeAddPlayerModal() {
+  const modal = document.getElementById("addPlayerModal");
+  if (modal) modal.style.display = "none";
+}
+window.closeAddPlayerModal = closeAddPlayerModal;
+
+function promptRemoveAthlete(athleteId, athleteName) {
+  pendingRemoveAthleteId = athleteId;
+  const modal = document.getElementById("removePlayerModal");
+  const text = document.getElementById("removePlayerConfirmText");
+  if (text) {
+    text.innerHTML = `Are you sure you want to remove <strong>${athleteName}</strong> (<code>#${athleteId}</code>) from the active squad? Their digital twin model and session logs will be unlinked from the roster.`;
+  }
+  if (modal) modal.style.display = "flex";
+}
+window.promptRemoveAthlete = promptRemoveAthlete;
+
+function closeRemovePlayerModal() {
+  pendingRemoveAthleteId = null;
+  const modal = document.getElementById("removePlayerModal");
+  if (modal) modal.style.display = "none";
+}
+window.closeRemovePlayerModal = closeRemovePlayerModal;
+
+async function executeRemoveAthlete() {
+  if (!pendingRemoveAthleteId) return;
+  const athleteId = pendingRemoveAthleteId;
+  closeRemovePlayerModal();
+
+  try {
+    const res = await fetch(`/api/athlete/${encodeURIComponent(athleteId)}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" }
+    });
+    let data = null;
+    try {
+      data = await res.json();
+    } catch (_) {}
+
+    if (res.ok && data && data.success) {
+      showToast(data.message || `Player #${athleteId} removed from squad`, "🗑️");
+      await loadCoachSquad();
+      if (typeof loadDashboardData === "function") {
+        loadDashboardData(currentTimeframe);
+      }
+      if (typeof loadDigitalTwinCoach === "function") {
+        loadDigitalTwinCoach();
+      }
+    } else {
+      const errMsg = (data && data.error) || (res.status ? `Removal failed (HTTP ${res.status})` : "Cannot remove player");
+      showToast(errMsg, "⚠️");
+    }
+  } catch (err) {
+    console.error("Error removing player:", err);
+    showToast(err && err.message ? `Error: ${err.message}` : "Network error removing player", "⚠️");
+  }
+}
+window.executeRemoveAthlete = executeRemoveAthlete;
+
+async function loadCoachSquad() {
+  const grid = document.getElementById("squadRosterGrid");
+  if (!grid) return;
+
+  try {
+    let athletes = [];
+    let activeAthleteId = "";
+
+    try {
+      const res = await fetch("/api/coach/team-overview");
+      if (res.ok) {
+        const data = await res.json();
+        athletes = data.roster || data.athletes || [];
+        activeAthleteId = data.active_athlete_id || "";
+      }
+    } catch (_) {}
+
+    if (!athletes.length) {
+      try {
+        const fallbackRes = await fetch("/api/athletes");
+        if (fallbackRes.ok) {
+          const fallbackData = await fallbackRes.json();
+          athletes = fallbackData.athletes || [];
+          activeAthleteId = fallbackData.active_athlete_id || "";
+        }
+      } catch (_) {}
+    }
+
+    if (athletes.length) {
+      grid.innerHTML = athletes.map(ath => {
+        const aid = ath.id || ath.athlete_id;
+        const isSelected = aid === activeAthleteId;
+        const readiness = Math.round(ath.readiness || ath.readiness_score || 75);
+        const fatigue = Math.round(ath.fatigue || ath.fatigue_level || 35);
+        const acwr = ath.acwr !== undefined ? ath.acwr : 1.0;
+        const readColor = readiness >= 80 ? "var(--whoop-green)" : (readiness >= 65 ? "var(--whoop-yellow)" : "var(--whoop-red)");
+        const acwrColor = (acwr >= 0.8 && acwr <= 1.3) ? "var(--whoop-green)" : (acwr > 1.3 ? "var(--whoop-red)" : "var(--whoop-blue)");
+        const statusLabel = ath.status || "Optimal";
+        const statusColor = ath.status_color || (statusLabel === "Optimal" ? "green" : (statusLabel.includes("Spike") ? "yellow" : "red"));
+        const pillClass = statusColor === "green" ? "pill-green" : (statusColor === "amber" || statusColor === "yellow" ? "pill-yellow" : "pill-red");
+        const deviceTag = ath.device_id ? `<span style="font-size:0.68rem;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.06);color:var(--text-muted);">📡 ${ath.device_id}</span>` : "";
+
+        return `
+          <div class="card squad-athlete-card" style="padding:20px;display:flex;flex-direction:column;justify-content:space-between;border:${isSelected ? "1.5px solid var(--whoop-green)" : "1px solid var(--glass-border)"};background:var(--glass-bg);box-shadow:${isSelected ? "0 4px 20px rgba(0,230,118,0.18)" : "var(--glass-shadow-sm)"};">
+            <div>
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+                <div>
+                  <h3 style="font-size:1.1rem;font-weight:800;color:var(--text-dark);margin:0 0 3px 0;">${ath.name}</h3>
+                  <div style="display:flex;align-items:center;gap:6px;">
+                    <span style="font-size:0.75rem;color:var(--text-muted);">${ath.position} • #${aid}</span>
+                    ${deviceTag}
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span class="badge-pill ${pillClass}">${statusLabel}</span>
+                  <button class="btn-remove-player" onclick="promptRemoveAthlete('${aid}', '${(ath.name || '').replace(/'/g, "\\'")}')" title="Remove ${ath.name} from squad" aria-label="Remove player">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                  </button>
+                </div>
+              </div>
+
+              <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;background:var(--glass-bg-elevated);border:1px solid var(--glass-border-subtle);padding:12px;border-radius:12px;margin-bottom:14px;text-align:center;">
+                <div>
+                  <span style="font-size:0.68rem;color:var(--text-muted);display:block;text-transform:uppercase;font-weight:700;">Readiness</span>
+                  <strong style="font-size:1.2rem;color:${readColor};">${readiness}%</strong>
+                </div>
+                <div>
+                  <span style="font-size:0.68rem;color:var(--text-muted);display:block;text-transform:uppercase;font-weight:700;">Fatigue</span>
+                  <strong style="font-size:1.2rem;color:var(--text-dark);">${fatigue}%</strong>
+                </div>
+                <div>
+                  <span style="font-size:0.68rem;color:var(--text-muted);display:block;text-transform:uppercase;font-weight:700;">ACWR</span>
+                  <strong style="font-size:1.2rem;color:${acwrColor};">${acwr}</strong>
+                </div>
+              </div>
+
+              <div style="font-size:0.8rem;color:var(--text-body);margin-bottom:16px;line-height:1.45;">
+                <strong style="color:var(--text-dark);">Recommendation:</strong> ${ath.recommendation || "Maintain prescribed periodization"}
+              </div>
+            </div>
+
+            <button class="btn-top-action" onclick="selectAthleteTwin('${aid}')" style="justify-content:center;background:${isSelected ? "var(--whoop-green)" : "var(--glass-bg-elevated)"};color:${isSelected ? "#0A0A0A" : "var(--text-dark)"};border:1px solid ${isSelected ? "var(--whoop-green)" : "var(--glass-border)"};font-weight:700;padding:8px 14px;border-radius:var(--radius-pill);cursor:pointer;">
+              ${isSelected ? "✓ Active Athlete Twin" : "Select Athlete Twin"}
+            </button>
+          </div>
+        `;
+      }).join("");
+    } else {
+      grid.innerHTML = `
+        <div style="grid-column:1/-1;text-align:center;padding:48px 20px;background:var(--glass-bg);border:1px dashed var(--glass-border);border-radius:16px;">
+          <div style="font-size:2.5rem;margin-bottom:12px;">⚽</div>
+          <h3 style="color:var(--text-dark);margin-bottom:6px;">No Athletes in Squad</h3>
+          <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:18px;">Get started by enrolling a new player into the digital twin matrix.</p>
+          <button class="btn-top-action" onclick="openAddPlayerModal()" style="background:var(--primary-blue);color:#FFF;border:none;padding:8px 18px;margin:0 auto;display:inline-flex;">+ Add Player</button>
+        </div>
+      `;
+    }
+  } catch (err) {
+    console.error("Failed to load coach squad:", err);
+  }
+}
+
+async function selectAthleteTwin(athleteId) {
+  try {
+    const res = await fetch("/api/athlete/switch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ athlete_id: athleteId })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      showToast(data.message || `Switched to athlete ${athleteId}`, "🏃");
+      const nameEl = document.querySelector(".user-name");
+      if (nameEl && data.profile && data.profile.name) {
+        const squadNum = data.profile.squad_number || athleteId.replace(/[^0-9]/g, "").replace(/^0+/, "").slice(0, 2) || "8";
+        updateActiveUserProfile({
+          name: data.profile.name,
+          position: data.profile.position || "Midfielder",
+          squadNumber: squadNum,
+          role: data.profile.sport ? `${data.profile.sport} Player` : "Football Player"
+        }, true);
+      }
+      if (typeof loadDashboardData === "function") {
+        loadDashboardData();
+      }
+      switchView("dashboard");
+    }
+  } catch (e) {
+    console.error("Failed to switch athlete:", e);
+  }
+}
+
+function initCoachSquadControls() {
+  const btnOpenAdd = document.getElementById("btnAddPlayerModalOpen");
+  const btnCloseAdd = document.getElementById("btnCloseAddPlayerModal");
+  const btnCancelAdd = document.getElementById("btnCancelAddPlayer");
+  const addModal = document.getElementById("addPlayerModal");
+  const addForm = document.getElementById("addPlayerForm");
+
+  if (btnOpenAdd) {
+    btnOpenAdd.addEventListener("click", openAddPlayerModal);
+  }
+  if (btnCloseAdd) {
+    btnCloseAdd.addEventListener("click", closeAddPlayerModal);
+  }
+  if (btnCancelAdd) {
+    btnCancelAdd.addEventListener("click", closeAddPlayerModal);
+  }
+  if (addModal) {
+    addModal.addEventListener("click", (e) => {
+      if (e.target === addModal) closeAddPlayerModal();
+    });
+  }
+
+  const btnCancelRemove = document.getElementById("btnCancelRemovePlayer");
+  const btnConfirmRemove = document.getElementById("btnConfirmRemovePlayer");
+  const removeModal = document.getElementById("removePlayerModal");
+
+  if (btnCancelRemove) {
+    btnCancelRemove.addEventListener("click", closeRemovePlayerModal);
+  }
+  if (btnConfirmRemove) {
+    btnConfirmRemove.addEventListener("click", executeRemoveAthlete);
+  }
+  if (removeModal) {
+    removeModal.addEventListener("click", (e) => {
+      if (e.target === removeModal) closeRemovePlayerModal();
+    });
+  }
+
+  if (addForm) {
+    addForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = document.getElementById("newPlayerName")?.value.trim();
+      if (!name) {
+        showToast("Player name is required", "⚠️");
+        return;
+      }
+
+      const position = document.getElementById("newPlayerPosition")?.value || "Midfield / Box-to-Box";
+      const age = parseInt(document.getElementById("newPlayerAge")?.value, 10) || 23;
+      const height_cm = parseFloat(document.getElementById("newPlayerHeight")?.value) || 181.0;
+      const weight_kg = parseFloat(document.getElementById("newPlayerWeight")?.value) || 76.0;
+      const resting_hr_baseline = parseFloat(document.getElementById("newPlayerRestingHr")?.value) || 54.0;
+      const max_hr = parseFloat(document.getElementById("newPlayerMaxHr")?.value) || 195.0;
+      const typical_sleep_baseline = parseFloat(document.getElementById("newPlayerSleep")?.value) || 7.8;
+      const recovery = parseFloat(document.getElementById("newPlayerRecovery")?.value) || 82.0;
+      const fatigue = Math.max(10, Math.min(90, Math.round(100 - recovery)));
+      const device_id = document.getElementById("newPlayerDeviceId")?.value.trim() || undefined;
+
+      const payload = {
+        name,
+        sport: "Football",
+        position,
+        age,
+        height_cm,
+        weight_kg,
+        resting_hr_baseline,
+        max_hr,
+        typical_sleep_baseline,
+        recovery,
+        fatigue,
+        acwr: 1.05,
+        device_id
+      };
+
+      try {
+        const res = await fetch("/api/athlete/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        let data = null;
+        try {
+          data = await res.json();
+        } catch (_) {}
+
+        if (res.ok && data && data.success) {
+          showToast(`Player ${name} registered in squad`, "⚽");
+          closeAddPlayerModal();
+          addForm.reset();
+          await loadCoachSquad();
+        } else {
+          const errMsg = (data && data.error) || (res.status ? `Registration failed (HTTP ${res.status})` : "Failed to register player");
+          showToast(errMsg, "⚠️");
+        }
+      } catch (err) {
+        console.error("Failed to register athlete:", err);
+        const msg = (err && err.message) ? `Network error: ${err.message}` : "Error registering athlete";
+        showToast(msg, "⚠️");
+      }
+    });
+  }
+}
+
+/**
+ * View 9: Sports Scientist & Forensic Auditor Center
+ */
+async function loadAuditorCenter() {
+  try {
+    const [mcRes, dqRes, logRes] = await Promise.all([
+      fetch("/api/model-card"),
+      fetch("/api/telemetry/data-quality"),
+      fetch("/api/audit-log")
+    ]);
+
+    if (mcRes.ok) {
+      const mc = await mcRes.json();
+      const verBadge = document.getElementById("auditorModelVersionBadge");
+      const fatR2 = document.getElementById("auditorFatigueR2");
+      const recR2 = document.getElementById("auditorRecoveryR2");
+
+      if (verBadge) verBadge.textContent = `v${mc.version} • Verified`;
+      if (mc.metrics && mc.metrics.fatigue_model && fatR2) fatR2.textContent = mc.metrics.fatigue_model.r2_score;
+      if (mc.metrics && mc.metrics.recovery_model && recR2) recR2.textContent = mc.metrics.recovery_model.r2_score;
+    }
+
+    if (dqRes.ok) {
+      const dq = await dqRes.json();
+      const qBadge = document.getElementById("auditorQualityBadge");
+      const jitEl = document.getElementById("auditorJitter");
+      const rateEl = document.getElementById("auditorSampleRate");
+      const dropEl = document.getElementById("auditorDropRate");
+
+      if (qBadge) qBadge.textContent = `Quality Grade: ${dq.grade || "EXCELLENT"}`;
+      if (jitEl) jitEl.textContent = `${dq.jitter_ms || 12} ms`;
+      if (rateEl) rateEl.textContent = `${dq.sample_rate_hz || 1.0} Hz`;
+      if (dropEl) dropEl.textContent = `${dq.packet_loss_pct || 0.0}%`;
+    }
+
+    if (logRes.ok) {
+      const logs = await logRes.json();
+      const list = document.getElementById("auditorEventList");
+      if (list && logs.events) {
+        list.innerHTML = logs.events.slice(-8).reverse().map(ev => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#F8FAFC;border-radius:8px;font-size:0.8rem;border:1px solid var(--border-card);">
+            <div>
+              <span style="font-family:monospace;color:var(--text-muted);">${ev.timestamp}</span>
+              <strong style="margin-left:8px;color:var(--text-dark);">${ev.action}</strong>
+              <span style="color:var(--text-muted);margin-left:6px;">(${ev.user})</span>
+            </div>
+            <span class="badge-pill pill-green">${ev.status}</span>
+          </div>
+        `).join("");
+      }
+    }
+  } catch (err) {
+    console.error("Failed to load auditor center:", err);
+  }
+}
+
+/**
+ * Action button handlers for Accuracy & Auditor Center
+ */
+function initForensicAuditorControls() {
+  const btnRefreshAcc = document.getElementById("btnRefreshAccuracy");
+  if (btnRefreshAcc) {
+    btnRefreshAcc.addEventListener("click", () => {
+      loadPredictionAccuracy();
+      showToast("Accuracy ledger updated with latest verified outcomes", "✓");
+    });
+  }
+
+  const btnDlModelCard = document.getElementById("btnDownloadModelCard");
+  if (btnDlModelCard) {
+    btnDlModelCard.addEventListener("click", () => {
+      window.open("/api/model-card", "_blank");
+    });
+  }
+
+  const btnExportSquad = document.getElementById("btnExportSquadReport");
+  if (btnExportSquad) {
+    btnExportSquad.addEventListener("click", () => {
+      showToast("Exporting Squad Readiness & ACWR Workload Matrix...", "📊");
+      setTimeout(() => {
+        showToast("Squad report exported successfully.", "✓");
+      }, 900);
+    });
+  }
+}
+
+

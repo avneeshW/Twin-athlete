@@ -147,7 +147,8 @@ def get_model_card_path() -> str:
             return p
     return candidates[0]
 
-app = Flask(__name__, static_folder="static", static_url_path="")
+STATIC_DIR = os.path.join(BASE_DIR, "public") if os.path.isdir(os.path.join(BASE_DIR, "public")) else os.path.join(BASE_DIR, "static")
+app = Flask(__name__, static_folder=STATIC_DIR, static_url_path="")
 
 # ==============================================================================
 # SECURITY HEADERS & CORS MIDDLEWARE (Phase 16)
@@ -181,6 +182,10 @@ def handle_500(err):
 def handle_404(err):
     if request.path.startswith("/api/"):
         return jsonify({"success": False, "error": f"API endpoint not found: {request.path}"}), 404
+    folder = app.static_folder or "static"
+    idx = os.path.join(folder, "index.html")
+    if os.path.exists(idx):
+        return send_from_directory(folder, "index.html")
     return err
 
 @app.errorhandler(405)
@@ -188,6 +193,18 @@ def handle_405(err):
     if request.path.startswith("/api/"):
         return jsonify({"success": False, "error": f"Method {request.method} not allowed for {request.path}"}), 405
     return err
+
+@app.errorhandler(Exception)
+def handle_all_unhandled(err):
+    import traceback
+    traceback.print_exc()
+    if request.path.startswith("/api/"):
+        return jsonify({"success": False, "error": f"Server error: {str(err)}"}), 500
+    folder = app.static_folder or "static"
+    idx = os.path.join(folder, "index.html")
+    if os.path.exists(idx):
+        return send_from_directory(folder, "index.html")
+    return f"<h1>Internal Server Error</h1><pre>{str(err)}</pre>", 500
 
 
 # Rate Limiting Tracker for Ingestion Endpoints (max 35 req/sec per IP)
@@ -281,8 +298,10 @@ def stop_mock_feed():
 
 
 @app.route("/")
+@app.route("/index.html")
 def serve_index():
-    return send_from_directory(app.static_folder or "static", "index.html")
+    folder = app.static_folder or ("public" if os.path.isdir(os.path.join(BASE_DIR, "public")) else "static")
+    return send_from_directory(folder, "index.html")
 
 
 @app.route("/api/dashboard-data", methods=["GET"])

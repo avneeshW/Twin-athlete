@@ -1,0 +1,19 @@
+# Tests, docs, scripts, firmware
+tests/
+firmware/
+docs/
+scripts/
+static_backup/
+
+# Unused large files & databases
+hist_edge.db
+static/videos/hero-soccer-alt.mp4
+public/videos/hero-soccer-alt.mp4
+
+# Windows batch & VBS scripts
+*.bat
+*.vbs
+server_test.log
+__pycache__/
+*.pyc
+.git

@@ -1,0 +1,8 @@
+# Optional dependencies for offline machine learning training and model generation (ml/train.py)
+# To train/export new Random Forest pickle models:
+#   pip install -r requirements-ml.txt
+#   python ml/train.py
+pandas>=2.1.0
+scikit-learn>=1.3.0
+joblib>=1.3.0
+scipy>=1.11.0

@@ -32,6 +32,21 @@ class StorageVault:
             self.db_path = os.path.abspath(os.path.join(BASE_DIR, raw_path))
         else:
             self.db_path = raw_path
+
+        # In serverless environments (e.g. Vercel, AWS Lambda), the deployment directory is strictly read-only.
+        # Copy the pre-seeded SQLite database to the writable /tmp scratch directory.
+        is_serverless = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+        if is_serverless and self.db_path != ":memory:" and not str(self.db_path).startswith("file:"):
+            import tempfile, shutil
+            tmp_db = os.path.join(tempfile.gettempdir(), "twin_athlete.db")
+            if not os.path.exists(tmp_db) and os.path.exists(self.db_path):
+                try:
+                    shutil.copy2(self.db_path, tmp_db)
+                except Exception as e:
+                    print(f"[StorageVault] Warning: Failed to copy seed DB to {tmp_db}: {e}")
+            if os.path.exists(tmp_db) or not os.path.exists(self.db_path):
+                self.db_path = tmp_db
+
         self._lock = threading.Lock()
         if self.db_path != ":memory:" and not str(self.db_path).startswith("file:"):
             try:
@@ -64,8 +79,9 @@ class StorageVault:
         except sqlite3.OperationalError as e:
             # Fallback when the specified DB path cannot be opened (permissions, directory missing, locked)
             print(f"[StorageVault] Warning: Unable to open database at '{self.db_path}': {e}. Attempting fallback...")
-            # Try user TEMP directory
-            temp_db = os.path.join(os.environ.get("TEMP", os.path.expanduser("~")), "twin_athlete.db")
+            # Try system TEMP directory (cross-platform /tmp on Linux and AppData/Temp on Windows)
+            import tempfile
+            temp_db = os.path.join(tempfile.gettempdir(), "twin_athlete.db")
             if self.db_path != temp_db:
                 try:
                     conn = sqlite3.connect(temp_db, timeout=10.0, check_same_thread=False)
@@ -202,11 +218,29 @@ class StorageVault:
             try:
                 self._run_schema_migrations(conn)
             except sqlite3.OperationalError as oe:
-                print(f"[StorageVault] Schema migration error on '{self.db_path}': {oe}. Switching to shared in-memory DB...")
+                print(f"[StorageVault] Schema migration error on '{self.db_path}': {oe}. Switching to fallback...")
                 try:
                     conn.close()
                 except Exception:
                     pass
+                import tempfile, shutil
+                temp_db = os.path.join(tempfile.gettempdir(), "twin_athlete.db")
+                if self.db_path != temp_db:
+                    if os.path.exists(self.db_path) and not os.path.exists(temp_db):
+                        try:
+                            shutil.copy2(self.db_path, temp_db)
+                        except Exception:
+                            pass
+                    self.db_path = temp_db
+                    try:
+                        conn = self._get_connection()
+                        self._run_schema_migrations(conn)
+                        return
+                    except Exception:
+                        try:
+                            conn.close()
+                        except Exception:
+                            pass
                 self.db_path = "file:twin_athlete_mem?mode=memory&cache=shared"
                 conn = self._get_connection()
                 try:
