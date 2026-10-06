@@ -1144,6 +1144,21 @@ function updateVitalsUI(vitals) {
     if (labCadence) labCadence.textContent = vitals.cadence.value;
     if (labSteps) labSteps.textContent = `${(vitals.cadence.steps || 1240).toLocaleString()} steps`;
   }
+
+  // Update Training Risk Running Impact dynamically
+  if (vitals.acceleration) {
+    const rawG = vitals.acceleration.current_g !== undefined ? vitals.acceleration.current_g : vitals.acceleration.value;
+    const numG = typeof rawG === "number" ? rawG : parseFloat(rawG);
+    if (!isNaN(numG)) {
+      const elImpactText = document.getElementById("riskStatusRunningImpact");
+      const elImpactDot = document.getElementById("riskDotRunningImpact");
+      if (elImpactText && elImpactDot) {
+        const impactStatus = numG > 2.5 ? "High" : (numG > 1.4 ? "Moderate" : "Low");
+        elImpactText.textContent = impactStatus;
+        elImpactDot.className = "risk-status-dot " + (impactStatus === "High" ? "dot-red" : (impactStatus === "Moderate" ? "dot-yellow" : "dot-green"));
+      }
+    }
+  }
 }
 
 function updateSessionUI(session) {
@@ -1263,6 +1278,23 @@ function updateTwinUI(status) {
   if (flowCurrReadiness) flowCurrReadiness.textContent = `${Math.round(readinessVal)}%`;
   if (flowCurrFatigue) flowCurrFatigue.textContent = `${Math.round(fVal)}%`;
   if (flowCurrRec) flowCurrRec.textContent = `${Math.round(rVal)}%`;
+
+  // Update Training Risk Training Load & Recovery dynamically
+  const elLoadText = document.getElementById("riskStatusTrainingLoad");
+  const elLoadDot = document.getElementById("riskDotTrainingLoad");
+  if (elLoadText && elLoadDot) {
+    const loadStatus = status.fatigue_label || (fVal > 55 ? "High" : (fVal > 30 ? "Moderate" : "Low"));
+    elLoadText.textContent = loadStatus;
+    elLoadDot.className = "risk-status-dot " + (loadStatus === "High" ? "dot-red" : (loadStatus === "Moderate" ? "dot-yellow" : "dot-green"));
+  }
+
+  const elRecText = document.getElementById("riskStatusRecovery");
+  const elRecDot = document.getElementById("riskDotRecovery");
+  if (elRecText && elRecDot) {
+    const recStatus = rVal < 50 ? "Low" : (rVal < 75 ? "Moderate" : "Good");
+    elRecText.textContent = recStatus;
+    elRecDot.className = "risk-status-dot " + (recStatus === "Low" ? "dot-red" : (recStatus === "Moderate" ? "dot-yellow" : "dot-green"));
+  }
 }
 
 /**

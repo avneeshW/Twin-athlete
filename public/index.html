@@ -567,16 +567,16 @@
             </div>
 
             <div class="safety-cards-grid">
-              <!-- Card: Biomechanical Injury Risk Assessment -->
-              <div class="card injury-risk-card">
+              <!-- Left Card: Training Risk (Replaces Biomechanical Injury Risk) -->
+              <div class="card injury-risk-card training-risk-card">
                 <div class="card-header-flex">
                   <div class="card-title-with-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
                       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                     </svg>
-                    <span class="card-main-title">Biomechanical Injury Risk</span>
+                    <span class="card-main-title">Training Risk</span>
                   </div>
-                  <div class="icon-info-btn" id="btnInjuryInfo" title="Click for biomechanical injury risk methodology">
+                  <div class="icon-info-btn" id="btnInjuryInfo" title="Click for training risk methodology">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
                       <circle cx="12" cy="12" r="10" />
                       <line x1="12" y1="16" x2="12" y2="12" />
@@ -585,113 +585,124 @@
                   </div>
                 </div>
 
-                <div class="injury-list">
-                  <!-- Hamstring Strain -->
-                  <div class="injury-row-item" data-injury="hamstring"
-                    title="Click for Hamstring Strain biomechanical details &amp; prevention">
-                    <span class="injury-name">Hamstring Strain</span>
-                    <span class="badge-pill pill-red" id="badgeHamstring">Elevated</span>
-                    <span class="injury-chevron">&rsaquo;</span>
+                <div class="training-risk-table">
+                  <div class="training-risk-col-headers">
+                    <span class="risk-col-header-left">What the system sees</span>
+                    <span class="risk-col-header-right">Status</span>
                   </div>
 
-                  <!-- Quadriceps Strain -->
-                  <div class="injury-row-item" data-injury="quadriceps"
-                    title="Click for Quadriceps Strain biomechanical details &amp; prevention">
-                    <span class="injury-name">Quadriceps Strain</span>
-                    <span class="badge-pill pill-yellow" id="badgeQuadriceps">Moderate</span>
-                    <span class="injury-chevron">&rsaquo;</span>
-                  </div>
+                  <div class="training-risk-rows">
+                    <!-- Row 1: Training Load -->
+                    <div class="training-risk-row">
+                      <span class="risk-row-label">Training Load</span>
+                      <div class="risk-row-status">
+                        <span class="risk-status-dot dot-yellow" id="riskDotTrainingLoad"></span>
+                        <span class="risk-status-text" id="riskStatusTrainingLoad">Moderate</span>
+                      </div>
+                    </div>
 
-                  <!-- Calf Strain -->
-                  <div class="injury-row-item" data-injury="calf"
-                    title="Click for Calf Strain biomechanical details &amp; prevention">
-                    <span class="injury-name">Calf Strain</span>
-                    <span class="badge-pill pill-green" id="badgeCalf">Low</span>
-                    <span class="injury-chevron">&rsaquo;</span>
-                  </div>
+                    <!-- Row 2: Running Impact -->
+                    <div class="training-risk-row">
+                      <span class="risk-row-label">Running Impact</span>
+                      <div class="risk-row-status">
+                        <span class="risk-status-dot dot-red" id="riskDotRunningImpact"></span>
+                        <span class="risk-status-text" id="riskStatusRunningImpact">High</span>
+                      </div>
+                    </div>
 
-                  <!-- Achilles Tendon Injury -->
-                  <div class="injury-row-item" data-injury="achilles"
-                    title="Click for Achilles Tendon Injury biomechanical details &amp; prevention">
-                    <span class="injury-name">Achilles Tendon Injury</span>
-                    <span class="badge-pill pill-red" id="badgeAchilles">Elevated</span>
-                    <span class="injury-chevron">&rsaquo;</span>
+                    <!-- Row 3: Movement Balance -->
+                    <div class="training-risk-row">
+                      <span class="risk-row-label">Movement Balance</span>
+                      <div class="risk-row-status">
+                        <span class="risk-status-dot dot-green" id="riskDotMovementBalance"></span>
+                        <span class="risk-status-text" id="riskStatusMovementBalance">Good</span>
+                      </div>
+                    </div>
+
+                    <!-- Row 4: Recovery -->
+                    <div class="training-risk-row">
+                      <span class="risk-row-label">Recovery</span>
+                      <div class="risk-row-status">
+                        <span class="risk-status-dot dot-red" id="riskDotRecovery"></span>
+                        <span class="risk-status-text" id="riskStatusRecovery">Low</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <!-- Card: Recommended Precautions Checklist -->
+              <!-- Right Card: Recommended Precautions Checklist -->
               <div class="card precautions-card">
-                  <div class="card-header-flex">
-                    <div class="card-title-with-icon">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                        <path d="M9 18h6" />
-                        <path d="M10 22h4" />
-                        <path d="M12 2a7 7 0 0 0-7 7c0 2.5 1.5 4.5 3 6h8c1.5-1.5 3-3.5 3-6a7 7 0 0 0-7-7z" />
-                      </svg>
-                      <span class="card-main-title">Prescribed Daily Precautions</span>
-                    </div>
-                    <div class="icon-info-btn" id="btnPrecautionsInfo"
-                      title="Physiological evidence-based recovery guidelines">
-                      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10" />
-                        <line x1="12" y1="16" x2="12" y2="12" />
-                        <line x1="12" y1="8" x2="12.01" y2="8" />
-                      </svg>
-                    </div>
+                <div class="card-header-flex">
+                  <div class="card-title-with-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                      <path d="M9 18h6" />
+                      <path d="M10 22h4" />
+                      <path d="M12 2a7 7 0 0 0-7 7c0 2.5 1.5 4.5 3 6h8c1.5-1.5 3-3.5 3-6a7 7 0 0 0-7-7z" />
+                    </svg>
+                    <span class="card-main-title">Prescribed Daily Precautions</span>
                   </div>
-
-                  <ul class="precautions-list" id="precautionsChecklist">
-                    <li class="precaution-item" data-idx="0">
-                      <div class="precaution-checkbox">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"
-                          stroke-linejoin="round">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      </div>
-                      <span class="precaution-text">Consider reducing high-intensity training if fatigue remains
-                        elevated.</span>
-                    </li>
-                    <li class="precaution-item" data-idx="1">
-                      <div class="precaution-checkbox">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"
-                          stroke-linejoin="round">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      </div>
-                      <span class="precaution-text">Focus on proper warm-up and cool-down.</span>
-                    </li>
-                    <li class="precaution-item" data-idx="2">
-                      <div class="precaution-checkbox">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"
-                          stroke-linejoin="round">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      </div>
-                      <span class="precaution-text">Include strength and mobility work for hamstrings and calves.</span>
-                    </li>
-                    <li class="precaution-item" data-idx="3">
-                      <div class="precaution-checkbox">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"
-                          stroke-linejoin="round">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      </div>
-                      <span class="precaution-text">Ensure adequate rest and sleep.</span>
-                    </li>
-                    <li class="precaution-item" data-idx="4">
-                      <div class="precaution-checkbox">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"
-                          stroke-linejoin="round">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      </div>
-                      <span class="precaution-text">If you feel pain or discomfort, consult a qualified sports
-                        professional.</span>
-                    </li>
-                  </ul>
+                  <div class="icon-info-btn" id="btnPrecautionsInfo"
+                    title="Physiological evidence-based recovery guidelines">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="16" x2="12" y2="12" />
+                      <line x1="12" y1="8" x2="12.01" y2="8" />
+                    </svg>
+                  </div>
                 </div>
+
+                <ul class="precautions-list" id="precautionsChecklist">
+                  <li class="precaution-item" data-idx="0">
+                    <div class="precaution-checkbox">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </div>
+                    <span class="precaution-text">Consider reducing high-intensity training if fatigue remains
+                      elevated.</span>
+                  </li>
+                  <li class="precaution-item" data-idx="1">
+                    <div class="precaution-checkbox">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </div>
+                    <span class="precaution-text">Focus on proper warm-up and cool-down.</span>
+                  </li>
+                  <li class="precaution-item" data-idx="2">
+                    <div class="precaution-checkbox">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </div>
+                    <span class="precaution-text">Include strength and mobility work for hamstrings and calves.</span>
+                  </li>
+                  <li class="precaution-item" data-idx="3">
+                    <div class="precaution-checkbox">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </div>
+                    <span class="precaution-text">Ensure adequate rest and sleep.</span>
+                  </li>
+                  <li class="precaution-item" data-idx="4">
+                    <div class="precaution-checkbox">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </div>
+                    <span class="precaution-text">If you feel pain or discomfort, consult a qualified sports
+                      professional.</span>
+                  </li>
+                </ul>
               </div>
+            </div>
 
             <!-- Card: Interactive Sports Science Tools (Centered) -->
             <div class="card quick-actions-hub-card">
@@ -699,7 +710,7 @@
               <div class="quick-hub-grid">
                 <a href="#what-if" class="quick-hub-btn" data-nav="what-if">
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m19 12-7-7-7 7"/><path d="M12 19V5"/></svg>
-                  <span>Predicto</span>
+                  <span>Predictio</span>
                 </a>
                 <a href="#analytics" class="quick-hub-btn" data-nav="analytics">
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
@@ -708,10 +719,6 @@
               </div>
             </div>
           </div>
-
-
-
-        </div>
 
 
       </section>
@@ -982,63 +989,7 @@
           </div>
         </div>
 
-        <!-- Visual State Transition Flow: Current -> Training -> Predicted State -->
-        <div class="card whatif-state-flow-card" style="margin-bottom:20px;padding:18px 24px;">
-          <div class="flow-header">
-            <div style="display:flex;align-items:center;gap:10px;">
-              <span style="font-size:1.25rem;">⚡</span>
-              <div>
-                <h3 class="flow-title">Physiological State Transition Simulation</h3>
-                <span class="flow-subtitle">Current Baseline &rarr; Prospective Training Load &rarr; Predicted Future
-                  State</span>
-              </div>
-            </div>
-            <span class="disclaimer-badge">Deterministic &amp; ML Regression Flow</span>
-          </div>
 
-          <div class="state-transition-flow">
-            <!-- Step 1: Current -->
-            <div class="flow-node node-current">
-              <div class="flow-node-badge">1. Current State</div>
-              <div class="flow-node-metric"><strong id="flowCurrReadiness">85%</strong> <span>Readiness</span></div>
-              <div class="flow-node-sub">Fatigue: <span id="flowCurrFatigue">38%</span> &bull; Rec: <span
-                  id="flowCurrRec">78%</span></div>
-            </div>
-
-            <div class="flow-connector">
-              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5">
-                <line x1="5" y1="12" x2="19" y2="12" />
-                <polyline points="12 5 19 12 12 19" />
-              </svg>
-              <span class="flow-connector-label" id="flowConnectorLoad">+42% Load</span>
-            </div>
-
-            <!-- Step 2: Training Exertion -->
-            <div class="flow-node node-training">
-              <div class="flow-node-badge">2. Planned Session</div>
-              <div class="flow-node-metric"><strong id="flowPlannedDur">60 min</strong> <span id="flowPlannedInt">@
-                  Moderate (65%)</span></div>
-              <div class="flow-node-sub">Est. Burn: <span id="flowPlannedCals">680 kcal</span> &bull; Strain: <span
-                  id="flowPlannedZone">Zone 3</span></div>
-            </div>
-
-            <div class="flow-connector">
-              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5">
-                <line x1="5" y1="12" x2="19" y2="12" />
-                <polyline points="12 5 19 12 12 19" />
-              </svg>
-              <span class="flow-connector-label">Model Estimates</span>
-            </div>
-
-            <!-- Step 3: Predicted State -->
-            <div class="flow-node node-predicted">
-              <div class="flow-node-badge">3. Predicted Future State</div>
-              <div class="flow-node-metric"><strong id="flowPredReadiness">74%</strong> <span>Readiness</span></div>
-              <div class="flow-node-sub">Fatigue: <span id="flowPredFatigue">52%</span> &bull; Rest: <span
-                  id="flowPredRecoveryHours">24–36h</span></div>
-            </div>
-          </div>
-        </div>
 
         <!-- Section 1: Prospective What-If Comparison Architecture (Current vs Scenario vs Predicted Outcome) -->
         <div class="whatif-comparison-grid" style="margin-bottom:24px;">
@@ -1440,6 +1391,64 @@
               </div>
 
               <button type="button" class="btn-apply-scenario" id="btnSyncCustomScenario">Apply Custom Plan</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Visual State Transition Flow: Current -> Training -> Predicted State -->
+        <div class="card whatif-state-flow-card" style="margin-bottom:28px;padding:22px 26px;">
+          <div class="flow-header">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:1.25rem;">⚡</span>
+              <div>
+                <h3 class="flow-title">Physiological State Transition Simulation</h3>
+                <span class="flow-subtitle">Current Baseline &rarr; Prospective Training Load &rarr; Predicted Future
+                  State</span>
+              </div>
+            </div>
+            <span class="disclaimer-badge">Deterministic &amp; ML Regression Flow</span>
+          </div>
+
+          <div class="state-transition-flow">
+            <!-- Step 1: Current -->
+            <div class="flow-node node-current">
+              <div class="flow-node-badge">1. Current State</div>
+              <div class="flow-node-metric"><strong id="flowCurrReadiness">85%</strong> <span>Readiness</span></div>
+              <div class="flow-node-sub">Fatigue: <span id="flowCurrFatigue">38%</span> &bull; Rec: <span
+                  id="flowCurrRec">78%</span></div>
+            </div>
+
+            <div class="flow-connector">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="5" y1="12" x2="19" y2="12" />
+                <polyline points="12 5 19 12 12 19" />
+              </svg>
+              <span class="flow-connector-label" id="flowConnectorLoad">+42% Load</span>
+            </div>
+
+            <!-- Step 2: Training Exertion -->
+            <div class="flow-node node-training">
+              <div class="flow-node-badge">2. Planned Session</div>
+              <div class="flow-node-metric"><strong id="flowPlannedDur">60 min</strong> <span id="flowPlannedInt">@
+                  Moderate (65%)</span></div>
+              <div class="flow-node-sub">Est. Burn: <span id="flowPlannedCals">680 kcal</span> &bull; Strain: <span
+                  id="flowPlannedZone">Zone 3</span></div>
+            </div>
+
+            <div class="flow-connector">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="5" y1="12" x2="19" y2="12" />
+                <polyline points="12 5 19 12 12 19" />
+              </svg>
+              <span class="flow-connector-label">Model Estimates</span>
+            </div>
+
+            <!-- Step 3: Predicted State -->
+            <div class="flow-node node-predicted">
+              <div class="flow-node-badge">3. Predicted Future State</div>
+              <div class="flow-node-metric"><strong id="flowPredReadiness">74%</strong> <span>Readiness</span></div>
+              <div class="flow-node-sub">Fatigue: <span id="flowPredFatigue">52%</span> &bull; Rest: <span
+                  id="flowPredRecoveryHours">24–36h</span></div>
             </div>
           </div>
         </div>

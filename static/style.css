@@ -5825,11 +5825,117 @@ body {
   gap: 12px;
 }
 
+/* Training Risk Card (Compact Left Panel) */
+.training-risk-card {
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  height: 100%;
+}
+
+.training-risk-table {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.training-risk-col-headers {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 8px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.risk-col-header-left,
+.risk-col-header-right {
+  font-size: 0.74rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted, #94A3B8);
+}
+
+.training-risk-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.training-risk-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.training-risk-row:last-child {
+  border-bottom: none;
+  padding-bottom: 2px;
+}
+
+.risk-row-label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #F8FAFC;
+  letter-spacing: -0.01em;
+}
+
+.risk-row-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.risk-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.risk-status-dot.dot-yellow {
+  background-color: #F59E0B;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.5);
+}
+
+.risk-status-dot.dot-green {
+  background-color: #10B981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+}
+
+.risk-status-dot.dot-red {
+  background-color: #EF4444;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+}
+
+.risk-status-text {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #F8FAFC;
+  min-width: 65px;
+  text-align: right;
+}
+
+@media (max-width: 640px) {
+  .training-risk-card {
+    padding: 16px 14px;
+  }
+  .risk-row-label,
+  .risk-status-text {
+    font-size: 0.82rem;
+  }
+}
+
 .safety-cards-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 20px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .safety-sub-column {
