@@ -1806,9 +1806,9 @@ function renderMicrocycleInputs(presetKey) {
       <div class="day-input-group">
         <label>Intensity</label>
         <select class="day-int-select">
-          <option value="Low" ${d.intensity === "Low" ? "selected" : ""}>Low (Zone 1-2)</option>
-          <option value="Moderate" ${d.intensity === "Moderate" ? "selected" : ""}>Moderate (Zone 3)</option>
-          <option value="High" ${d.intensity === "High" ? "selected" : ""}>High (Zone 4-5)</option>
+          <option value="Low" ${d.intensity === "Low" ? "selected" : ""}>Low</option>
+          <option value="Moderate" ${d.intensity === "Moderate" ? "selected" : ""}>Moderate</option>
+          <option value="High" ${d.intensity === "High" ? "selected" : ""}>High</option>
         </select>
       </div>
       <div class="day-input-group">

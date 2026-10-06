@@ -760,29 +760,28 @@
             <span class="live-kpi-title">Heart Rate</span>
             <div class="live-kpi-val"><span id="liveLabHrVal">156</span> <span
                 style="font-size:0.85rem;color:var(--text-muted);">BPM</span></div>
-            <div class="live-kpi-sub" id="liveLabHrStatus">Zone 4: Anaerobic Threshold</div>
+            <div class="live-kpi-sub" id="liveLabHrStatus" style="display:none;"></div>
           </div>
 
           <div class="live-kpi-card">
             <span class="live-kpi-title">SpO2</span>
             <div class="live-kpi-val"><span id="liveLabSpo2Val">98</span> <span
                 style="font-size:0.85rem;color:var(--text-muted);">%</span></div>
-            <div class="live-kpi-sub" id="liveLabSpo2Status">Optimal Saturation</div>
+            <div class="live-kpi-sub" id="liveLabSpo2Status" style="display:none;"></div>
           </div>
 
           <div class="live-kpi-card">
             <span class="live-kpi-title">Motion Level</span>
             <div class="live-kpi-val"><span id="liveLabAccelG">2.80</span> <span
                 style="font-size:0.85rem;color:var(--text-muted);">g</span></div>
-            <div class="live-kpi-sub" id="liveLabAccelAxes">X: 0.42 • Y: 1.85 • Z: -0.65</div>
+            <div class="live-kpi-sub" id="liveLabAccelAxes" style="display:none;"></div>
           </div>
 
           <div class="live-kpi-card">
             <span class="live-kpi-title">Step Rate</span>
             <div class="live-kpi-val"><span id="liveLabCadenceVal">168</span> <span
                 style="font-size:0.85rem;color:var(--text-muted);">SPM</span></div>
-            <div class="live-kpi-sub"><span id="liveLabStepsVal">1,240 steps</span> • <span id="liveLabCalBurnVal">780
-                kcal/h</span></div>
+            <div class="live-kpi-sub" style="display:none;"><span id="liveLabStepsVal"></span><span id="liveLabCalBurnVal"></span></div>
           </div>
         </div>
 
@@ -1012,6 +1011,9 @@
             </div>
 
             <div class="whatif-baseline-body">
+              <div class="whatif-current-state-img-wrap" style="margin:10px 0 16px 0;text-align:center;border-radius:10px;overflow:hidden;background:rgba(15,23,42,0.6);padding:8px;border:1px solid rgba(255,255,255,0.08);">
+                <img src="images/current_state_prediction.png" alt="Current State" style="max-width:100%;height:auto;max-height:150px;object-fit:contain;display:block;margin:0 auto;border-radius:6px;">
+              </div>
               <div class="whatif-param-row">
                 <span class="param-label">Training Intensity:</span>
                 <span class="badge-pill pill-yellow" id="baseIntensityBadge">Moderate</span>
@@ -1400,7 +1402,7 @@
             <div style="display:flex;align-items:center;gap:10px;">
               <span style="font-size:1.25rem;">⚡</span>
               <div>
-                <h3 class="flow-title">Physiological State Transition Simulation</h3>
+                <h3 class="flow-title">Training Impact Simulation</h3>
                 <span class="flow-subtitle">Current Baseline &rarr; Prospective Training Load &rarr; Predicted Future
                   State</span>
               </div>
@@ -1470,11 +1472,11 @@
 
           <!-- Preset Strategy Bar -->
           <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;" class="microcycle-presets-bar">
-            <button class="btn-top-action preset-btn active" data-preset="standard">Standard In-Season</button>
-            <button class="btn-top-action preset-btn" data-preset="taper">Pre-Match Taper</button>
-            <button class="btn-top-action preset-btn" data-preset="endurance">Aerobic Overload</button>
-            <button class="btn-top-action preset-btn" data-preset="recovery">Deload / Recovery</button>
-            <button class="btn-top-action preset-btn" data-preset="overload">High Fatigue Overreach</button>
+            <button class="btn-top-action preset-btn active" data-preset="standard">Normal Training</button>
+            <button class="btn-top-action preset-btn" data-preset="taper">Before Match</button>
+            <button class="btn-top-action preset-btn" data-preset="endurance">High Endurance Training</button>
+            <button class="btn-top-action preset-btn" data-preset="recovery">Recovery</button>
+            <button class="btn-top-action preset-btn" data-preset="overload">Too Much Training</button>
           </div>
 
           <!-- 7-Day Input Grid -->
