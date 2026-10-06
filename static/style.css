@@ -532,7 +532,8 @@ body::after {
   position: sticky;
   top: 92px;
   align-self: start;
-  max-height: calc(100vh - 110px);
+  max-height: none;
+  overflow: visible;
 }
 
 .sidebar-drawer-header {
@@ -661,7 +662,7 @@ body::after {
 }
 
 .sidebar-slogan {
-  padding: 56px 14px 8px 14px;
+  padding: 20px 14px 8px 14px;
   margin-top: auto;
 }
 
@@ -5521,16 +5522,15 @@ body {
 
 /* 2. Categorized Sidebar Navigation */
 .sidebar {
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+  overflow-y: visible;
+  scrollbar-width: none;
 }
 
 .sidebar-nav-section {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
 .sidebar-nav-section:last-child {
