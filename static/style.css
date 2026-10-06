@@ -516,12 +516,12 @@ body::after {
 
 /* Left Sidebar & Mobile Drawer */
 .sidebar {
-  width: 220px;
+  width: 280px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 16px 12px 24px 12px;
+  padding: 18px 16px 24px 16px;
   background: var(--glass-bg-subtle);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
@@ -617,8 +617,8 @@ body::after {
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
+  gap: 14px;
+  padding: 11px 16px;
   border-radius: var(--radius-inner);
   font-size: 0.88rem;
   font-weight: 500;
@@ -661,7 +661,7 @@ body::after {
 }
 
 .sidebar-slogan {
-  padding: 0 6px;
+  padding: 56px 14px 8px 14px;
   margin-top: auto;
 }
 
@@ -3073,8 +3073,8 @@ a,
     top: 0;
     left: 0;
     bottom: 0;
-    width: 290px;
-    max-width: 84vw;
+    width: 310px;
+    max-width: 86vw;
     background: #141416;
     backdrop-filter: var(--glass-blur-lg);
     -webkit-backdrop-filter: var(--glass-blur-lg);
@@ -5543,7 +5543,7 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-dim);
-  padding: 4px 12px 2px 12px;
+  padding: 6px 16px 4px 16px;
   user-select: none;
 }
 
@@ -6638,7 +6638,7 @@ body {
 }
 
 .sidebar-switch-role-box {
-  padding: 6px 14px;
+  padding: 6px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   margin-bottom: 6px;
 }
