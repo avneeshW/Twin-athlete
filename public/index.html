@@ -41,6 +41,7 @@
         <video class="landing-hero-video" id="landingHeroVideo" autoplay muted loop playsinline preload="auto">
           <source src="videos/hero-bg.mp4" type="video/mp4">
           <source src="videos/hero-soccer.mp4" type="video/mp4">
+          <source src="videos/hero-soccer-alt.mp4" type="video/mp4">
         </video>
         <div class="landing-video-overlay"></div>
         <div class="landing-grid-cyber-mesh"></div>
@@ -576,21 +577,49 @@
                     </svg>
                     <span class="card-main-title">Training Risk</span>
                   </div>
-                  <div class="icon-info-btn" id="btnInjuryInfo" title="Click for training risk methodology">
+                  <button type="button" class="icon-info-btn" id="btnInjuryInfo" title="Click for metric explanations" aria-label="Training Risk metric information" aria-expanded="false" aria-haspopup="dialog" aria-controls="trainingRiskInfoPopup">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
                       <circle cx="12" cy="12" r="10" />
                       <line x1="12" y1="16" x2="12" y2="12" />
                       <line x1="12" y1="8" x2="12.01" y2="8" />
                     </svg>
+                  </button>
+                </div>
+
+                <!-- Clean Information Popup for Training Risk Metrics -->
+                <div class="training-risk-info-popup" id="trainingRiskInfoPopup" role="dialog" aria-label="Training Risk Metric Guide" style="display: none;">
+                  <div class="risk-popup-header">
+                    <div class="risk-popup-header-title">
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="16" x2="12" y2="12" />
+                        <line x1="12" y1="8" x2="12.01" y2="8" />
+                      </svg>
+                      <span>Training Risk Guide</span>
+                    </div>
+                    <button type="button" class="risk-popup-close-btn" id="btnCloseTrainingRiskPopup" aria-label="Close information popup">&times;</button>
+                  </div>
+                  <div class="risk-popup-body">
+                    <div class="risk-popup-item">
+                      <strong class="risk-popup-metric-name">Training Load:</strong>
+                      <span class="risk-popup-metric-desc">Shows how much effort you put into training.</span>
+                    </div>
+                    <div class="risk-popup-item">
+                      <strong class="risk-popup-metric-name">Running Impact:</strong>
+                      <span class="risk-popup-metric-desc">Shows the impact on your body while running.</span>
+                    </div>
+                    <div class="risk-popup-item">
+                      <strong class="risk-popup-metric-name">Movement Balance:</strong>
+                      <span class="risk-popup-metric-desc">Shows how steady and consistent your movements are.</span>
+                    </div>
+                    <div class="risk-popup-item">
+                      <strong class="risk-popup-metric-name">Recovery:</strong>
+                      <span class="risk-popup-metric-desc">Shows how well your body is recovering and if you need more rest.</span>
+                    </div>
                   </div>
                 </div>
 
                 <div class="training-risk-table">
-                  <div class="training-risk-col-headers">
-                    <span class="risk-col-header-left">What the system sees</span>
-                    <span class="risk-col-header-right">Status</span>
-                  </div>
-
                   <div class="training-risk-rows">
                     <!-- Row 1: Training Load -->
                     <div class="training-risk-row">
@@ -2174,7 +2203,81 @@ Content-Type: application/json
 
         <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:10px;padding-top:14px;border-top:1px solid var(--glass-border-subtle);">
           <button type="button" class="btn-top-action" id="btnCancelAddPlayer" style="padding:8px 16px;">Cancel</button>
-          <button type="submit" class="btn-top-action" style="background:var(--whoop-green, #00E676);color:#0A0A0A;border-color:var(--whoop-green, #00E676);font-weight:800;padding:8px 20px;">✓ Register Player</button>
+          <button type="submit" class="btn-top-action" id="btnSubmitAddPlayer" style="background:var(--whoop-green, #00E676);color:#0A0A0A;border-color:var(--whoop-green, #00E676);font-weight:800;padding:8px 20px;">✓ Register Player</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit Player in Squad Modal -->
+  <div class="modal-backdrop" id="editPlayerModal" style="display: none;">
+    <div class="modal-card" style="max-width: 580px;">
+      <div class="modal-header">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:1.3rem;">✏️</span>
+            <h3 class="modal-title">Edit Squad Player</h3>
+          </div>
+          <p class="modal-subtitle">Update player biometrics and profile details</p>
+        </div>
+        <button type="button" class="modal-btn-close" id="btnCloseEditPlayerModal">&times;</button>
+      </div>
+
+      <form id="editPlayerForm" style="display:flex;flex-direction:column;gap:14px;font-size:0.85rem;">
+        <input type="hidden" id="editPlayerId" />
+        <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:12px;">
+          <div class="form-group">
+            <label style="display:block;font-size:0.75rem;font-weight:700;color:var(--text-muted);margin-bottom:5px;text-transform:uppercase;">Full Name *</label>
+            <input type="text" id="editPlayerName" required class="form-control" style="width:100%;padding:9px 12px;background:var(--glass-bg-input, #121214);border:1px solid var(--glass-border);border-radius:8px;color:var(--text-dark);font-size:0.85rem;" />
+          </div>
+          <div class="form-group">
+            <label style="display:block;font-size:0.75rem;font-weight:700;color:var(--text-muted);margin-bottom:5px;text-transform:uppercase;">Position *</label>
+            <select id="editPlayerPosition" style="width:100%;padding:9px 12px;background:var(--glass-bg-input, #121214);border:1px solid var(--glass-border);border-radius:8px;color:var(--text-dark);font-size:0.85rem;">
+              <option value="Midfield / Box-to-Box">Midfield / Box-to-Box</option>
+              <option value="Center Forward">Center Forward</option>
+              <option value="Left Winger">Left Winger</option>
+              <option value="Right Winger">Right Winger</option>
+              <option value="Attacking Midfielder">Attacking Midfielder</option>
+              <option value="Central Defender">Central Defender</option>
+              <option value="Fullback">Fullback</option>
+              <option value="Goalkeeper">Goalkeeper</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:12px;">
+          <div class="form-group">
+            <label style="display:block;font-size:0.75rem;font-weight:700;color:var(--text-muted);margin-bottom:5px;text-transform:uppercase;">Squad #</label>
+            <input type="text" id="editPlayerSquadNumber" value="8" style="width:100%;padding:9px 12px;background:var(--glass-bg-input, #121214);border:1px solid var(--glass-border);border-radius:8px;color:var(--text-dark);font-size:0.85rem;" />
+          </div>
+          <div class="form-group">
+            <label style="display:block;font-size:0.75rem;font-weight:700;color:var(--text-muted);margin-bottom:5px;text-transform:uppercase;">Age</label>
+            <input type="number" id="editPlayerAge" value="24" min="15" max="45" style="width:100%;padding:9px 12px;background:var(--glass-bg-input, #121214);border:1px solid var(--glass-border);border-radius:8px;color:var(--text-dark);font-size:0.85rem;" />
+          </div>
+          <div class="form-group">
+            <label style="display:block;font-size:0.75rem;font-weight:700;color:var(--text-muted);margin-bottom:5px;text-transform:uppercase;">Height (cm)</label>
+            <input type="number" id="editPlayerHeight" value="180" min="150" max="220" style="width:100%;padding:9px 12px;background:var(--glass-bg-input, #121214);border:1px solid var(--glass-border);border-radius:8px;color:var(--text-dark);font-size:0.85rem;" />
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:12px;">
+          <div class="form-group">
+            <label style="display:block;font-size:0.75rem;font-weight:700;color:var(--text-muted);margin-bottom:5px;text-transform:uppercase;">Weight (kg)</label>
+            <input type="number" id="editPlayerWeight" value="74" min="45" max="130" step="0.5" style="width:100%;padding:9px 12px;background:var(--glass-bg-input, #121214);border:1px solid var(--glass-border);border-radius:8px;color:var(--text-dark);font-size:0.85rem;" />
+          </div>
+          <div class="form-group">
+            <label style="display:block;font-size:0.75rem;font-weight:700;color:var(--text-muted);margin-bottom:5px;text-transform:uppercase;">Rest HR (BPM)</label>
+            <input type="number" id="editPlayerRestHr" value="54" min="35" max="100" style="width:100%;padding:9px 12px;background:var(--glass-bg-input, #121214);border:1px solid var(--glass-border);border-radius:8px;color:var(--text-dark);font-size:0.85rem;" />
+          </div>
+          <div class="form-group">
+            <label style="display:block;font-size:0.75rem;font-weight:700;color:var(--text-muted);margin-bottom:5px;text-transform:uppercase;">Device ID</label>
+            <input type="text" id="editPlayerDeviceId" placeholder="e.g. ESP32-01" style="width:100%;padding:9px 12px;background:var(--glass-bg-input, #121214);border:1px solid var(--glass-border);border-radius:8px;color:var(--text-dark);font-size:0.85rem;" />
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:10px;padding-top:14px;border-top:1px solid var(--glass-border-subtle);">
+          <button type="button" class="btn-top-action" id="btnCancelEditPlayer" style="padding:8px 16px;">Cancel</button>
+          <button type="submit" class="btn-top-action" id="btnSubmitEditPlayer" style="background:var(--whoop-green, #00E676);color:#0A0A0A;border-color:var(--whoop-green, #00E676);font-weight:800;padding:8px 20px;">✓ Save Changes</button>
         </div>
       </form>
     </div>

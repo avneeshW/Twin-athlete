@@ -470,9 +470,13 @@ def get_dashboard_data():
         position = getattr(active_profile, "position", "Midfielder")
         squad_num = getattr(active_profile, "squad_number", "8")
     elif active_profile and active_id == "ATH-0824":
-        athlete_name = "Avneesh Walvalkar"
-        position = "Midfielder"
-        squad_num = "8"
+        prof_name = getattr(active_profile, "name", None)
+        if prof_name and prof_name not in ["Daniel Saji", "Athlete"]:
+            athlete_name = prof_name
+        else:
+            athlete_name = "Avneesh Walvalkar"
+        position = getattr(active_profile, "position", "Midfielder")
+        squad_num = getattr(active_profile, "squad_number", "8")
     elif active_profile and getattr(active_profile, "name", None):
         athlete_name = active_profile.name
         position = getattr(active_profile, "position", "Midfielder")
@@ -1311,6 +1315,33 @@ def update_athlete_baseline():
         new_chronic_load=data.get("chronic_load_baseline")
     )
     return jsonify({"success": True, "message": "Baseline updated", "profile": ai_coach_engine.athlete_profile.to_dict()}), 200
+
+
+@app.route("/api/athlete/update", methods=["POST", "PUT", "OPTIONS"])
+@app.route("/api/athlete/<athlete_id>/update", methods=["POST", "PUT", "OPTIONS"])
+@app.route("/api/athlete/<athlete_id>", methods=["PUT", "PATCH"])
+def update_athlete_endpoint(athlete_id=None):
+    """Updates athlete profile and synchronizes changes across all devices via shared vault."""
+    if request.method == "OPTIONS":
+        return jsonify({"success": True}), 200
+
+    data = request.get_json(silent=True) or {}
+    target_id = athlete_id or data.get("athlete_id") or data.get("id")
+    reg = get_registry()
+    if not target_id:
+        target_id = reg.get_active_athlete_id() if reg else "ATH-0824"
+
+    if reg is None:
+        return jsonify({"success": False, "error": "Athlete registry engine is currently unavailable."}), 503
+
+    updated_twin = reg.update_athlete(target_id, data)
+    if updated_twin:
+        return jsonify({
+            "success": True,
+            "message": f"Athlete '{target_id}' updated successfully.",
+            "athlete": updated_twin.get_summary()
+        }), 200
+    return jsonify({"success": False, "error": f"Athlete '{target_id}' not found."}), 404
 
 
 @app.route("/api/privacy-policy", methods=["GET"])

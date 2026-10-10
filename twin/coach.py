@@ -109,6 +109,7 @@ class AthleteProfile:
         self.vo2_max = 58.5                 # ml/kg/min
         self.chronic_load_baseline = 42.0   # 28-day EWMA workload
         self.typical_sleep_baseline = 7.8   # hours
+        self.squad_number = "8"
         self.dominant_leg = "Right"
         self.history_days = 180
 
@@ -120,6 +121,7 @@ class AthleteProfile:
                     self.name = saved.get("name", self.name)
                     self.sport = saved.get("sport", self.sport)
                     self.position = saved.get("position", self.position)
+                    self.squad_number = str(saved.get("squad_number", self.squad_number))
                     self.age = int(saved.get("age", self.age))
                     self.height_cm = float(saved.get("height_cm", self.height_cm))
                     self.weight_kg = float(saved.get("weight_kg", self.weight_kg))
@@ -186,6 +188,7 @@ class AthleteProfile:
             "name": self.name,
             "sport": self.sport,
             "position": getattr(self, "position", "Midfield Runner"),
+            "squad_number": getattr(self, "squad_number", "8"),
             "age": self.age,
             "height_cm": self.height_cm,
             "weight_kg": self.weight_kg,

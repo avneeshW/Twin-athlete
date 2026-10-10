@@ -217,6 +217,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initDailyCheckinModal();
   initPrecautionsChecklist();
   initInfoModals();
+  initTrainingRiskPopup();
   initMetricCardsClick();
 
   loadDashboardData("1H");
@@ -719,16 +720,13 @@ async function loadDashboardData(timeframe = "1H") {
     const data = await res.json();
     cachedDashboardData = data;
 
-    // Sync active profile with server athlete data if not locally overridden
+    // Sync active profile with server athlete data (shared source of truth across all devices)
     if (data.athlete && data.athlete.name) {
-      const hasLocalOverride = localStorage.getItem("digitalTwinAthleteSettings");
-      if (!hasLocalOverride) {
-        updateActiveUserProfile({
-          name: data.athlete.name,
-          position: data.athlete.position || "Midfielder",
-          squadNumber: data.athlete.squad_number || "8"
-        }, false);
-      }
+      updateActiveUserProfile({
+        name: data.athlete.name,
+        position: data.athlete.position || "Midfielder",
+        squadNumber: data.athlete.squad_number || "8"
+      }, true);
     }
 
     if (data.vitals) updateVitalsUI(data.vitals);
@@ -2206,27 +2204,66 @@ function initSettingsView() {
   } catch (e) { }
 
   if (saveBtn) {
-    saveBtn.addEventListener("click", () => {
+    saveBtn.addEventListener("click", async () => {
       const newName = document.getElementById("settingAthleteName")?.value?.trim() || DEFAULT_USER_PROFILE.name;
       const newPos = document.getElementById("settingAthletePosition")?.value?.trim() || DEFAULT_USER_PROFILE.position;
       const newSquad = document.getElementById("settingAthleteSquadNumber")?.value?.trim() || DEFAULT_USER_PROFILE.squadNumber;
+      const newAge = parseInt(document.getElementById("settingAthleteAge")?.value || "24", 10);
+      const newWeight = parseFloat(document.getElementById("settingAthleteWeight")?.value || "74");
+      const newHeight = parseFloat(document.getElementById("settingAthleteHeight")?.value || "180");
+      const newRestHr = parseInt(document.getElementById("settingAthleteRestHr")?.value || "54", 10);
+      const newMaxHr = parseInt(document.getElementById("settingAthleteMaxHr")?.value || "196", 10);
+
       const settings = {
         name: newName,
         position: newPos,
         squadNumber: newSquad,
-        age: parseInt(document.getElementById("settingAthleteAge")?.value || "24"),
-        weight: parseFloat(document.getElementById("settingAthleteWeight")?.value || "74"),
-        height: parseFloat(document.getElementById("settingAthleteHeight")?.value || "180"),
-        restHr: parseInt(document.getElementById("settingAthleteRestHr")?.value || "54"),
+        age: newAge,
+        weight: newWeight,
+        height: newHeight,
+        restHr: newRestHr,
+        maxHr: newMaxHr,
         serverUrl: document.getElementById("settingServerUrl")?.value,
         wifiSsid: document.getElementById("settingWifiSsid")?.value
       };
+
+      saveBtn.disabled = true;
+      saveBtn.textContent = "Saving...";
+
+      // Persist to shared backend database so all devices reflect the updated player info
+      try {
+        const targetAid = cachedActiveAthleteId || "ATH-0824";
+        await fetch("/api/athlete/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            athlete_id: targetAid,
+            name: newName,
+            position: newPos,
+            squad_number: newSquad,
+            age: newAge,
+            weight_kg: newWeight,
+            height_cm: newHeight,
+            resting_hr_baseline: newRestHr,
+            max_hr: newMaxHr
+          })
+        });
+      } catch (err) {
+        console.warn("Notice: server athlete update:", err);
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = "Save All Settings";
+      }
 
       updateActiveUserProfile(settings, true);
 
       if (toast) {
         toast.style.display = "block";
         setTimeout(() => { toast.style.display = "none"; }, 3500);
+      }
+
+      if (typeof loadCoachSquad === "function") {
+        loadCoachSquad();
       }
     });
   }
@@ -3169,23 +3206,9 @@ function initInfoModals() {
   const titleEl = document.getElementById("infoModalTitle");
   const bodyEl = document.getElementById("infoModalBody");
 
-  const btnInjury = document.getElementById("btnInjuryInfo");
   const btnPrecautions = document.getElementById("btnPrecautionsInfo");
 
   if (!modal) return;
-
-  if (btnInjury) {
-    btnInjury.addEventListener("click", () => {
-      if (titleEl) titleEl.textContent = "Biomechanical Injury Risk Model";
-      if (bodyEl) {
-        bodyEl.innerHTML = `
-          SYNC combines real-time 6-DOF IMU acceleration spikes (>2.5g), acute-to-chronic workload ratios (ACWR), and athlete-reported neuromuscular fatigue.<br><br>
-          Elevated risk alerts trigger targeted pre-habilitation drills to prevent soft-tissue non-contact injuries before they occur.
-        `;
-      }
-      modal.style.display = "flex";
-    });
-  }
 
   if (btnPrecautions) {
     btnPrecautions.addEventListener("click", () => {
@@ -3210,6 +3233,66 @@ function initInfoModals() {
     if (e.target === modal) modal.style.display = "none";
   });
 }
+
+/**
+ * Clean Information Popup for Training Risk Metrics
+ * Explains: Training Load, Running Impact, Movement Balance, Recovery
+ */
+function initTrainingRiskPopup() {
+  const btn = document.getElementById("btnInjuryInfo");
+  const popup = document.getElementById("trainingRiskInfoPopup");
+  const closeBtn = document.getElementById("btnCloseTrainingRiskPopup");
+
+  if (!btn || !popup) return;
+
+  function openPopup() {
+    popup.style.display = "flex";
+    btn.setAttribute("aria-expanded", "true");
+  }
+
+  function closePopup() {
+    popup.style.display = "none";
+    btn.setAttribute("aria-expanded", "false");
+  }
+
+  function togglePopup(e) {
+    e.stopPropagation();
+    if (popup.style.display === "none" || !popup.style.display) {
+      openPopup();
+    } else {
+      closePopup();
+    }
+  }
+
+  btn.addEventListener("click", togglePopup);
+
+  if (closeBtn) {
+    closeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      closePopup();
+    });
+  }
+
+  // Prevent clicks inside popup from bubbling to document
+  popup.addEventListener("click", (e) => {
+    e.stopPropagation();
+  });
+
+  // Tap or click outside closes popup
+  document.addEventListener("click", (e) => {
+    if (popup.style.display !== "none" && popup.style.display !== "" && !popup.contains(e.target) && !btn.contains(e.target)) {
+      closePopup();
+    }
+  });
+
+  // Escape key closes popup
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && popup.style.display !== "none" && popup.style.display !== "") {
+      closePopup();
+    }
+  });
+}
+window.initTrainingRiskPopup = initTrainingRiskPopup;
 
 /* ==============================================================================
    23. METRIC CARDS INTERACTIVE CLICK HANDLERS
@@ -4476,27 +4559,63 @@ function closeRemovePlayerModal() {
 }
 window.closeRemovePlayerModal = closeRemovePlayerModal;
 
+function openEditPlayerModal(athleteId) {
+  const modal = document.getElementById("editPlayerModal");
+  if (!modal) return;
+  const ath = (cachedSquadAthletes || []).find(a => (a.id || a.athlete_id) === athleteId);
+
+  const idInput = document.getElementById("editPlayerId");
+  const nameInput = document.getElementById("editPlayerName");
+  const posInput = document.getElementById("editPlayerPosition");
+  const squadInput = document.getElementById("editPlayerSquadNumber");
+  const ageInput = document.getElementById("editPlayerAge");
+  const heightInput = document.getElementById("editPlayerHeight");
+  const weightInput = document.getElementById("editPlayerWeight");
+  const restHrInput = document.getElementById("editPlayerRestHr");
+  const devInput = document.getElementById("editPlayerDeviceId");
+
+  if (idInput) idInput.value = athleteId;
+  if (nameInput) nameInput.value = (ath && ath.name) || (activeUserProfile && activeUserProfile.name) || "";
+  if (posInput) posInput.value = (ath && ath.position) || (activeUserProfile && activeUserProfile.position) || "Midfield / Box-to-Box";
+  if (squadInput) squadInput.value = (ath && (ath.squad_number || ath.squadNumber)) || (activeUserProfile && activeUserProfile.squadNumber) || athleteId.replace(/[^0-9]/g, "").replace(/^0+/, "").slice(0, 2) || "8";
+  if (ageInput) ageInput.value = (ath && ath.age) || (activeUserProfile && activeUserProfile.age) || 24;
+  if (heightInput) heightInput.value = (ath && (ath.height_cm || ath.height)) || (activeUserProfile && activeUserProfile.height) || 180;
+  if (weightInput) weightInput.value = (ath && (ath.weight_kg || ath.weight)) || (activeUserProfile && activeUserProfile.weight) || 74;
+  if (restHrInput) restHrInput.value = (ath && (ath.resting_hr_baseline || ath.restHr)) || (activeUserProfile && activeUserProfile.restHr) || 54;
+  if (devInput) devInput.value = (ath && ath.device_id) || "";
+
+  modal.style.display = "flex";
+  if (nameInput) setTimeout(() => nameInput.focus(), 100);
+}
+window.openEditPlayerModal = openEditPlayerModal;
+
+function closeEditPlayerModal() {
+  const modal = document.getElementById("editPlayerModal");
+  if (modal) modal.style.display = "none";
+}
+window.closeEditPlayerModal = closeEditPlayerModal;
+
 async function executeRemoveAthlete() {
   if (!pendingRemoveAthleteId) return;
   const athleteId = pendingRemoveAthleteId;
   closeRemovePlayerModal();
 
   try {
-    fetch(`/api/athlete/${encodeURIComponent(athleteId)}`, {
+    const res = await fetch(`/api/athlete/${encodeURIComponent(athleteId)}`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" }
-    }).catch(err => console.warn("Notice: server athlete delete:", err));
-  } catch (_) {}
-
-  try {
-    let customSquad = JSON.parse(localStorage.getItem("digitalTwinCustomAthletes") || "[]");
-    if (Array.isArray(customSquad)) {
-      customSquad = customSquad.filter(a => (a.id || a.athlete_id) !== athleteId);
-      localStorage.setItem("digitalTwinCustomAthletes", JSON.stringify(customSquad));
+    });
+    if (res.ok) {
+      showToast(`Player #${athleteId} removed from squad`, "🗑️");
+    } else {
+      const err = await res.json().catch(() => ({}));
+      showToast(err.error || `Could not remove player`, "⚠️");
     }
-  } catch (_) {}
+  } catch (err) {
+    console.warn("Notice: server athlete delete:", err);
+    showToast(`Network error removing player`, "⚠️");
+  }
 
-  showToast(`Player #${athleteId} removed from squad`, "🗑️");
   await loadCoachSquad();
   if (typeof loadDashboardData === "function") {
     loadDashboardData(currentTimeframe);
@@ -4546,18 +4665,6 @@ async function loadCoachSquad() {
       if (!activeAthleteId) activeAthleteId = "ATH-0824";
     }
 
-    // Merge custom registered athletes from client store
-    try {
-      const stored = JSON.parse(localStorage.getItem("digitalTwinCustomAthletes") || "[]");
-      if (Array.isArray(stored) && stored.length) {
-        const existingIds = new Set(athletes.map(a => a.id || a.athlete_id));
-        for (const ca of stored) {
-          if (!existingIds.has(ca.id || ca.athlete_id)) {
-            athletes.push(ca);
-          }
-        }
-      }
-    } catch (_) {}
     cachedSquadAthletes = athletes;
     cachedActiveAthleteId = activeAthleteId;
 
@@ -4586,8 +4693,11 @@ async function loadCoachSquad() {
                     ${deviceTag}
                   </div>
                 </div>
-                <div style="display:flex;align-items:center;gap:8px;">
+                <div style="display:flex;align-items:center;gap:6px;">
                   <span class="badge-pill ${pillClass}">${statusLabel}</span>
+                  <button class="btn-edit-player" onclick="openEditPlayerModal('${aid}')" title="Edit ${ath.name}" aria-label="Edit player">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  </button>
                   <button class="btn-remove-player" onclick="promptRemoveAthlete('${aid}', '${(ath.name || '').replace(/'/g, "\\'")}')" title="Remove ${ath.name} from squad" aria-label="Remove player">
                     <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
                   </button>
@@ -4661,11 +4771,7 @@ async function selectAthleteTwin(athleteId) {
   }
 
   if (!switchSuccessful) {
-    let matched = null;
-    try {
-      const custom = JSON.parse(localStorage.getItem("digitalTwinCustomAthletes") || "[]");
-      matched = custom.find(a => (a.id || a.athlete_id) === athleteId);
-    } catch (_) {}
+    let matched = (cachedSquadAthletes || []).find(a => (a.id || a.athlete_id) === athleteId);
     if (!matched) {
       const defaultSquad = [
         { id: "ATH-0824", name: "Daniel Saji", position: "Midfield / Box-to-Box" },
@@ -4677,7 +4783,7 @@ async function selectAthleteTwin(athleteId) {
       matched = defaultSquad.find(a => a.id === athleteId);
     }
     if (matched) {
-      const squadNum = athleteId.replace(/[^0-9]/g, "").replace(/^0+/, "").slice(0, 2) || "8";
+      const squadNum = matched.squad_number || athleteId.replace(/[^0-9]/g, "").replace(/^0+/, "").slice(0, 2) || "8";
       updateActiveUserProfile({
         name: matched.name,
         position: matched.position || "Midfielder",
@@ -4738,6 +4844,97 @@ function initCoachSquadControls() {
     btnExportSquad.onclick = exportSquadSummaryPdf;
   }
 
+  const editModal = document.getElementById("editPlayerModal");
+  const btnCloseEdit = document.getElementById("btnCloseEditPlayerModal");
+  const btnCancelEdit = document.getElementById("btnCancelEditPlayer");
+  const editForm = document.getElementById("editPlayerForm");
+
+  if (btnCloseEdit) {
+    btnCloseEdit.addEventListener("click", closeEditPlayerModal);
+  }
+  if (btnCancelEdit) {
+    btnCancelEdit.addEventListener("click", closeEditPlayerModal);
+  }
+  if (editModal) {
+    editModal.addEventListener("click", (e) => {
+      if (e.target === editModal) closeEditPlayerModal();
+    });
+  }
+
+  if (editForm) {
+    editForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const athleteId = document.getElementById("editPlayerId")?.value;
+      if (!athleteId) return;
+
+      const name = document.getElementById("editPlayerName")?.value?.trim();
+      if (!name) {
+        showToast("Player name is required", "⚠️");
+        return;
+      }
+      const position = document.getElementById("editPlayerPosition")?.value || "Midfield / Box-to-Box";
+      const squad_number = document.getElementById("editPlayerSquadNumber")?.value?.trim() || "";
+      const age = parseInt(document.getElementById("editPlayerAge")?.value, 10) || 24;
+      const height_cm = parseFloat(document.getElementById("editPlayerHeight")?.value) || 180.0;
+      const weight_kg = parseFloat(document.getElementById("editPlayerWeight")?.value) || 74.0;
+      const resting_hr_baseline = parseFloat(document.getElementById("editPlayerRestHr")?.value) || 54.0;
+      const device_id = document.getElementById("editPlayerDeviceId")?.value?.trim() || "";
+
+      const submitBtn = document.getElementById("btnSubmitEditPlayer");
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Saving...";
+      }
+
+      try {
+        const res = await fetch("/api/athlete/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            athlete_id: athleteId,
+            name,
+            position,
+            squad_number,
+            age,
+            height_cm,
+            weight_kg,
+            resting_hr_baseline,
+            device_id
+          })
+        });
+
+        if (res.ok) {
+          showToast(`Player ${name} updated successfully`, "✓");
+          // If edited player is active athlete, synchronize user profile UI
+          if (cachedActiveAthleteId === athleteId || (activeUserProfile && activeUserProfile.name === name)) {
+            updateActiveUserProfile({
+              name,
+              position,
+              squadNumber: squad_number || "8"
+            }, true);
+          }
+        } else {
+          const err = await res.json().catch(() => ({}));
+          showToast(err.error || "Failed to update player", "⚠️");
+        }
+      } catch (err) {
+        console.error("Error updating player:", err);
+        showToast("Network error updating player", "⚠️");
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "✓ Save Changes";
+        }
+      }
+
+      closeEditPlayerModal();
+      await loadCoachSquad();
+      if (typeof loadDashboardData === "function") {
+        loadDashboardData(currentTimeframe);
+      }
+    });
+  }
+
   if (addForm) {
     addForm.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -4748,6 +4945,7 @@ function initCoachSquadControls() {
       }
 
       const position = document.getElementById("newPlayerPosition")?.value || "Midfield / Box-to-Box";
+      const squad_number = document.getElementById("newPlayerSquadNumber")?.value?.trim() || "";
       const age = parseInt(document.getElementById("newPlayerAge")?.value, 10) || 23;
       const height_cm = parseFloat(document.getElementById("newPlayerHeight")?.value) || 181.0;
       const weight_kg = parseFloat(document.getElementById("newPlayerWeight")?.value) || 76.0;
@@ -4762,6 +4960,7 @@ function initCoachSquadControls() {
         name,
         sport: "Football",
         position,
+        squad_number,
         age,
         height_cm,
         weight_kg,
@@ -4774,59 +4973,41 @@ function initCoachSquadControls() {
         device_id
       };
 
-      const randId = "ATH-" + Math.floor(1000 + Math.random() * 9000);
-      const newAthlete = {
-        id: randId,
-        athlete_id: randId,
-        name: name,
-        sport: "Football",
-        position: position,
-        age: age,
-        height_cm: height_cm,
-        weight_kg: weight_kg,
-        resting_hr_baseline: resting_hr_baseline,
-        max_hr: max_hr,
-        typical_sleep_baseline: typical_sleep_baseline,
-        recovery: recovery,
-        fatigue: fatigue,
-        readiness: recovery,
-        acwr: 1.05,
-        status: recovery >= 75 ? "Optimal" : (recovery >= 60 ? "Moderate" : "High Strain"),
-        status_color: recovery >= 75 ? "green" : (recovery >= 60 ? "yellow" : "red"),
-        recommendation: "Maintain prescribed periodization",
-        device_id: device_id
-      };
+      const submitBtn = document.getElementById("btnSubmitAddPlayer");
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Registering...";
+      }
 
       try {
-        fetch("/api/athlete/register", {
+        const res = await fetch("/api/athlete/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
-        }).then(async res => {
-          if (res.ok) {
-            const data = await res.json();
-            if (data && data.athlete && (data.athlete.id || data.athlete.athlete_id)) {
-              newAthlete.id = data.athlete.id || data.athlete.athlete_id;
-              newAthlete.athlete_id = newAthlete.id;
-            }
-          }
-        }).catch(err => console.warn("Notice: background server registration:", err));
-      } catch (_) {}
+        });
 
-      // Always commit to local client-side squad store for instant, zero-failure UI update
-      try {
-        let customSquad = JSON.parse(localStorage.getItem("digitalTwinCustomAthletes") || "[]");
-        if (!Array.isArray(customSquad)) customSquad = [];
-        if (!customSquad.some(a => a.name.toLowerCase() === name.toLowerCase())) {
-          customSquad.push(newAthlete);
-          localStorage.setItem("digitalTwinCustomAthletes", JSON.stringify(customSquad));
+        if (res.ok) {
+          showToast(`Player ${name} registered in squad`, "⚽");
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          showToast(errData.error || `Failed to register ${name}`, "⚠️");
         }
-      } catch (_) {}
+      } catch (err) {
+        console.error("Server athlete registration error:", err);
+        showToast("Network error registering player", "⚠️");
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "✓ Register Player";
+        }
+      }
 
-      showToast(`Player ${name} registered in squad`, "⚽");
       closeAddPlayerModal();
       addForm.reset();
       await loadCoachSquad();
+      if (typeof loadDashboardData === "function") {
+        loadDashboardData(currentTimeframe);
+      }
     });
   }
 }

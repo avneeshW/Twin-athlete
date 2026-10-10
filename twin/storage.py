@@ -129,12 +129,32 @@ class StorageVault:
                 );
             """)
 
-            # Safe migration for existing databases missing position or active_squad
-            for col_def in ["position TEXT DEFAULT 'Midfield Runner'", "active_squad INTEGER DEFAULT 1"]:
+            # Safe migration for existing databases missing position or active_squad or extended fields
+            for col_def in [
+                "position TEXT DEFAULT 'Midfield Runner'",
+                "active_squad INTEGER DEFAULT 1",
+                "squad_number TEXT DEFAULT '8'",
+                "recovery REAL DEFAULT 80.0",
+                "fatigue REAL DEFAULT 35.0",
+                "acwr REAL DEFAULT 1.05",
+                "device_id TEXT",
+                "status TEXT DEFAULT 'Optimal'",
+                "status_color TEXT DEFAULT 'green'",
+                "recommendation TEXT DEFAULT 'Maintain prescribed periodization'"
+            ]:
                 try:
                     conn.execute(f"ALTER TABLE athlete_baselines ADD COLUMN {col_def};")
                 except sqlite3.OperationalError:
                     pass
+
+            # Global Application Settings Key-Value Store (shared across devices)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS app_settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL,
+                    updated_at REAL NOT NULL
+                );
+            """)
 
             # 2. Prediction vs Actual Feedback Ledger Table
             conn.execute("""
@@ -278,6 +298,7 @@ class StorageVault:
             try:
                 with conn:
                     cursor = conn.execute("DELETE FROM athlete_baselines WHERE athlete_id = ?", (athlete_id,))
+                    conn.execute("DELETE FROM device_mappings WHERE athlete_id = ?", (athlete_id,))
                     return cursor.rowcount > 0
             finally:
                 conn.close()
@@ -291,8 +312,9 @@ class StorageVault:
                         INSERT INTO athlete_baselines (
                             athlete_id, name, sport, position, age, height_cm, weight_kg,
                             resting_hr_baseline, max_hr, vo2_max, chronic_load_baseline,
-                            typical_sleep_baseline, history_days, dominant_leg, active_squad, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            typical_sleep_baseline, history_days, dominant_leg, active_squad,
+                            squad_number, recovery, fatigue, acwr, device_id, status, status_color, recommendation, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(athlete_id) DO UPDATE SET
                             name = excluded.name,
                             sport = excluded.sport,
@@ -308,6 +330,14 @@ class StorageVault:
                             history_days = excluded.history_days,
                             dominant_leg = excluded.dominant_leg,
                             active_squad = excluded.active_squad,
+                            squad_number = excluded.squad_number,
+                            recovery = excluded.recovery,
+                            fatigue = excluded.fatigue,
+                            acwr = excluded.acwr,
+                            device_id = excluded.device_id,
+                            status = excluded.status,
+                            status_color = excluded.status_color,
+                            recommendation = excluded.recommendation,
                             updated_at = excluded.updated_at;
                     """, (
                         profile.get("athlete_id", "ATH-0824"),
@@ -325,8 +355,40 @@ class StorageVault:
                         profile.get("history_days", 180),
                         profile.get("dominant_leg", "Right"),
                         1 if profile.get("active_squad", True) else 0,
+                        str(profile.get("squad_number", "8")),
+                        float(profile.get("recovery", 80.0)),
+                        float(profile.get("fatigue", 35.0)),
+                        float(profile.get("acwr", 1.05)),
+                        profile.get("device_id"),
+                        profile.get("status", "Optimal"),
+                        profile.get("status_color", "green"),
+                        profile.get("recommendation", "Maintain prescribed periodization"),
                         time.time()
                     ))
+            finally:
+                conn.close()
+
+    def get_setting(self, key: str, default: Optional[str] = None) -> Optional[str]:
+        conn = self._get_connection()
+        try:
+            cursor = conn.execute("SELECT value FROM app_settings WHERE key = ?", (key,))
+            row = cursor.fetchone()
+            if row:
+                return row["value"]
+            return default
+        finally:
+            conn.close()
+
+    def set_setting(self, key: str, value: str) -> bool:
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                with conn:
+                    conn.execute("""
+                        INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)
+                        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at;
+                    """, (key, str(value), time.time()))
+                    return True
             finally:
                 conn.close()
 
