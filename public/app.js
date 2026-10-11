@@ -4525,6 +4525,180 @@ let pendingRemoveAthleteId = null;
 let cachedSquadAthletes = [];
 let cachedActiveAthleteId = "";
 
+/**
+ * Squad persistence layer.
+ * Talks to the Flask API when it is reachable; when the backend is offline or
+ * unavailable (static hosting, server stopped, serverless 5xx) the same
+ * endpoints are served from a localStorage-backed squad so that adding,
+ * editing, removing and selecting players keeps working.
+ */
+const LOCAL_SQUAD_KEY = "twinathlete.localSquad.v1";
+
+function defaultLocalSquad() {
+  return {
+    active: "ATH-0824",
+    athletes: [
+      { id: "ATH-0824", athlete_id: "ATH-0824", name: "Daniel Saji", sport: "Football", position: "Midfield / Box-to-Box", squad_number: "8", age: 24, height_cm: 182, weight_kg: 75.5, resting_hr_baseline: 54, readiness: 84, fatigue: 38, recovery: 78, acwr: 1.08, status: "Optimal", status_color: "green", recommendation: "Maintain prescribed periodization", device_id: "ESP32-ATHLETE-01" },
+      { id: "ATH-0102", athlete_id: "ATH-0102", name: "Marcus Vance", sport: "Football", position: "Center Forward", squad_number: "9", age: 22, height_cm: 186, weight_kg: 81, resting_hr_baseline: 58, readiness: 71, fatigue: 48, recovery: 66, acwr: 1.22, status: "Moderate", status_color: "yellow", recommendation: "Monitor aerobic intervals", device_id: "ESP32-ATHLETE-02" },
+      { id: "ATH-0315", athlete_id: "ATH-0315", name: "Leo Sterling", sport: "Football", position: "Central Defender", squad_number: "4", age: 26, height_cm: 178, weight_kg: 73, resting_hr_baseline: 56, readiness: 88, fatigue: 28, recovery: 86, acwr: 0.95, status: "Optimal", status_color: "green", recommendation: "Ready for match simulation" },
+      { id: "ATH-0544", athlete_id: "ATH-0544", name: "Elena Rostova", sport: "Football", position: "Left Winger", squad_number: "11", age: 25, height_cm: 170, weight_kg: 62, resting_hr_baseline: 55, readiness: 58, fatigue: 64, recovery: 55, acwr: 1.42, status: "High Strain", status_color: "red", recommendation: "Prescribe low-load recovery" },
+      { id: "ATH-0791", athlete_id: "ATH-0791", name: "Tariq Al-Mansoor", sport: "Football", position: "Goalkeeper", squad_number: "1", age: 25, height_cm: 191, weight_kg: 86, resting_hr_baseline: 52, readiness: 92, fatigue: 20, recovery: 90, acwr: 0.88, status: "Optimal", status_color: "green", recommendation: "Excellent readiness baseline" }
+    ]
+  };
+}
+
+function getLocalSquad() {
+  try {
+    const raw = localStorage.getItem(LOCAL_SQUAD_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.athletes)) return parsed;
+    }
+  } catch (_) {}
+  return defaultLocalSquad();
+}
+
+function saveLocalSquad(squad) {
+  try {
+    localStorage.setItem(LOCAL_SQUAD_KEY, JSON.stringify(squad));
+  } catch (_) {}
+}
+
+function localSquadResponse(body, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
+function classifyLocalAthlete(ath) {
+  const fatigue = Number(ath.fatigue) || 0;
+  const acwr = Number(ath.acwr) || 1;
+  if (acwr >= 1.4 || fatigue >= 60) return { status: "High Strain", status_color: "red", recommendation: "Prescribe low-load recovery" };
+  if (acwr >= 1.2 || fatigue >= 45) return { status: "Moderate", status_color: "yellow", recommendation: "Monitor aerobic intervals" };
+  return { status: "Optimal", status_color: "green", recommendation: "Maintain prescribed periodization" };
+}
+
+function handleLocalSquadRequest(url, method, options) {
+  let body = {};
+  try { body = options && options.body ? JSON.parse(options.body) : {}; } catch (_) {}
+  const squad = getLocalSquad();
+  const path = String(url).split("?")[0];
+  const findIdx = (id) => squad.athletes.findIndex(a => (a.id || a.athlete_id) === id);
+
+  if (method === "GET" && (path === "/api/coach/team-overview" || path === "/api/athletes")) {
+    return localSquadResponse({
+      active_athlete_id: squad.active,
+      roster: squad.athletes,
+      athletes: squad.athletes,
+      squad_size: squad.athletes.length,
+      offline: true
+    });
+  }
+
+  if (method === "POST" && path === "/api/athlete/register") {
+    const name = String(body.name || "").trim();
+    if (!name) return localSquadResponse({ success: false, error: "Athlete 'name' is required." }, 400);
+    let highest = 0;
+    squad.athletes.forEach(a => {
+      const m = /^ATH-(\d+)$/.exec(a.id || "");
+      if (m) highest = Math.max(highest, parseInt(m[1], 10));
+    });
+    const id = `ATH-${String(highest + 1).padStart(4, "0")}`;
+    const recovery = Number(body.recovery) || 80;
+    const fatigue = Number(body.fatigue) || Math.max(10, Math.min(90, Math.round(100 - recovery)));
+    const athlete = {
+      id,
+      athlete_id: id,
+      name,
+      sport: body.sport || "Football",
+      position: body.position || "Midfield / Box-to-Box",
+      squad_number: body.squad_number || "",
+      age: body.age,
+      height_cm: body.height_cm,
+      weight_kg: body.weight_kg,
+      resting_hr_baseline: body.resting_hr_baseline,
+      max_hr: body.max_hr,
+      recovery,
+      fatigue,
+      acwr: Number(body.acwr) || 1.05,
+      readiness: Math.max(0, Math.min(100, Math.round(recovery * 0.6 + (100 - fatigue) * 0.4))),
+      device_id: body.device_id || undefined
+    };
+    Object.assign(athlete, classifyLocalAthlete(athlete));
+    if (athlete.device_id) squad.athletes.forEach(a => { if (a.device_id === athlete.device_id) delete a.device_id; });
+    squad.athletes.push(athlete);
+    if (!squad.active || findIdx(squad.active) < 0) squad.active = id;
+    saveLocalSquad(squad);
+    return localSquadResponse({ success: true, message: `Athlete '${name}' registered successfully.`, athlete }, 201);
+  }
+
+  if ((method === "POST" || method === "PUT") && path === "/api/athlete/update") {
+    const id = body.athlete_id || body.id || squad.active;
+    const idx = findIdx(id);
+    if (idx < 0) return localSquadResponse({ success: false, error: `Athlete '${id}' not found.` }, 404);
+    const ath = squad.athletes[idx];
+    ["name", "position", "squad_number", "age", "height_cm", "weight_kg", "resting_hr_baseline"].forEach(k => {
+      if (body[k] !== undefined && body[k] !== null && body[k] !== "") ath[k] = body[k];
+    });
+    if (body.device_id !== undefined) {
+      const dev = String(body.device_id || "").trim();
+      if (dev) {
+        squad.athletes.forEach(a => { if (a !== ath && a.device_id === dev) delete a.device_id; });
+        ath.device_id = dev;
+      } else {
+        delete ath.device_id;
+      }
+    }
+    saveLocalSquad(squad);
+    return localSquadResponse({ success: true, athlete: ath });
+  }
+
+  if (method === "DELETE" && /^\/api\/athlete\/[^/]+$/.test(path)) {
+    const id = decodeURIComponent(path.split("/").pop());
+    const idx = findIdx(id);
+    if (idx < 0) return localSquadResponse({ success: false, error: `Athlete '${id}' not found.` }, 404);
+    squad.athletes.splice(idx, 1);
+    if (squad.active === id || findIdx(squad.active) < 0) {
+      squad.active = squad.athletes.length ? (squad.athletes[0].id || squad.athletes[0].athlete_id) : "";
+    }
+    saveLocalSquad(squad);
+    return localSquadResponse({ success: true, active_athlete_id: squad.active });
+  }
+
+  if (method === "POST" && path === "/api/athlete/switch") {
+    const id = body.athlete_id;
+    const idx = findIdx(id);
+    if (idx < 0) return localSquadResponse({ success: false, error: `Athlete '${id}' not found.` }, 404);
+    squad.active = id;
+    saveLocalSquad(squad);
+    const ath = squad.athletes[idx];
+    return localSquadResponse({
+      success: true,
+      active_athlete_id: id,
+      profile: { name: ath.name, position: ath.position, squad_number: ath.squad_number, sport: ath.sport || "Football" }
+    });
+  }
+
+  return localSquadResponse({ success: false, error: "Server unavailable" }, 503);
+}
+
+/**
+ * fetch() wrapper for squad endpoints: uses the real API when it answers,
+ * otherwise falls back to the on-device squad store.
+ */
+async function squadFetch(url, options = {}) {
+  const method = String(options.method || "GET").toUpperCase();
+  let res = null;
+  try {
+    res = await fetch(url, options);
+  } catch (_) {}
+  const isJson = !!res && (res.headers.get("content-type") || "").includes("json");
+  if (res && (res.ok || (isJson && res.status < 500))) return res;
+  console.warn(`[squad] API unavailable for ${method} ${url}; using on-device squad store.`);
+  return handleLocalSquadRequest(url, method, options);
+}
+
 function openAddPlayerModal() {
   const modal = document.getElementById("addPlayerModal");
   if (modal) {
@@ -4601,7 +4775,7 @@ async function executeRemoveAthlete() {
   closeRemovePlayerModal();
 
   try {
-    const res = await fetch(`/api/athlete/${encodeURIComponent(athleteId)}`, {
+    const res = await squadFetch(`/api/athlete/${encodeURIComponent(athleteId)}`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" }
     });
@@ -4635,7 +4809,7 @@ async function loadCoachSquad() {
     let activeAthleteId = "";
 
     try {
-      const res = await fetch("/api/coach/team-overview");
+      const res = await squadFetch("/api/coach/team-overview");
       if (res.ok) {
         const data = await res.json();
         athletes = data.roster || data.athletes || [];
@@ -4645,24 +4819,13 @@ async function loadCoachSquad() {
 
     if (!athletes.length) {
       try {
-        const fallbackRes = await fetch("/api/athletes");
+        const fallbackRes = await squadFetch("/api/athletes");
         if (fallbackRes.ok) {
           const fallbackData = await fallbackRes.json();
           athletes = fallbackData.athletes || [];
           activeAthleteId = fallbackData.active_athlete_id || "";
         }
       } catch (_) {}
-    }
-
-    if (!athletes.length) {
-      athletes = [
-        { id: "ATH-0824", athlete_id: "ATH-0824", name: "Daniel Saji", position: "Midfield / Box-to-Box", readiness: 84, fatigue: 38, acwr: 1.08, status: "Optimal", status_color: "green", recommendation: "Maintain prescribed periodization", device_id: "ESP32-ATHLETE-01" },
-        { id: "ATH-0102", athlete_id: "ATH-0102", name: "Marcus Vance", position: "Center Forward", readiness: 71, fatigue: 48, acwr: 1.22, status: "Moderate", status_color: "yellow", recommendation: "Monitor aerobic intervals", device_id: "ESP32-ATHLETE-02" },
-        { id: "ATH-0315", athlete_id: "ATH-0315", name: "Leo Sterling", position: "Central Defender", readiness: 88, fatigue: 28, acwr: 0.95, status: "Optimal", status_color: "green", recommendation: "Ready for match simulation" },
-        { id: "ATH-0544", athlete_id: "ATH-0544", name: "Elena Rostova", position: "Left Winger", readiness: 58, fatigue: 64, acwr: 1.42, status: "High Strain", status_color: "red", recommendation: "Prescribe low-load recovery" },
-        { id: "ATH-0791", athlete_id: "ATH-0791", name: "Tariq Al-Mansoor", position: "Goalkeeper", readiness: 92, fatigue: 20, acwr: 0.88, status: "Optimal", status_color: "green", recommendation: "Excellent readiness baseline" }
-      ];
-      if (!activeAthleteId) activeAthleteId = "ATH-0824";
     }
 
     cachedSquadAthletes = athletes;
@@ -4748,7 +4911,7 @@ async function loadCoachSquad() {
 async function selectAthleteTwin(athleteId) {
   let switchSuccessful = false;
   try {
-    const res = await fetch("/api/athlete/switch", {
+    const res = await squadFetch("/api/athlete/switch", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ athlete_id: athleteId })
@@ -4887,7 +5050,7 @@ function initCoachSquadControls() {
       }
 
       try {
-        const res = await fetch("/api/athlete/update", {
+        const res = await squadFetch("/api/athlete/update", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -4980,7 +5143,7 @@ function initCoachSquadControls() {
       }
 
       try {
-        const res = await fetch("/api/athlete/register", {
+        const res = await squadFetch("/api/athlete/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
@@ -5149,7 +5312,7 @@ async function getSquadRosterForReport() {
   let activeAthleteId = cachedActiveAthleteId || "";
 
   try {
-    const res = await fetch("/api/coach/team-overview");
+    const res = await squadFetch("/api/coach/team-overview");
     if (res.ok) {
       const data = await res.json();
       athletes = data.roster || data.athletes || [];
@@ -5159,7 +5322,7 @@ async function getSquadRosterForReport() {
 
   if (!athletes.length) {
     try {
-      const fallbackRes = await fetch("/api/athletes");
+      const fallbackRes = await squadFetch("/api/athletes");
       if (fallbackRes.ok) {
         const fallbackData = await fallbackRes.json();
         athletes = fallbackData.athletes || [];

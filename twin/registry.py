@@ -224,15 +224,26 @@ class AthleteRegistry:
             }
         ]
 
-        # 1. Load profiles from storage or seed defaults
+        # 1. Load profiles from storage or seed defaults (defaults are only seeded once,
+        #    so players removed by the coach are not resurrected on restart)
+        squad_seeded = False
+        if self.vault:
+            try:
+                squad_seeded = bool(self.vault.get_setting("squad_seeded"))
+            except Exception:
+                squad_seeded = False
         for athlete_data in default_squad:
             aid = athlete_data["athlete_id"]
             prof_data = None
+            read_ok = False
             if self.vault:
                 try:
                     prof_data = self.vault.get_athlete_profile(aid)
+                    read_ok = True
                 except Exception as e:
                     print(f"[AthleteRegistry] Warning reading profile {aid}: {e}")
+            if squad_seeded and read_ok and not prof_data:
+                continue
             if not prof_data:
                 prof = ai_coach_engine.AthleteProfile(athlete_id=aid)
                 prof.name = athlete_data["name"]
@@ -262,6 +273,12 @@ class AthleteRegistry:
             twin.current_recovery = athlete_data.get("recovery", 80.0)
             twin.acwr = athlete_data.get("acwr", 1.0)
             self._twins[aid] = twin
+
+        if self.vault and not squad_seeded:
+            try:
+                self.vault.set_setting("squad_seeded", "1")
+            except Exception:
+                pass
 
         # 2. Restore custom registered athletes from SQLite
         if self.vault:
