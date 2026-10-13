@@ -307,6 +307,8 @@ def run_mock_feed_worker():
         }
 
         analyzed = engine.process_telemetry(packet)
+        if "device" in analyzed:
+            analyzed["device"]["mock_mode"] = True
         broadcast_sse(analyzed)
         mock_feed_stop_event.wait(0.5)
 
@@ -327,6 +329,19 @@ def stop_mock_feed():
         mock_feed_running = False
         if mock_feed_thread and mock_feed_thread.is_alive():
             mock_feed_thread.join(timeout=1.0)
+        disconnect_event = {
+            "event": "sensor_disconnect",
+            "device": {
+                "id": engine.device_id,
+                "device_id": engine.device_id,
+                "connected": False,
+                "mock_mode": False,
+                "rate_hz": 0.0,
+                "last_seen_sec": None
+            },
+            "is_heartbeat": True
+        }
+        broadcast_sse(disconnect_event)
 
 
 @app.route("/")
@@ -977,7 +992,12 @@ def get_esp32_status():
     if not active_devs and connected:
         active_devs = [engine.device_id]
 
-    status_str = f"Streaming ({len(active_devs)} ESP32{'s' if len(active_devs) > 1 else ''} Online)" if connected else ("Simulated Feed (Active)" if mock_feed_running else "Waiting for ESP32")
+    if mock_feed_running:
+        status_str = "Simulated Feed (Active)"
+    elif connected:
+        status_str = f"Streaming ({len(active_devs)} ESP32{'s' if len(active_devs) > 1 else ''} Online)"
+    else:
+        status_str = "Waiting for ESP32"
 
     return jsonify({
         "device_id": engine.device_id,
@@ -1013,7 +1033,9 @@ def handle_mock_feed():
 
     return jsonify({
         "mock_running": mock_feed_running,
-        "packet_count": engine.packet_count
+        "packet_count": engine.packet_count,
+        "device_id": engine.device_id,
+        "connected": mock_feed_running
     })
 
 

@@ -5,10 +5,17 @@
  */
 
 let currentTimeframe = "1H";
-let cachedDashboardData = null;
+let cachedDashboardData = {
+  charts: {
+    heart_rate: { points: [], x_labels: ["-50s", "-40s", "-30s", "-20s", "-10s", "Now"] },
+    movement: { x: [], y: [], z: [], mag: [], x_labels: ["-50s", "-40s", "-30s", "-20s", "-10s", "Now"] }
+  }
+};
 let cachedAnalyticsData = null;
 let eventSource = null;
 let isMockActive = false;
+let isTogglingMock = false;
+let mockFallbackInterval = null;
 let selectedIntensity = "Moderate";
 let currentActiveView = "dashboard";
 let livePacketCount = 0;
@@ -240,6 +247,9 @@ document.addEventListener("DOMContentLoaded", () => {
   // Interactive UI Cockpit Controls
   initProfileDropdown();
   initChartTooltips();
+  initChartResizeObservers();
+  renderHeartRateChart(cachedDashboardData.charts.heart_rate);
+  renderMovementChart(cachedDashboardData.charts.movement);
   initSessionModal();
   initInjuryModal();
   initDailyCheckinModal();
@@ -698,7 +708,19 @@ function switchView(viewName) {
 
   // Hydrate view-specific content
   if (viewName === "dashboard") {
-    // Dashboard hydration
+    requestAnimationFrame(() => {
+      if (cachedDashboardData && cachedDashboardData.charts) {
+        renderHeartRateChart(cachedDashboardData.charts.heart_rate);
+        renderMovementChart(cachedDashboardData.charts.movement);
+      }
+    });
+  } else if (viewName === "live-data") {
+    requestAnimationFrame(() => {
+      if (cachedDashboardData && cachedDashboardData.charts) {
+        renderHeartRateChart(cachedDashboardData.charts.heart_rate);
+        renderMovementChart(cachedDashboardData.charts.movement);
+      }
+    });
   } else if (viewName === "analytics") {
     loadAnalyticsView();
     requestAnimationFrame(() => {
@@ -771,9 +793,16 @@ async function loadDashboardData(timeframe = "1H") {
 
       renderHeartRateChart(data.charts.heart_rate);
       renderMovementChart(data.charts.movement);
+    } else if (cachedDashboardData && cachedDashboardData.charts) {
+      renderHeartRateChart(cachedDashboardData.charts.heart_rate);
+      renderMovementChart(cachedDashboardData.charts.movement);
     }
   } catch (err) {
     console.error("Dashboard fetch error:", err);
+    if (cachedDashboardData && cachedDashboardData.charts) {
+      renderHeartRateChart(cachedDashboardData.charts.heart_rate);
+      renderMovementChart(cachedDashboardData.charts.movement);
+    }
   }
 }
 
@@ -955,9 +984,47 @@ function handleIncomingTelemetry(data) {
   }
 
   // 6. Real-time Charts
-  if (currentTimeframe === "1H" && data.charts) {
+  if (data.charts) {
+    if (!cachedDashboardData) cachedDashboardData = {};
+    cachedDashboardData.charts = data.charts;
     renderHeartRateChart(data.charts.heart_rate);
     renderMovementChart(data.charts.movement);
+  } else if (data.vitals) {
+    if (!cachedDashboardData) cachedDashboardData = {};
+    if (!cachedDashboardData.charts) {
+      cachedDashboardData.charts = {
+        heart_rate: { points: [], x_labels: ["-50s", "-40s", "-30s", "-20s", "-10s", "Now"] },
+        movement: { x: [], y: [], z: [], mag: [], x_labels: ["-50s", "-40s", "-30s", "-20s", "-10s", "Now"] }
+      };
+    }
+    const hr = data.vitals.heart_rate?.value;
+    if (typeof hr === "number") {
+      if (!Array.isArray(cachedDashboardData.charts.heart_rate.points)) {
+        cachedDashboardData.charts.heart_rate.points = [];
+      }
+      cachedDashboardData.charts.heart_rate.points.push(hr);
+      if (cachedDashboardData.charts.heart_rate.points.length > 50) {
+        cachedDashboardData.charts.heart_rate.points.shift();
+      }
+    }
+    const axes = data.vitals.acceleration?.axes;
+    if (axes) {
+      if (!Array.isArray(cachedDashboardData.charts.movement.x)) {
+        cachedDashboardData.charts.movement.x = [];
+        cachedDashboardData.charts.movement.y = [];
+        cachedDashboardData.charts.movement.z = [];
+      }
+      cachedDashboardData.charts.movement.x.push(axes.x || 0);
+      cachedDashboardData.charts.movement.y.push(axes.y || 0);
+      cachedDashboardData.charts.movement.z.push(axes.z || 0);
+      if (cachedDashboardData.charts.movement.x.length > 50) {
+        cachedDashboardData.charts.movement.x.shift();
+        cachedDashboardData.charts.movement.y.shift();
+        cachedDashboardData.charts.movement.z.shift();
+      }
+    }
+    renderHeartRateChart(cachedDashboardData.charts.heart_rate);
+    renderMovementChart(cachedDashboardData.charts.movement);
   }
 }
 
@@ -1028,18 +1095,8 @@ function updateHardwareStatusUI(device) {
   }
 
   // Sync simulator button state
-  const simBtn = document.getElementById("btnToggleSimFeed");
-  const simBtnText = document.getElementById("simFeedBtnText");
-  const liveSimBtn = document.getElementById("btnLiveToggleSim");
-  const liveSimBtnText = document.getElementById("liveSimBtnText");
-
   isMockActive = !!device.mock_mode;
-
-  if (simBtn) simBtn.className = "btn-top-action " + (isMockActive ? "active-sim" : "");
-  if (simBtnText) simBtnText.textContent = isMockActive ? "Stop Sim" : "Simulate ESP32";
-
-  if (liveSimBtn) liveSimBtn.className = "btn-top-action " + (isMockActive ? "active-sim" : "");
-  if (liveSimBtnText) liveSimBtnText.textContent = isMockActive ? "Stop Sim" : "Simulate ESP32";
+  updateSimulatorButtonUI(isMockActive, false);
 
   // Forensic Data Quality & Provenance Header Pill
   const qualityDot = document.getElementById("headerQualityDot");
@@ -1342,34 +1399,111 @@ function syncHologramPulse(bpm, color) {
 /* ==============================================================================
    7. HARDWARE CONTROLS & MODAL HANDLERS
    ============================================================================== */
+function updateSimulatorButtonUI(isActive, isLoading = false) {
+  const liveBtn = document.getElementById("btnLiveToggleSim");
+  const liveText = document.getElementById("liveSimBtnText");
+  const liveIcon = document.getElementById("liveSimBtnIcon");
+  const simBtn = document.getElementById("btnToggleSimFeed");
+  const simText = document.getElementById("simFeedBtnText");
+
+  if (liveBtn) {
+    liveBtn.disabled = isLoading;
+    if (isLoading) {
+      liveBtn.className = "btn-top-action sim-loading";
+      if (liveText) liveText.textContent = isActive ? "Stopping..." : "Connecting...";
+      if (liveIcon) liveIcon.textContent = "⏳";
+    } else {
+      liveBtn.className = "btn-top-action" + (isActive ? " active-sim" : "");
+      if (liveText) liveText.textContent = isActive ? "Stop Sim" : "Simulate ESP32";
+      if (liveIcon) liveIcon.textContent = isActive ? "⏹" : "⚡";
+    }
+  }
+
+  if (simBtn) {
+    simBtn.disabled = isLoading;
+    if (isLoading) {
+      if (simText) simText.textContent = isActive ? "Stopping..." : "Connecting...";
+    } else {
+      simBtn.className = "btn-top-action" + (isActive ? " active-sim" : "");
+      if (simText) simText.textContent = isActive ? "Stop Sim" : "Simulate ESP32";
+    }
+  }
+}
+
+function startMockFallbackPolling() {
+  if (mockFallbackInterval) return;
+  mockFallbackInterval = setInterval(async () => {
+    if (!isMockActive) {
+      stopMockFallbackPolling();
+      return;
+    }
+    if (Date.now() - lastLivePacketTimestamp > 1200) {
+      try {
+        const res = await fetch(`/api/dashboard-data?timeframe=${currentTimeframe}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && isMockActive) {
+            handleIncomingTelemetry(data);
+          }
+        }
+      } catch (e) {
+        // silent fallback
+      }
+    }
+  }, 1000);
+}
+
+function stopMockFallbackPolling() {
+  if (mockFallbackInterval) {
+    clearInterval(mockFallbackInterval);
+    mockFallbackInterval = null;
+  }
+}
+
 function initHardwareControls() {
   // Top navigation simulate toggle
   const toggleBtn = document.getElementById("btnToggleSimFeed");
   const liveToggleBtn = document.getElementById("btnLiveToggleSim");
 
   async function toggleMock() {
+    if (isTogglingMock) return;
+    isTogglingMock = true;
+
+    const targetAction = isMockActive ? "stop" : "start";
+    updateSimulatorButtonUI(isMockActive, true);
+
     try {
       const res = await fetch("/api/esp32/mock-feed", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "toggle" })
+        body: JSON.stringify({ action: targetAction })
       });
-      const data = await res.json();
-      isMockActive = data.mock_running;
-
-      if (toggleBtn) {
-        toggleBtn.className = "btn-top-action " + (isMockActive ? "active-sim" : "");
-        const text = document.getElementById("simFeedBtnText");
-        if (text) text.textContent = isMockActive ? "Stop Sim" : "Simulate ESP32";
+      if (!res.ok) {
+        throw new Error(`Server returned HTTP ${res.status}`);
       }
+      const data = await res.json();
+      isMockActive = !!data.mock_running;
 
-      if (liveToggleBtn) {
-        liveToggleBtn.className = "btn-top-action " + (isMockActive ? "active-sim" : "");
-        const text = document.getElementById("liveSimBtnText");
-        if (text) text.textContent = isMockActive ? "Stop Sim" : "Simulate ESP32";
+      updateSimulatorButtonUI(isMockActive, false);
+
+      if (isMockActive) {
+        showToast("ESP32 Simulation Started (DEMO Stream)", "⚡");
+        if (!eventSource || eventSource.readyState === EventSource.CLOSED) {
+          initLiveStream();
+        }
+        await loadDashboardData(currentTimeframe);
+        startMockFallbackPolling();
+      } else {
+        showToast("ESP32 Simulation Stopped", "⏹");
+        stopMockFallbackPolling();
+        handleSensorDisconnected();
       }
     } catch (err) {
       console.error("Failed to toggle simulator feed:", err);
+      showToast("Simulation toggle failed: " + (err.message || "Network error"), "⚠️");
+      updateSimulatorButtonUI(isMockActive, false);
+    } finally {
+      isTogglingMock = false;
     }
   }
 
@@ -1485,14 +1619,14 @@ function renderAnalyticsFatigueRecoveryChart(history) {
 
   const dpr = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
-  if (rect.width === 0) return;
+  const parentW = canvas.parentElement ? canvas.parentElement.clientWidth : 0;
+  const parentH = canvas.parentElement ? canvas.parentElement.clientHeight : 0;
+  const w = rect.width > 0 ? rect.width : (parentW > 0 ? parentW : 450);
+  const h = rect.height > 0 ? rect.height : (parentH > 0 ? parentH : 160);
 
-  canvas.width = rect.width * dpr;
-  canvas.height = rect.height * dpr;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
   ctx.scale(dpr, dpr);
-
-  const w = rect.width;
-  const h = rect.height;
   ctx.clearRect(0, 0, w, h);
 
   const pad = { top: 12, right: 15, bottom: 20, left: 32 };
@@ -1514,8 +1648,19 @@ function renderAnalyticsFatigueRecoveryChart(history) {
     ctx.fillText(`${val}%`, pad.left - 6, y + 3);
   });
 
+  if (!history || history.length < 2) {
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "600 12px Inter, sans-serif";
+    ctx.fillStyle = "#94A3B8";
+    ctx.fillText("Waiting for historical analytics...", pad.left + plotW / 2, pad.top + plotH / 2);
+    ctx.restore();
+    return;
+  }
+
   const pts = history.slice(-60); // Show last 60 days for high clarity
-  const stepX = plotW / (pts.length - 1);
+  const stepX = plotW / Math.max(1, pts.length - 1);
 
   // Fatigue Curve (Red)
   ctx.beginPath();
@@ -1549,14 +1694,14 @@ function renderAnalyticsLoadPerfChart(history) {
 
   const dpr = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
-  if (rect.width === 0) return;
+  const parentW = canvas.parentElement ? canvas.parentElement.clientWidth : 0;
+  const parentH = canvas.parentElement ? canvas.parentElement.clientHeight : 0;
+  const w = rect.width > 0 ? rect.width : (parentW > 0 ? parentW : 450);
+  const h = rect.height > 0 ? rect.height : (parentH > 0 ? parentH : 160);
 
-  canvas.width = rect.width * dpr;
-  canvas.height = rect.height * dpr;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
   ctx.scale(dpr, dpr);
-
-  const w = rect.width;
-  const h = rect.height;
   ctx.clearRect(0, 0, w, h);
 
   const pad = { top: 12, right: 15, bottom: 20, left: 32 };
@@ -1577,8 +1722,19 @@ function renderAnalyticsLoadPerfChart(history) {
     ctx.fillText(val, pad.left - 6, y + 3);
   });
 
+  if (!history || history.length < 2) {
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "600 12px Inter, sans-serif";
+    ctx.fillStyle = "#94A3B8";
+    ctx.fillText("Waiting for historical analytics...", pad.left + plotW / 2, pad.top + plotH / 2);
+    ctx.restore();
+    return;
+  }
+
   const pts = history.slice(-60);
-  const stepX = plotW / (pts.length - 1);
+  const stepX = plotW / Math.max(1, pts.length - 1);
 
   // Load Bars (Cyan)
   pts.forEach((row, i) => {
@@ -1932,27 +2088,24 @@ async function runScheduleSimulation() {
 
 function renderScheduleTrajectoryChart(days, activeIdx = null) {
   const canvas = document.getElementById("scheduleTrajectoryChart");
-  if (!canvas || !days || !days.length) return;
+  if (!canvas) return;
   const ctx = canvas.getContext("2d");
 
   const dpr = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
-  if (rect.width === 0) return;
+  const parentW = canvas.parentElement ? canvas.parentElement.clientWidth : 0;
+  const parentH = canvas.parentElement ? canvas.parentElement.clientHeight : 0;
+  const w = rect.width > 0 ? rect.width : (parentW > 0 ? parentW : 800);
+  const h = rect.height > 0 ? rect.height : (parentH > 0 ? parentH : 170);
 
-  canvas.width = rect.width * dpr;
-  canvas.height = rect.height * dpr;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
   ctx.scale(dpr, dpr);
-
-  const w = rect.width;
-  const h = rect.height;
   ctx.clearRect(0, 0, w, h);
 
   const pad = { top: 22, right: 24, bottom: 28, left: 44 };
   const plotW = Math.max(10, w - pad.left - pad.right);
   const plotH = Math.max(10, h - pad.top - pad.bottom);
-
-  const getX = i => pad.left + (i / Math.max(1, days.length - 1)) * plotW;
-  const getY = val => pad.top + plotH - (Math.min(100, Math.max(0, val)) / 100) * plotH;
 
   const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -1979,6 +2132,28 @@ function renderScheduleTrajectoryChart(days, activeIdx = null) {
     ctx.textBaseline = "middle";
     ctx.fillText(`${val}%`, pad.left - 8, y);
   });
+
+  if (!days || !days.length) {
+    dayLabels.forEach((label, i) => {
+      const x = pad.left + (i / Math.max(1, dayLabels.length - 1)) * plotW;
+      ctx.fillStyle = "#8E8E93";
+      ctx.font = "600 11px Inter, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.fillText(label, x, pad.top + plotH + 8);
+    });
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "600 12px Inter, sans-serif";
+    ctx.fillStyle = "#94A3B8";
+    ctx.fillText("Run 7-Day Simulation to plot projected trajectory", pad.left + plotW / 2, pad.top + plotH / 2);
+    ctx.restore();
+    return;
+  }
+
+  const getX = i => pad.left + (i / Math.max(1, days.length - 1)) * plotW;
+  const getY = val => pad.top + plotH - (Math.min(100, Math.max(0, val)) / 100) * plotH;
 
   // 2. Day columns & vertical guides
   days.forEach((d, i) => {
@@ -2307,19 +2482,19 @@ function initSettingsView() {
  */
 function renderHeartRateChart(chartData, hoverIndex = null) {
   const canvas = document.getElementById("heartRateChart");
-  if (!canvas || !chartData) return;
+  if (!canvas) return;
   const ctx = canvas.getContext("2d");
 
   const dpr = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
-  if (rect.width === 0 || rect.height === 0) return;
+  const parentW = canvas.parentElement ? canvas.parentElement.clientWidth : 0;
+  const parentH = canvas.parentElement ? canvas.parentElement.clientHeight : 0;
+  const w = rect.width > 0 ? rect.width : (parentW > 0 ? parentW : 450);
+  const h = rect.height > 0 ? rect.height : (parentH > 0 ? parentH : 155);
 
-  canvas.width = rect.width * dpr;
-  canvas.height = rect.height * dpr;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
   ctx.scale(dpr, dpr);
-
-  const w = rect.width;
-  const h = rect.height;
   ctx.clearRect(0, 0, w, h);
 
   const padding = { top: 12, right: 12, bottom: 20, left: 30 };
@@ -2348,15 +2523,24 @@ function renderHeartRateChart(chartData, hoverIndex = null) {
   });
 
   // X-axis Ticks & Labels dynamically from chartData
-  const xLabels = chartData.x_labels || ["0", "10", "20", "30", "40", "50", "60"];
+  const xLabels = (chartData && chartData.x_labels && chartData.x_labels.length) ? chartData.x_labels : ["0", "10", "20", "30", "40", "50", "60"];
   ctx.textAlign = "center";
   xLabels.forEach((label, i) => {
-    const x = padding.left + (i / (xLabels.length - 1)) * plotW;
+    const x = padding.left + (i / Math.max(1, xLabels.length - 1)) * plotW;
     ctx.fillText(label, x, h - 4);
   });
 
-  const pts = chartData.points || [95, 115, 138, 148, 160, 155, 164, 172, 168, 165, 170, 162, 158, 164, 152];
-  if (pts.length < 2) return;
+  const pts = (chartData && Array.isArray(chartData.points)) ? chartData.points : [];
+  if (pts.length < 2) {
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "600 12px Inter, sans-serif";
+    ctx.fillStyle = "#94A3B8";
+    ctx.fillText("Waiting for sensor data...", padding.left + plotW / 2, padding.top + plotH / 2);
+    ctx.restore();
+    return;
+  }
 
   const getX = i => padding.left + (i / (pts.length - 1)) * plotW;
 
@@ -2436,19 +2620,19 @@ function renderHeartRateChart(chartData, hoverIndex = null) {
  */
 function renderMovementChart(chartData, hoverIndex = null) {
   const canvas = document.getElementById("movementChart");
-  if (!canvas || !chartData) return;
+  if (!canvas) return;
   const ctx = canvas.getContext("2d");
 
   const dpr = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
-  if (rect.width === 0 || rect.height === 0) return;
+  const parentW = canvas.parentElement ? canvas.parentElement.clientWidth : 0;
+  const parentH = canvas.parentElement ? canvas.parentElement.clientHeight : 0;
+  const w = rect.width > 0 ? rect.width : (parentW > 0 ? parentW : 450);
+  const h = rect.height > 0 ? rect.height : (parentH > 0 ? parentH : 155);
 
-  canvas.width = rect.width * dpr;
-  canvas.height = rect.height * dpr;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
   ctx.scale(dpr, dpr);
-
-  const w = rect.width;
-  const h = rect.height;
   ctx.clearRect(0, 0, w, h);
 
   const padding = { top: 12, right: 12, bottom: 20, left: 30 };
@@ -2477,15 +2661,27 @@ function renderMovementChart(chartData, hoverIndex = null) {
   });
 
   // X-axis Ticks & Labels dynamically from chartData
-  const xLabels = chartData.x_labels || ["0", "10", "20", "30", "40", "50", "60"];
+  const xLabels = (chartData && chartData.x_labels && chartData.x_labels.length) ? chartData.x_labels : ["0", "10", "20", "30", "40", "50", "60"];
   ctx.textAlign = "center";
   xLabels.forEach((label, i) => {
-    const x = padding.left + (i / (xLabels.length - 1)) * plotW;
+    const x = padding.left + (i / Math.max(1, xLabels.length - 1)) * plotW;
     ctx.fillText(label, x, h - 4);
   });
 
+  const hasPoints = chartData && ((chartData.x && chartData.x.length >= 2) || (chartData.y && chartData.y.length >= 2) || (chartData.z && chartData.z.length >= 2));
+  if (!hasPoints) {
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "600 12px Inter, sans-serif";
+    ctx.fillStyle = "#94A3B8";
+    ctx.fillText("Waiting for sensor data...", padding.left + plotW / 2, padding.top + plotH / 2);
+    ctx.restore();
+    return;
+  }
+
   const len = (chartData.x && chartData.x.length) || 35;
-  const getX = (i, total) => padding.left + (i / (total - 1)) * plotW;
+  const getX = (i, total) => padding.left + (i / Math.max(1, total - 1)) * plotW;
 
   function drawWave(arr, color) {
     if (!arr || arr.length < 2) return;
@@ -2568,6 +2764,30 @@ function initMovementLegendToggle() {
       });
     }
   });
+}
+
+function initChartResizeObservers() {
+  if (typeof ResizeObserver === "undefined") return;
+
+  const hrBox = document.getElementById("hrCanvasContainer");
+  const movBox = document.getElementById("movementCanvasContainer");
+  const trajBox = document.getElementById("scheduleTrajectoryChart")?.parentElement;
+
+  const observer = new ResizeObserver(() => {
+    requestAnimationFrame(() => {
+      if (cachedDashboardData && cachedDashboardData.charts) {
+        renderHeartRateChart(cachedDashboardData.charts.heart_rate);
+        renderMovementChart(cachedDashboardData.charts.movement);
+      }
+      if (currentActiveView === "what-if" && cachedScheduleDays) {
+        renderScheduleTrajectoryChart(cachedScheduleDays);
+      }
+    });
+  });
+
+  if (hrBox) observer.observe(hrBox);
+  if (movBox) observer.observe(movBox);
+  if (trajBox) observer.observe(trajBox);
 }
 
 /* ==============================================================================

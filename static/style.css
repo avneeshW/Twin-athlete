@@ -436,6 +436,12 @@ body::after {
   border-color: rgba(245, 158, 11, 0.3);
 }
 
+.btn-top-action.sim-loading {
+  opacity: 0.75;
+  cursor: wait;
+  pointer-events: none;
+}
+
 .user-profile-widget {
   display: flex;
   align-items: center;

@@ -356,12 +356,15 @@ class TelemetryEngine:
         if not active_devs:
             active_devs = [self.device_id]
 
+        is_mock = (self.data_provenance == "DEMO")
         # Construct comprehensive live payload
         state = {
             "device": {
                 "id": self.device_id,
+                "device_id": self.device_id,
                 "status": "Online",
                 "connected": True,
+                "mock_mode": is_mock,
                 "last_seen_sec": 0.0,
                 "battery": self.battery_level,
                 "packet_count": self.packet_count,
@@ -532,7 +535,10 @@ class TelemetryEngine:
         if getattr(self, "_latest_state", None) is not None:
             state = dict(self._latest_state)
             state["device"] = dict(state.get("device", {}))
+            state["device"]["id"] = self.device_id
+            state["device"]["device_id"] = self.device_id
             state["device"]["connected"] = connected
+            state["device"]["mock_mode"] = (self.data_provenance == "DEMO")
             state["device"]["last_seen_sec"] = last_seen
             state["device"]["provenance"] = self.data_provenance
             state["device"]["data_quality"] = self.get_data_quality_report()
