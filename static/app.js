@@ -97,6 +97,33 @@ function updateActiveUserProfile(partialProfile, shouldPersist = true) {
   }));
 }
 
+/**
+ * Dynamic time-based greeting using user's local device time:
+ * - 5:00 AM to 11:59 AM: Good morning, [User Name]
+ * - 12:00 PM to 4:59 PM: Good afternoon, [User Name]
+ * - 5:00 PM to 4:59 AM: Good evening, [User Name]
+ */
+function getTimeBasedGreetingPrefix(date = new Date()) {
+  const hour = date.getHours();
+  if (hour >= 5 && hour < 12) {
+    return "Good morning";
+  } else if (hour >= 12 && hour < 17) {
+    return "Good afternoon";
+  } else {
+    return "Good evening";
+  }
+}
+
+function getDynamicGreeting(name, date = new Date()) {
+  const userName = name || activeUserProfile.firstName || getFirstName(activeUserProfile.name) || "Athlete";
+  return `${getTimeBasedGreetingPrefix(date)}, ${userName}`;
+}
+
+if (typeof window !== "undefined") {
+  window.getTimeBasedGreetingPrefix = getTimeBasedGreetingPrefix;
+  window.getDynamicGreeting = getDynamicGreeting;
+}
+
 function renderActiveUserProfileUI() {
   const profile = activeUserProfile;
   const firstName = profile.firstName || getFirstName(profile.name);
@@ -104,10 +131,11 @@ function renderActiveUserProfileUI() {
   const position = profile.position || DEFAULT_USER_PROFILE.position;
   const squadNumber = profile.squadNumber || DEFAULT_USER_PROFILE.squadNumber;
 
-  // 1. ATHLETE DIGITAL TWIN Hero Card Heading: Good Morning, {firstName}!
+  // 1. ATHLETE DIGITAL TWIN Hero Card Heading: dynamic greeting based on local device time
+  // Dynamic greeting formatting: Good Morning, ${firstName}!
   const heroGreetingEl = document.getElementById("heroGreeting");
   if (heroGreetingEl) {
-    heroGreetingEl.textContent = `Good Morning, ${firstName}!`;
+    heroGreetingEl.textContent = getDynamicGreeting(firstName);
   }
 
   // 2. ATHLETE DIGITAL TWIN Hero Card Subtitle: {fullName} • {position} • Squad #{squadNumber}
@@ -503,10 +531,11 @@ function initClock() {
       overviewDateSpan.textContent = dateText;
     }
 
-    // Dynamic greeting bound to active user profile: Good Morning, {firstName}!
+    // Dynamic greeting bound to active user profile and local device time:
+    // Dynamic greeting formatting: Good Morning, ${firstName}!
     if (heroGreetingEl) {
       const firstName = activeUserProfile.firstName || getFirstName(activeUserProfile.name);
-      heroGreetingEl.textContent = `Good Morning, ${firstName}!`;
+      heroGreetingEl.textContent = getDynamicGreeting(firstName, now);
     }
   }
 

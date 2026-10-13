@@ -2477,9 +2477,11 @@ body::after {
   flex-shrink: 0;
 }
 
-.icon-athlete-blue {
-  background: rgba(0, 132, 255, 0.12);
-  color: var(--primary-blue);
+.icon-athlete-blue,
+.icon-athlete-green {
+  background: var(--whoop-green-bg);
+  color: var(--whoop-green);
+  border: 1px solid var(--whoop-green-border);
 }
 
 .icon-controls-cyan {
