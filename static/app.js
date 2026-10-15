@@ -4921,7 +4921,21 @@ function getLocalSquad() {
     const raw = localStorage.getItem(LOCAL_SQUAD_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed && Array.isArray(parsed.athletes)) return parsed;
+      if (parsed && Array.isArray(parsed.athletes)) {
+        const seenIds = new Set();
+        const seenNames = new Set();
+        const unique = [];
+        for (const a of parsed.athletes) {
+          const aid = (a.id || a.athlete_id || "").trim();
+          const nm = (a.name || "").trim().toLowerCase();
+          if ((aid && seenIds.has(aid)) || (nm && seenNames.has(nm))) continue;
+          if (aid) seenIds.add(aid);
+          if (nm) seenNames.add(nm);
+          unique.push(a);
+        }
+        parsed.athletes = unique;
+        return parsed;
+      }
     }
   } catch (_) {}
   return defaultLocalSquad();
@@ -4968,6 +4982,30 @@ function handleLocalSquadRequest(url, method, options) {
   if (method === "POST" && path === "/api/athlete/register") {
     const name = String(body.name || "").trim();
     if (!name) return localSquadResponse({ success: false, error: "Athlete 'name' is required." }, 400);
+
+    const existingIdx = squad.athletes.findIndex(a => {
+      const aName = (a.name || "").trim().toLowerCase();
+      const aId = (a.id || a.athlete_id || "").trim();
+      return (body.id && aId === body.id) || (aName && aName === name.toLowerCase());
+    });
+
+    if (existingIdx >= 0) {
+      const ath = squad.athletes[existingIdx];
+      ["position", "squad_number", "age", "height_cm", "weight_kg", "resting_hr_baseline", "max_hr"].forEach(k => {
+        if (body[k] !== undefined && body[k] !== null && body[k] !== "") ath[k] = body[k];
+      });
+      if (body.recovery !== undefined) ath.recovery = Number(body.recovery);
+      if (body.fatigue !== undefined) ath.fatigue = Number(body.fatigue);
+      if (body.acwr !== undefined) ath.acwr = Number(body.acwr);
+      if (body.device_id) {
+        squad.athletes.forEach(a => { if (a !== ath && a.device_id === body.device_id) delete a.device_id; });
+        ath.device_id = body.device_id;
+      }
+      Object.assign(ath, classifyLocalAthlete(ath));
+      saveLocalSquad(squad);
+      return localSquadResponse({ success: true, message: `Athlete '${name}' updated successfully.`, athlete: ath }, 200);
+    }
+
     let highest = 0;
     squad.athletes.forEach(a => {
       const m = /^ATH-(\d+)$/.exec(a.id || "");
@@ -5196,6 +5234,22 @@ async function loadCoachSquad() {
         }
       } catch (_) {}
     }
+
+    // Deduplicate athletes strictly by ID and normalized Name to prevent duplicate cards in coach view
+    const seenIds = new Set();
+    const seenNames = new Set();
+    const uniqueAthletes = [];
+    for (const ath of athletes) {
+      const aid = (ath.id || ath.athlete_id || "").trim();
+      const normName = (ath.name || "").trim().toLowerCase();
+      if ((aid && seenIds.has(aid)) || (normName && seenNames.has(normName))) {
+        continue;
+      }
+      if (aid) seenIds.add(aid);
+      if (normName) seenNames.add(normName);
+      uniqueAthletes.push(ath);
+    }
+    athletes = uniqueAthletes;
 
     cachedSquadAthletes = athletes;
     cachedActiveAthleteId = activeAthleteId;

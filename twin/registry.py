@@ -286,22 +286,39 @@ class AthleteRegistry:
                 all_saved = self.vault.get_all_athlete_profiles()
                 for row in all_saved:
                     aid = row.get("athlete_id")
-                    if aid and aid not in self._twins and row.get("active_squad", 1):
-                        custom_prof = ai_coach_engine.AthleteProfile(athlete_id=aid)
-                        for k, v in row.items():
-                            if hasattr(custom_prof, k) and v is not None:
-                                try:
-                                    curr = getattr(custom_prof, k)
-                                    if isinstance(curr, float):
-                                        setattr(custom_prof, k, float(v))
-                                    elif isinstance(curr, int):
-                                        setattr(custom_prof, k, int(v))
-                                    else:
-                                        setattr(custom_prof, k, v)
-                                except (ValueError, TypeError):
+                    name = (row.get("name") or "").strip()
+                    if not aid or aid in self._twins or not row.get("active_squad", 1):
+                        continue
+                    if aid.startswith("ATH-STANDBY") or aid.startswith("ATH-TEST") or aid.startswith("ATH-NONEXISTENT"):
+                        continue
+                    # Avoid restoring duplicate players with identical names
+                    existing_names = {t.profile.name.strip().lower() for t in self._twins.values() if t.profile and t.profile.name}
+                    if name and name.lower() in existing_names:
+                        continue
+                    custom_prof = ai_coach_engine.AthleteProfile(athlete_id=aid)
+                    custom_prof.name = name or custom_prof.name
+                    for k, v in row.items():
+                        if hasattr(custom_prof, k) and v is not None:
+                            try:
+                                curr = getattr(custom_prof, k)
+                                if isinstance(curr, float):
+                                    setattr(custom_prof, k, float(v))
+                                elif isinstance(curr, int):
+                                    setattr(custom_prof, k, int(v))
+                                else:
                                     setattr(custom_prof, k, v)
-                        custom_twin = DigitalTwin(custom_prof, storage_vault=self.vault)
-                        self._twins[aid] = custom_twin
+                            except (ValueError, TypeError):
+                                setattr(custom_prof, k, v)
+                    custom_twin = DigitalTwin(custom_prof, storage_vault=self.vault)
+                    if row.get("device_id"):
+                        custom_twin.device_id = row.get("device_id")
+                    if row.get("recovery") is not None:
+                        custom_twin.current_recovery = float(row.get("recovery"))
+                    if row.get("fatigue") is not None:
+                        custom_twin.current_fatigue = float(row.get("fatigue"))
+                    if row.get("acwr") is not None:
+                        custom_twin.acwr = float(row.get("acwr"))
+                    self._twins[aid] = custom_twin
             except Exception as e:
                 print(f"[AthleteRegistry] Notice restoring athletes from vault: {e}")
 
@@ -379,7 +396,14 @@ class AthleteRegistry:
                     if row.get("acwr") is not None:
                         twin.acwr = float(row.get("acwr"))
                 else:
+                    name = (row.get("name") or "").strip()
+                    if aid.startswith("ATH-STANDBY") or aid.startswith("ATH-TEST") or aid.startswith("ATH-NONEXISTENT"):
+                        continue
+                    existing_names = {t.profile.name.strip().lower() for t_id, t in self._twins.items() if t_id != aid and t.profile and t.profile.name}
+                    if name and name.lower() in existing_names:
+                        continue
                     prof = ai_coach_engine.AthleteProfile(athlete_id=aid)
+                    prof.name = name or prof.name
                     for k, v in row.items():
                         if hasattr(prof, k) and v is not None:
                             try:
@@ -446,7 +470,7 @@ class AthleteRegistry:
         standby_prof = ai_coach_engine.AthleteProfile(athlete_id="ATH-STANDBY")
         standby_prof.name = "Squad Athlete"
         standby_prof.position = "Player"
-        return DigitalTwin(standby_prof, storage_vault=self.vault)
+        return DigitalTwin(standby_prof, storage_vault=None)
 
     def get_active_profile(self) -> "ai_coach_engine.AthleteProfile":
         twin = self.get_active_twin()
@@ -463,10 +487,86 @@ class AthleteRegistry:
 
     def list_athletes(self) -> List[Dict[str, Any]]:
         self.sync_from_vault()
-        return [twin.get_summary() for twin in self._twins.values() if twin.active_squad]
+        # Deduplicate to strictly guarantee 1 player per athlete_id and name
+        seen_ids = set()
+        seen_names = set()
+        unique = []
+        for twin in self._twins.values():
+            if not twin.active_squad:
+                continue
+            aid = twin.athlete_id
+            name = (twin.profile.name if twin.profile else "").strip().lower()
+            if aid in seen_ids or (name and name in seen_names):
+                continue
+            seen_ids.add(aid)
+            if name:
+                seen_names.add(name)
+            unique.append(twin.get_summary())
+        return unique
 
     def register_athlete(self, profile_data: Dict[str, Any]) -> DigitalTwin:
         aid = profile_data.get("athlete_id") or profile_data.get("id")
+        name = (profile_data.get("name") or "").strip()
+
+        # Check if athlete with this ID or exact name already exists to prevent duplicate players
+        existing_twin = None
+        if aid and aid in self._twins:
+            existing_twin = self._twins[aid]
+        elif name:
+            for twin in self._twins.values():
+                if twin.profile and twin.profile.name and twin.profile.name.strip().lower() == name.lower():
+                    existing_twin = twin
+                    aid = twin.athlete_id
+                    break
+
+        if existing_twin:
+            prof = existing_twin.profile
+            for k, v in profile_data.items():
+                if hasattr(prof, k) and v is not None and k not in ("athlete_id", "id"):
+                    try:
+                        curr_val = getattr(prof, k)
+                        if isinstance(curr_val, float):
+                            setattr(prof, k, float(v))
+                        elif isinstance(curr_val, int):
+                            setattr(prof, k, int(v))
+                        else:
+                            setattr(prof, k, v)
+                    except (ValueError, TypeError):
+                        setattr(prof, k, v)
+            if "fatigue" in profile_data and profile_data["fatigue"] is not None:
+                try:
+                    existing_twin.current_fatigue = float(profile_data["fatigue"])
+                except (ValueError, TypeError):
+                    pass
+            if "recovery" in profile_data and profile_data["recovery"] is not None:
+                try:
+                    existing_twin.current_recovery = float(profile_data["recovery"])
+                except (ValueError, TypeError):
+                    pass
+            if "acwr" in profile_data and profile_data["acwr"] is not None:
+                try:
+                    existing_twin.acwr = float(profile_data["acwr"])
+                except (ValueError, TypeError):
+                    pass
+            if "device_id" in profile_data and profile_data["device_id"]:
+                existing_twin.device_id = str(profile_data["device_id"]).strip()
+
+            if self.vault:
+                try:
+                    save_payload = prof.to_dict()
+                    save_payload["squad_number"] = getattr(prof, "squad_number", profile_data.get("squad_number", "8"))
+                    save_payload["recovery"] = existing_twin.current_recovery
+                    save_payload["fatigue"] = existing_twin.current_fatigue
+                    save_payload["acwr"] = existing_twin.acwr
+                    save_payload["device_id"] = existing_twin.device_id
+                    save_payload["status"] = profile_data.get("status", "Optimal")
+                    save_payload["status_color"] = profile_data.get("status_color", "green")
+                    save_payload["recommendation"] = profile_data.get("recommendation", "Maintain prescribed periodization")
+                    self.vault.save_athlete_profile(save_payload)
+                except Exception as e:
+                    print(f"[AthleteRegistry] Warning updating athlete in vault: {e}")
+            return existing_twin
+
         if not aid:
             highest = 0
             all_known_ids = set(self._twins.keys())

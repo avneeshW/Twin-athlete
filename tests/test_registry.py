@@ -202,6 +202,43 @@ class TestAthleteRegistry(unittest.TestCase):
         self.assertEqual(self.registry.get_active_athlete_id(), saimesh.athlete_id)
         self.assertEqual(self.registry.get_active_profile().name, "Saimesh")
 
+    def test_no_duplicate_players_in_registry_and_coach_summary(self):
+        """Verify registering existing athlete by name or ID updates player and prevents duplicate creation."""
+        initial_athletes = self.registry.list_athletes()
+        initial_count = len(initial_athletes)
+
+        # 1. Attempt to register Daniel Saji again (case variations)
+        updated_daniel = self.registry.register_athlete({
+            "name": "daniel saji",
+            "position": "Attacking Midfielder",
+            "recovery": 92.0
+        })
+        self.assertEqual(updated_daniel.athlete_id, "ATH-0824")
+        self.assertEqual(updated_daniel.profile.position, "Attacking Midfielder")
+        self.assertEqual(len(self.registry.list_athletes()), initial_count)
+
+        # 2. Re-registering with explicit athlete_id
+        updated_marcus = self.registry.register_athlete({
+            "athlete_id": "ATH-0102",
+            "name": "Marcus Vance",
+            "position": "Striker"
+        })
+        self.assertEqual(updated_marcus.athlete_id, "ATH-0102")
+        self.assertEqual(updated_marcus.profile.position, "Striker")
+        self.assertEqual(len(self.registry.list_athletes()), initial_count)
+
+        # 3. Verify get_squad_summary has no duplicate players
+        summary = self.registry.get_squad_summary()
+        self.assertEqual(summary["squad_size"], initial_count)
+        names = [a["name"].strip().lower() for a in summary["roster"]]
+        self.assertEqual(len(names), len(set(names)))
+        ids = [a["id"] for a in summary["roster"]]
+        self.assertEqual(len(ids), len(set(ids)))
+
+        # 4. Instantiating AthleteProfile with unpersisted ID does NOT auto-persist to vault
+        unpersisted = ai_coach_engine.AthleteProfile(athlete_id="ATH-STANDBY-TEST")
+        self.assertIsNone(self.test_vault.get_athlete_profile("ATH-STANDBY-TEST"))
+
 
 if __name__ == "__main__":
     unittest.main()

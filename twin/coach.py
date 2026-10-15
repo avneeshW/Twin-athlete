@@ -132,8 +132,6 @@ class AthleteProfile:
                     self.typical_sleep_baseline = float(saved.get("typical_sleep_baseline", self.typical_sleep_baseline))
                     self.history_days = int(saved.get("history_days", self.history_days))
                     self.dominant_leg = saved.get("dominant_leg", self.dominant_leg)
-                else:
-                    vault.save_athlete_profile(self.to_dict())
             except Exception as e:
                 print(f"[AthleteProfile] Warning loading from storage: {e}")
 
