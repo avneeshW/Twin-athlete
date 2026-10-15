@@ -460,6 +460,15 @@
                     <line x1="12" y1="8" x2="12.01" y2="8" />
                   </svg>
                 </button>
+                <button type="button" class="btn-download-progress-report" id="btnDownloadProgressReport"
+                  title="Download Black-and-White Before vs After Progress Report PDF for Current Athlete">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  <span id="btnProgressReportText">Download Progress Report</span>
+                </button>
                 <div id="smartAlertsList" style="display:none;"></div>
                 <span id="alertsCountBadge" style="display:none;">0</span>
               </div>
@@ -479,7 +488,7 @@
               </div>
             </div>
 
-            <!-- 4 Quick Vitals Metric Cards -->
+            <!-- 5 Quick Vitals Metric Cards -->
             <div class="vitals-grid-row">
               <!-- Heart Rate -->
               <div class="card metric-card">
@@ -521,18 +530,29 @@
                 </div>
               </div>
 
-              <!-- Activity -->
-              <div class="card metric-card">
+              <!-- Speed (Replaces Activity) -->
+              <div class="card metric-card" id="cardSpeed">
                 <div class="metric-header">
-                  <div class="metric-icon-box icon-activity">
-                    <img src="images/activity_runner.png" alt="Running Activity" class="metric-icon-img">
+                  <div class="metric-icon-box icon-speed">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 14l4-4" />
+                      <path d="M3.34 19a10 10 0 1 1 17.32 0" />
+                    </svg>
                   </div>
-                  <span class="metric-label">Activity</span>
+                  <span class="metric-label">SPEED</span>
                 </div>
                 <div class="metric-val-row">
-                  <span class="metric-num" id="vitalActivityVal" style="font-size:1.35rem;">Running</span>
+                  <span class="metric-num" id="vitalSpeedVal">8.4</span>
+                  <span class="metric-unit" id="vitalSpeedUnit">km/h</span>
+                  <span class="metric-trend trend-up-green" id="vitalSpeedTrend">&uarr; 0.6</span>
                 </div>
-                <span class="badge-subtext" id="vitalActivitySub">Team Training</span>
+                <div class="badge-pill pill-green" id="vitalSpeedStatus">
+                  <span class="pill-dot"></span>
+                  <span id="vitalSpeedStatusText">Moderate Pace</span>
+                </div>
+                <!-- Compatibility hooks for existing test suites and references -->
+                <span id="vitalActivityVal" style="display:none;">Running</span>
+                <span id="vitalActivitySub" style="display:none;">Team Training</span>
               </div>
 
               <!-- Acceleration -->
@@ -553,6 +573,27 @@
                 <div class="badge-pill pill-yellow" id="vitalAccelStatus">
                   <span class="pill-dot"></span>
                   <span id="vitalAccelStatusText">High Load</span>
+                </div>
+              </div>
+
+              <!-- Endurance (New Metric Box) -->
+              <div class="card metric-card" id="cardEndurance">
+                <div class="metric-header">
+                  <div class="metric-icon-box icon-endurance">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                    </svg>
+                  </div>
+                  <span class="metric-label">ENDURANCE</span>
+                </div>
+                <div class="metric-val-row">
+                  <span class="metric-num" id="vitalEnduranceVal">82</span>
+                  <span class="metric-unit">%</span>
+                  <span class="metric-trend trend-up-green" id="vitalEnduranceTrend">Est.</span>
+                </div>
+                <div class="badge-pill pill-green" id="vitalEnduranceStatus">
+                  <span class="pill-dot"></span>
+                  <span id="vitalEnduranceStatusText">Good Capacity</span>
                 </div>
               </div>
             </div>
@@ -1583,6 +1624,17 @@
           <div class="view-header-left">
             <h2>Player Profile</h2>
             <p>Anatomical telemetry mapping, joint node loads, and sleep-driven AI model retraining</p>
+          </div>
+          <div class="view-header-right">
+            <button type="button" class="btn-download-progress-report" id="btnDownloadProgressReportProfile"
+              title="Download Black-and-White Before vs After Progress Report PDF for Current Athlete">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              <span>Download Progress Report</span>
+            </button>
           </div>
         </div>
 

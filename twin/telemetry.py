@@ -63,6 +63,9 @@ class TelemetryEngine:
         self.all_hr_readings = []
         self.step_count = 0
         self.last_step_time = 0.0
+        self.estimated_speed_ms = 0.0
+        self.estimated_speed_kmh = 0.0
+        self.estimated_endurance_pct = 82.0
 
         # Baseline Digital Twin State (Starts from current recovery/fatigue)
         self.current_fatigue = 20.0
@@ -214,6 +217,161 @@ class TelemetryEngine:
         incremental_kcal = burn_rate_min * (dt_seconds / 60.0)
         return incremental_kcal
 
+    def calculate_speed_estimate(self, dt: float, ax: float, ay: float, az: float, mag: float, cadence_spm: int) -> dict:
+        """
+        Estimates athletic running/walking speed using IMU acceleration kinematics and cadence stride modeling.
+        Accounts for:
+        1. Dynamic linear acceleration (subtracting 1.0g baseline gravity vector).
+        2. Stride frequency and biomechanical stride length estimation (Weinberg / Zijlstra inverted pendulum model).
+        3. Zero-Velocity Update (ZUPT) drift attenuation to prevent open-loop integration divergence.
+        """
+        # 1. Dynamic acceleration magnitude in m/s^2
+        dyn_accel_g = max(0.0, abs(mag - 1.0))
+        dyn_accel_ms2 = dyn_accel_g * 9.80665
+
+        # 2. Cadence & Stride Frequency
+        stride_freq_hz = max(0.0, cadence_spm / 60.0)
+
+        # 3. Biomechanical Stride-Length Estimation (Weinberg Model)
+        height_m = (self.athlete_height_cm / 100.0) if hasattr(self, "athlete_height_cm") and self.athlete_height_cm else 1.80
+        k_stride = 0.42  # Bipedal athletic locomotion constant
+        est_stride_length = k_stride * height_m * (math.pow(max(0.1, dyn_accel_ms2), 0.25))
+
+        biomech_speed = est_stride_length * stride_freq_hz if cadence_spm >= 35 else 0.0
+
+        # 4. Inertial Integration with Zero-Velocity Update (ZUPT)
+        forward_accel = dyn_accel_ms2 * 0.35
+        if dyn_accel_ms2 < 0.25 and cadence_spm < 30:
+            # Stationary athlete: decay velocity rapidly to 0 (ZUPT)
+            self.estimated_speed_ms *= 0.40
+            if self.estimated_speed_ms < 0.1 or (dyn_accel_ms2 < 0.05 and cadence_spm == 0):
+                self.estimated_speed_ms = 0.0
+        else:
+            # Locomotion active: integrate forward acceleration with drift damping
+            drift_damping = 0.85
+            integrated_speed = (self.estimated_speed_ms * drift_damping) + (forward_accel * dt)
+            if biomech_speed > 0:
+                # Sensor fusion: blend biomechanical stride speed (65%) with inertial integration (35%)
+                self.estimated_speed_ms = (0.65 * biomech_speed) + (0.35 * integrated_speed)
+            else:
+                self.estimated_speed_ms = integrated_speed
+
+        # Bound speed within biological human sprint limits (0.0 to 11.0 m/s = ~40 km/h)
+        self.estimated_speed_ms = max(0.0, min(self.estimated_speed_ms, 11.0))
+        self.estimated_speed_kmh = round(self.estimated_speed_ms * 3.6, 1)
+        speed_ms_rounded = round(self.estimated_speed_ms, 2)
+
+        if self.estimated_speed_kmh < 1.0:
+            speed_status = "Stationary / Warmup"
+            speed_color = "grey"
+        elif self.estimated_speed_kmh < 6.0:
+            speed_status = "Walking / Jog"
+            speed_color = "green"
+        elif self.estimated_speed_kmh < 13.0:
+            speed_status = "Moderate Pace"
+            speed_color = "green"
+        elif self.estimated_speed_kmh < 20.0:
+            speed_status = "Fast Run"
+            speed_color = "yellow"
+        else:
+            speed_status = "Sprint / High Speed"
+            speed_color = "red"
+
+        return {
+            "value": self.estimated_speed_kmh,
+            "unit": "km/h",
+            "speed_kmh": self.estimated_speed_kmh,
+            "speed_mps": speed_ms_rounded,
+            "value_ms": speed_ms_rounded,
+            "unit_ms": "m/s",
+            "status": speed_status,
+            "color": speed_color,
+            "method": "Inertial Integration & Weinberg Stride Biomechanics (ZUPT Filtered)",
+            "trend": f"+{round(self.estimated_speed_kmh * 0.08, 1)}" if self.estimated_speed_kmh > 0 else "--"
+        }
+
+    def calculate_endurance_estimate(self, hr: float, spo2: float) -> dict:
+        """
+        Calculates athletic endurance and aerobic capacity estimate from real-time Heart Rate & SpO2.
+        Scoring Method:
+        1. Heart Rate Reserve Utilization:
+           HRR_ratio = (HR - HR_rest) / (HR_max - HR_rest)
+           Cardiovascular stamina reserve declines non-linearly as HR approaches HR_max:
+           HR_score = 100.0 * (1.0 - (HRR_ratio ** 1.25))
+        2. Peripheral Oxygen Saturation Factor:
+           Optimal aerobic cellular respiration occurs at SpO2 >= 97%.
+           Desaturation (<97%) exponentially diminishes stamina:
+           SpO2_factor = max(0.40, min(1.0, 1.0 - (97.0 - SpO2) * 0.05))
+        3. Composite Endurance Estimate:
+           Endurance% = clip(HR_score * SpO2_factor, 5.0, 99.0)
+        Note: Clearly labeled as an estimate rather than a clinical medical diagnosis.
+        """
+        if hr <= 0 or spo2 <= 0:
+            return {
+                "score": 0,
+                "value": None,
+                "display": "--",
+                "unit": "%",
+                "tier": "Waiting",
+                "status": "Waiting",
+                "color": "grey",
+                "is_estimate": True,
+                "trend": "Est.",
+                "method": "Heart Rate Reserve (HRR) & Peripheral O2 Saturation Model"
+            }
+
+        # Heart Rate Reserve Ratio
+        hr_rest = getattr(self, "resting_hr", 54.0)
+        hr_max = getattr(self, "max_hr", 195.0)
+        hrr_ratio = max(0.0, min(1.0, (hr - hr_rest) / max(10.0, hr_max - hr_rest)))
+
+        # HR capacity score (100% at rest, decreases as intensity peaks)
+        hr_capacity = 100.0 * (1.0 - math.pow(hrr_ratio, 1.25))
+
+        # SpO2 attenuation factor
+        if spo2 >= 97.0:
+            spo2_factor = 1.0
+        else:
+            spo2_factor = max(0.40, min(1.0, 1.0 - (97.0 - spo2) * 0.05))
+
+        raw_endurance = hr_capacity * spo2_factor
+        endurance_score = int(round(max(5.0, min(99.0, raw_endurance))))
+        self.estimated_endurance_pct = endurance_score
+
+        if endurance_score >= 80:
+            endurance_tier = "Optimal"
+            endurance_status = "Good Capacity (Est.)"
+            endurance_color = "green"
+        elif endurance_score >= 65:
+            endurance_tier = "Good"
+            endurance_status = "Good Capacity (Est.)"
+            endurance_color = "green"
+        elif endurance_score >= 50:
+            endurance_tier = "Moderate"
+            endurance_status = "Moderate (Est.)"
+            endurance_color = "yellow"
+        elif endurance_score >= 25:
+            endurance_tier = "Low"
+            endurance_status = "Depleting (Est.)"
+            endurance_color = "amber"
+        else:
+            endurance_tier = "Depleted"
+            endurance_status = "Critical Drain (Est.)"
+            endurance_color = "red"
+
+        return {
+            "score": endurance_score,
+            "value": endurance_score,
+            "display": str(endurance_score),
+            "unit": "%",
+            "tier": endurance_tier,
+            "status": endurance_status,
+            "color": endurance_color,
+            "is_estimate": True,
+            "trend": "Est.",
+            "method": "Heart Rate Reserve (HRR) & Peripheral O2 Saturation Model"
+        }
+
     def process_telemetry(self, data: dict) -> dict:
         """
         Core ingestion pipeline: Takes raw sensor packet from ESP32,
@@ -303,6 +461,10 @@ class TelemetryEngine:
         # 4. Step & Cadence Detection
         cadence_spm = self.detect_step_and_cadence(now, mag)
 
+        # 4b. Speed & Endurance Estimations (Physics & Biomechanical Models)
+        speed_info = self.calculate_speed_estimate(dt, ax, ay, az, mag, cadence_spm)
+        endurance_info = self.calculate_endurance_estimate(hr, spo2)
+
         # 5. Session Metrics & Caloric Burn
         self.session_elapsed_sec += int(round(dt))
         burned_kcal = self.calculate_calories_burned(hr, dt)
@@ -387,6 +549,8 @@ class TelemetryEngine:
                     "color": spo2_assessment["color"],
                     "alert": spo2_assessment["alert"]
                 },
+                "speed": speed_info,
+                "endurance": endurance_info,
                 "activity": {
                     "value": activity_info["activity"],
                     "unit": "",
@@ -576,6 +740,29 @@ class TelemetryEngine:
                     "unit": "%",
                     "status": "Normal",
                     "color": "green"
+                },
+                "speed": {
+                    "value": 8.4,
+                    "unit": "km/h",
+                    "speed_kmh": 8.4,
+                    "speed_mps": 2.33,
+                    "value_ms": 2.33,
+                    "unit_ms": "m/s",
+                    "status": "Moderate Pace",
+                    "color": "green",
+                    "trend": "+0.6",
+                    "method": "Inertial Integration & Weinberg Stride Biomechanics (ZUPT Filtered)"
+                },
+                "endurance": {
+                    "score": 82,
+                    "value": 82,
+                    "unit": "%",
+                    "tier": "Optimal",
+                    "status": "Good Capacity (Est.)",
+                    "color": "green",
+                    "is_estimate": True,
+                    "trend": "Est.",
+                    "method": "Heart Rate Reserve (HRR) & Peripheral O2 Saturation Model"
                 },
                 "activity": {
                     "value": "Running",

@@ -779,13 +779,25 @@ body::after {
 /* 2. 4 Quick Vitals Metric Cards (Supporting Biometric Instruments) */
 .vitals-grid-row {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 14px;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1200px) {
+  .vitals-grid-row {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
   .vitals-grid-row {
     grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .vitals-grid-row {
+    grid-template-columns: 1fr !important;
   }
 }
 
@@ -846,6 +858,18 @@ body::after {
   color: #14B8A6;
 }
 
+.metric-icon-box.icon-speed {
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  color: #3B82F6;
+}
+
+.metric-icon-box.icon-endurance {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #10B981;
+}
+
 .metric-icon-box.icon-activity {
   background: rgba(0, 70, 184, 0.12);
   border: 1px solid rgba(0, 70, 184, 0.25);
@@ -856,6 +880,37 @@ body::after {
   background: rgba(245, 158, 11, 0.12);
   border: 1px solid rgba(245, 158, 11, 0.25);
   color: #F59E0B;
+}
+
+.btn-download-progress-report {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  background: var(--glass-bg-subtle, rgba(255, 255, 255, 0.06));
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.16));
+  border-radius: var(--radius-pill, 999px);
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text-dark, #F8FAFC);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+}
+
+.btn-download-progress-report:hover {
+  background: var(--glass-bg-hover, rgba(255, 255, 255, 0.14));
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #FFFFFF;
+  transform: translateY(-1px);
+}
+
+.btn-download-progress-report:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .metric-label {
