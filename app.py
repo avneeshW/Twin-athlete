@@ -961,7 +961,7 @@ def sse_stream():
                     now = time.time()
                     is_connected = (engine.last_packet_time is not None and (now - engine.last_packet_time < 4.0)) or mock_feed_running
 
-                    if was_connected and not is_connected:
+                    if was_connected and not is_connected and not mock_feed_running:
                         # Sensor just disconnected: notify browser once
                         was_connected = False
                         disconnect_event = {

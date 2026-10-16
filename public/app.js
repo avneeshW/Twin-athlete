@@ -843,6 +843,7 @@ function initLiveStream() {
 }
 
 function handleSensorDisconnected() {
+  if (isMockActive) return;
   isSensorConnected = false;
 
   // 1. Hardware Status Pill
@@ -958,6 +959,7 @@ function handleIncomingTelemetry(data) {
 
   // Handle explicit sensor disconnect event from server or device disconnected state
   if (data.event === "sensor_disconnect" || (data.device && !data.device.connected && !data.device.mock_mode)) {
+    if (isMockActive) return;
     if (isSensorConnected) {
       handleSensorDisconnected();
     } else if (data.device) {
@@ -1122,8 +1124,12 @@ function updateHardwareStatusUI(device) {
   }
 
   // Sync simulator button state
-  isMockActive = !!device.mock_mode;
-  updateSimulatorButtonUI(isMockActive, false);
+  if (device && device.mock_mode !== undefined) {
+    if (!isMockActive || device.mock_mode) {
+      isMockActive = !!device.mock_mode;
+      updateSimulatorButtonUI(isMockActive, false);
+    }
+  }
 
   // Forensic Data Quality & Provenance Header Pill
   const qualityDot = document.getElementById("headerQualityDot");
@@ -1544,34 +1550,151 @@ function updateSimulatorButtonUI(isActive, isLoading = false) {
   }
 }
 
-function startMockFallbackPolling() {
-  if (mockFallbackInterval) return;
-  mockFallbackInterval = setInterval(async () => {
+let clientMockInterval = null;
+let clientMockStep = 0;
+
+function generateClientMockPacket() {
+  clientMockStep++;
+  const t = clientMockStep;
+
+  // Realistic HR variation (136–160 BPM) with natural biometric fluctuation
+  const hrBase = 142 + 10 * Math.sin(t * 0.14);
+  const hrJitter = (Math.sin(t * 1.7) * 2.5) + ((Math.random() - 0.5) * 2);
+  const hr = Math.round(Math.min(175, Math.max(115, hrBase + hrJitter)));
+
+  // Biometric SpO2 (97–99%)
+  const spo2Jitter = Math.floor(Math.random() * 3);
+  const spo2 = (hr > 155) ? 97 : (97 + spo2Jitter);
+
+  // Triaxial acceleration showing walking/running gait impact
+  const stride = t * 2.8 * 2.0 * Math.PI;
+  const ax = parseFloat((Math.sin(stride) * 0.8 + ((Math.random() - 0.5) * 0.3)).toFixed(2));
+  const ay = parseFloat((Math.cos(stride) * 1.5 + 1.2 + ((Math.random() - 0.5) * 0.3)).toFixed(2));
+  const az = parseFloat((Math.sin(stride * 0.5) * 0.4 + ((Math.random() - 0.5) * 0.2)).toFixed(2));
+  const rawMag = parseFloat(Math.sqrt(ax * ax + ay * ay + az * az).toFixed(2));
+
+  // Cadence: 33 to 35 SPM (matching ESP32 receiver stream)
+  const cadence = 33 + (t % 3 === 0 ? 1 : 0);
+
+  // Dynamic activity based on speed/gait/intensity
+  let actName = "Running";
+  if (hr >= 152 || ay > 2.4) {
+    actName = "Sprinting";
+  } else if (hr <= 140 && ay < 1.0) {
+    actName = "Walking";
+  }
+
+  const speed = actName === "Sprinting" ? 14.2 : (actName === "Running" ? 9.5 : 4.8);
+  const endurance = Math.max(45, Math.min(96, Math.round(92 - (hr - 120) * 0.55)));
+  const fatigue = Math.min(65, Math.max(25, Math.round(28 + (hr - 120) * 0.4)));
+  const recovery = Math.max(50, Math.min(95, Math.round(88 - fatigue * 0.3)));
+  const readiness = Math.round(recovery * 0.6 + (100 - fatigue) * 0.4);
+
+  return {
+    device: {
+      id: "ESP32-SIMULATED-RUNNER",
+      device_id: "ESP32-SIMULATED-RUNNER",
+      connected: true,
+      mock_mode: true,
+      rate_hz: 1.0,
+      battery: 94,
+      data_provenance: "DEMO",
+      data_quality: { grade: "EXCELLENT" }
+    },
+    vitals: {
+      heart_rate: {
+        value: hr,
+        trend: hr > 145 ? "+2%" : "-1%",
+        color: hr > 150 ? "red" : (hr > 125 ? "yellow" : "green"),
+        zone: hr > 150 ? "Zone 4" : "Zone 3",
+        zone_info: { name: hr > 150 ? "Zone 4: Anaerobic Threshold" : "Zone 3: Aerobic Base" }
+      },
+      spo2: {
+        value: spo2,
+        status: "Optimal",
+        color: "green"
+      },
+      activity: {
+        value: actName,
+        subtext: "Simulated Training"
+      },
+      acceleration: {
+        value: rawMag,
+        axes: { x: ax, y: ay, z: az },
+        trend: rawMag > 2.0 ? "+16%" : "-4%",
+        status: rawMag > 2.2 ? "High Impact" : "Optimal"
+      },
+      cadence: {
+        value: cadence,
+        status: "Optimal"
+      },
+      speed: {
+        value: speed,
+        unit: "km/h"
+      },
+      endurance: {
+        value: endurance,
+        status: endurance >= 75 ? "Good Capacity (Est.)" : "Moderate (Est.)",
+        color: endurance >= 75 ? "green" : "yellow"
+      }
+    },
+    twin_status: {
+      recovery_value: recovery,
+      fatigue_value: fatigue,
+      performance_value: 86.0,
+      readiness_value: readiness,
+      fatigue_label: hr > 150 ? "Elevated" : "Moderate",
+      recovery_label: "Optimal",
+      performance_label: "High"
+    }
+  };
+}
+
+function startClientMockFeed() {
+  if (clientMockInterval) clearInterval(clientMockInterval);
+
+  isMockActive = true;
+  isSensorConnected = true;
+  lastLivePacketTimestamp = Date.now();
+
+  updateHardwareStatusUI({
+    connected: true,
+    mock_mode: true,
+    device_id: "ESP32-SIMULATED-RUNNER",
+    rate_hz: 1.0,
+    battery: 94,
+    data_provenance: "DEMO",
+    data_quality: { grade: "EXCELLENT" }
+  });
+
+  // Emit first packet immediately
+  const firstPacket = generateClientMockPacket();
+  handleIncomingTelemetry(firstPacket);
+
+  // Emit continuous packets every 1000ms
+  clientMockInterval = setInterval(() => {
     if (!isMockActive) {
-      stopMockFallbackPolling();
+      stopClientMockFeed();
       return;
     }
-    if (Date.now() - lastLivePacketTimestamp > 1200) {
-      try {
-        const res = await fetch(`/api/dashboard-data?timeframe=${currentTimeframe}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data && isMockActive) {
-            handleIncomingTelemetry(data);
-          }
-        }
-      } catch (e) {
-        // silent fallback
-      }
-    }
+    const packet = generateClientMockPacket();
+    handleIncomingTelemetry(packet);
   }, 1000);
 }
 
-function stopMockFallbackPolling() {
-  if (mockFallbackInterval) {
-    clearInterval(mockFallbackInterval);
-    mockFallbackInterval = null;
+function stopClientMockFeed() {
+  if (clientMockInterval) {
+    clearInterval(clientMockInterval);
+    clientMockInterval = null;
   }
+}
+
+function startMockFallbackPolling() {
+  // Maintained for backward compatibility; client simulation drives continuous live packets
+}
+
+function stopMockFallbackPolling() {
+  stopClientMockFeed();
 }
 
 function initHardwareControls() {
@@ -1583,39 +1706,39 @@ function initHardwareControls() {
     if (isTogglingMock) return;
     isTogglingMock = true;
 
-    const targetAction = isMockActive ? "stop" : "start";
+    const willActivate = !isMockActive;
+    const targetAction = willActivate ? "start" : "stop";
     updateSimulatorButtonUI(isMockActive, true);
 
     try {
-      const res = await fetch("/api/esp32/mock-feed", {
+      // Notify backend if available (runs in background, ignore errors in serverless)
+      fetch("/api/esp32/mock-feed", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: targetAction })
-      });
-      if (!res.ok) {
-        throw new Error(`Server returned HTTP ${res.status}`);
-      }
-      const data = await res.json();
-      isMockActive = !!data.mock_running;
+      }).catch(() => {});
 
+      isMockActive = willActivate;
       updateSimulatorButtonUI(isMockActive, false);
 
       if (isMockActive) {
-        showToast("ESP32 Simulation Started (DEMO Stream)", "⚡");
-        if (!eventSource || eventSource.readyState === EventSource.CLOSED) {
-          initLiveStream();
-        }
-        await loadDashboardData(currentTimeframe);
-        startMockFallbackPolling();
+        showToast("ESP32 Simulation Started (Continuous Stream)", "⚡");
+        startClientMockFeed();
       } else {
         showToast("ESP32 Simulation Stopped", "⏹");
-        stopMockFallbackPolling();
+        stopClientMockFeed();
         handleSensorDisconnected();
       }
     } catch (err) {
       console.error("Failed to toggle simulator feed:", err);
-      showToast("Simulation toggle failed: " + (err.message || "Network error"), "⚠️");
+      isMockActive = willActivate;
       updateSimulatorButtonUI(isMockActive, false);
+      if (isMockActive) {
+        startClientMockFeed();
+      } else {
+        stopClientMockFeed();
+        handleSensorDisconnected();
+      }
     } finally {
       isTogglingMock = false;
     }
