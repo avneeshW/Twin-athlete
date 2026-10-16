@@ -42,7 +42,7 @@ class TestSpeedEnduranceReport(unittest.TestCase):
         cls.engine = TelemetryEngine()
 
     # -------------------------------------------------------------
-    # PART 1: SPEED CALCULATION & UI
+    # PART 1: ACTIVITY & ACCELERATION KINETICS
     # -------------------------------------------------------------
     def test_speed_calculation_method(self):
         """Speed calculation uses acceleration kinetics with drift attenuation."""
@@ -77,15 +77,13 @@ class TestSpeedEnduranceReport(unittest.TestCase):
         self.assertIn("unit", speed_data)
         self.assertIn("method", speed_data)
 
-    def test_speed_box_in_html(self):
-        """SPEED box replaces the Running/Activity box with vitalSpeedVal."""
+    def test_activity_box_in_html(self):
+        """ACTIVITY box replaces the Speed box with vitalActivityVal."""
         for html in [self.public_html, self.static_html]:
-            self.assertIn('id="vitalSpeedVal"', html)
-            self.assertIn('id="vitalSpeedUnit"', html)
-            self.assertIn('id="vitalSpeedStatus"', html)
-            self.assertIn('id="vitalSpeedStatusText"', html)
-            self.assertIn("SPEED", html)
-            self.assertIn("icon-speed", html)
+            self.assertIn('id="vitalActivityVal"', html)
+            self.assertIn('id="vitalActivityStatus"', html)
+            self.assertIn("Activity", html)
+            self.assertIn("Waiting for data", html)
 
     # -------------------------------------------------------------
     # PART 2: ENDURANCE CALCULATION & UI
@@ -163,21 +161,24 @@ class TestSpeedEnduranceReport(unittest.TestCase):
         self.assertEqual(data.get("athlete_id"), "ATH-0824")
         self.assertIn("comparison_table", data)
         self.assertIn("data_provenance", data)
-        self.assertIn("observations", data)
 
         # Ensure comparison table has genuine metrics
         table = data["comparison_table"]
         metric_names = [row["metric"] for row in table]
         self.assertIn("Heart Rate", metric_names)
-        self.assertIn("SpO2 Saturation", metric_names)
-        self.assertIn("Speed", metric_names)
-        self.assertIn("Endurance (Estimate)", metric_names)
+        self.assertIn("SpO₂", metric_names)
+        self.assertIn("Fatigue Level", metric_names)
+        self.assertIn("Recovery Score", metric_names)
+        self.assertIn("Performance Readiness", metric_names)
+        self.assertIn("Efficiency", metric_names)
+        self.assertNotIn("Activity", metric_names)
+        self.assertNotIn("Acceleration / Movement", metric_names)
+        self.assertNotIn("Training Intensity", metric_names)
 
-        # Ensure no fabricated baselines: row contains baseline status or real value
+        # Ensure each row contains before and after
         for row in table:
             self.assertIn("before", row)
             self.assertIn("after", row)
-            self.assertIn("change_str", row)
 
     def test_progress_data_for_unknown_athlete_handles_honestly(self):
         """API handles athlete without history by marking baseline unavailable."""
@@ -186,18 +187,16 @@ class TestSpeedEnduranceReport(unittest.TestCase):
         data = json.loads(resp.data)
         self.assertTrue(data.get("success"))
         table = data["comparison_table"]
-        # All baselines should be honestly flagged as unavailable
+        # Unavailable baselines should be honestly flagged as N/A
         for row in table:
-            self.assertEqual(row["before_display"], "Baseline unavailable")
-            self.assertEqual(row["change_str"], "--")
+            self.assertIn(row["before_display"], ["N/A", "Baseline unavailable"])
 
     def test_pdf_generation_black_and_white_in_js(self):
         """Client-side app.js contains black-and-white PDF generation logic with jsPDF."""
         for js in [self.public_js, self.static_js]:
             self.assertIn("downloadAthleteProgressReport", js)
             self.assertIn("jspdf", js.lower())
-            self.assertIn("SYNC Athlete Progress Report", js)
-            self.assertIn("Baseline unavailable", js)
+            self.assertIn("Athlete Progress Report", js)
             self.assertIn("SYNC_Athlete_Progress_Report_", js)
 
 

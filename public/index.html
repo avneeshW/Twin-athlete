@@ -447,11 +447,11 @@
               </div>
 
               <div class="hero-identity-footer">
-                <div class="overall-state-badge badge-ready" id="twinOverallStateBadge">
+                <div class="overall-state-badge badge-ready" id="twinOverallStateBadge" style="display: none;">
                   <span class="pulsing-state-dot"></span>
                   <span id="twinOverallStateText">READY FOR TRAINING</span>
                 </div>
-                <button type="button" class="btn-twin-explainer" id="btnOpenHowTwinWorks"
+                <button type="button" class="btn-twin-explainer" id="btnOpenHowTwinWorks" style="display: none;"
                   title="Understand how your personalized digital twin calculates your state">
                   <span>How It Works</span>
                   <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
@@ -530,29 +530,30 @@
                 </div>
               </div>
 
-              <!-- Speed (Replaces Activity) -->
-              <div class="card metric-card" id="cardSpeed">
+              <!-- Activity (Replaced Speed) -->
+              <div class="card metric-card" id="cardActivity">
                 <div class="metric-header">
-                  <div class="metric-icon-box icon-speed">
+                  <div class="metric-icon-box icon-activity">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M12 14l4-4" />
-                      <path d="M3.34 19a10 10 0 1 1 17.32 0" />
+                      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
                     </svg>
                   </div>
-                  <span class="metric-label">SPEED</span>
+                  <span class="metric-label">Activity</span>
                 </div>
                 <div class="metric-val-row">
-                  <span class="metric-num" id="vitalSpeedVal">8.4</span>
-                  <span class="metric-unit" id="vitalSpeedUnit">km/h</span>
-                  <span class="metric-trend trend-up-green" id="vitalSpeedTrend">&uarr; 0.6</span>
+                  <span class="metric-num" id="vitalActivityVal">Waiting for data</span>
                 </div>
-                <div class="badge-pill pill-green" id="vitalSpeedStatus">
+                <div class="badge-pill pill-green" id="vitalActivityStatus">
                   <span class="pill-dot"></span>
-                  <span id="vitalSpeedStatusText">Moderate Pace</span>
+                  <span id="vitalActivityStatusText">Waiting for data</span>
                 </div>
                 <!-- Compatibility hooks for existing test suites and references -->
-                <span id="vitalActivityVal" style="display:none;">Running</span>
                 <span id="vitalActivitySub" style="display:none;">Team Training</span>
+                <span id="vitalSpeedVal" style="display:none;">--</span>
+                <span id="vitalSpeedUnit" style="display:none;">km/h</span>
+                <span id="vitalSpeedTrend" style="display:none;">--</span>
+                <span id="vitalSpeedStatus" style="display:none;"></span>
+                <span id="vitalSpeedStatusText" style="display:none;"></span>
               </div>
 
               <!-- Acceleration -->
@@ -1027,7 +1028,6 @@
                   <th>Fatigue (%)</th>
                   <th>Recovery (%)</th>
                   <th>Performance</th>
-                  <th>Status</th>
                 </tr>
               </thead>
               <tbody id="analyticsHistoryTableBody">
@@ -1259,6 +1259,21 @@
                 </div>
               </div>
 
+              <!-- Predicted Efficiency -->
+              <div class="outcome-card-item">
+                <div class="outcome-head-row">
+                  <span class="outcome-label">Efficiency</span>
+                  <span class="delta-badge delta-neutral" id="deltaEfficiencyBadge">Baseline</span>
+                </div>
+                <div class="outcome-value-row">
+                  <span class="outcome-status-tag status-green" id="predEfficiencyStatus">Optimal</span>
+                  <span class="outcome-score" id="predEfficiencyVal">70%</span>
+                </div>
+                <div class="outcome-progress-bar">
+                  <div class="progress-fill fill-green" id="barEfficiency" style="width: 70%;"></div>
+                </div>
+              </div>
+
               <!-- Secondary Metrics: Avg HR & Caloric Burn -->
               <div class="outcome-vitals-row">
                 <div class="vitals-chip">
@@ -1291,7 +1306,7 @@
                 <h3 style="font-size:1.1rem;font-weight:800;color:var(--text-dark);">Scenario Conditions</h3>
               </div>
               <p style="font-size:0.82rem;color:var(--text-muted);margin-top:2px;">Compare how prospective session
-                options alter fatigue accumulation, recovery window, and readiness</p>
+                options alter fatigue accumulation, recovery window, and efficiency</p>
             </div>
             <div style="display:flex;align-items:center;gap:8px;">
               <span class="disclaimer-badge">Scikit-Learn ML Model Estimates</span>
@@ -1318,9 +1333,9 @@
                       class="c-delta delta-up">+26%</span></div>
                 </div>
                 <div class="comp-metric-item">
-                  <span class="c-lbl">Predicted Readiness</span>
-                  <div class="c-val-box"><strong class="c-val text-amber" id="scA_readiness">68%</strong> <span
-                      class="c-delta delta-down">-17%</span></div>
+                  <span class="c-lbl">Predicted Efficiency</span>
+                  <div class="c-val-box"><strong class="c-val text-amber" id="scA_readiness">42%</strong> <span
+                      class="c-delta delta-down" id="scA_dEfficiency">-28%</span></div>
                 </div>
                 <div class="comp-metric-item">
                   <span class="c-lbl">Recovery Required</span>
@@ -1352,9 +1367,9 @@
                       class="c-delta delta-up">+10%</span></div>
                 </div>
                 <div class="comp-metric-item">
-                  <span class="c-lbl">Predicted Readiness</span>
-                  <div class="c-val-box"><strong class="c-val text-green" id="scB_readiness">78%</strong> <span
-                      class="c-delta delta-down">-7%</span></div>
+                  <span class="c-lbl">Predicted Efficiency</span>
+                  <div class="c-val-box"><strong class="c-val text-green" id="scB_readiness">58%</strong> <span
+                      class="c-delta delta-down" id="scB_dEfficiency">-12%</span></div>
                 </div>
                 <div class="comp-metric-item">
                   <span class="c-lbl">Recovery Required</span>
@@ -1386,9 +1401,9 @@
                       class="c-delta delta-down">-6%</span></div>
                 </div>
                 <div class="comp-metric-item">
-                  <span class="c-lbl">Predicted Readiness</span>
-                  <div class="c-val-box"><strong class="c-val text-green" id="scC_readiness">86%</strong> <span
-                      class="c-delta delta-up">+1%</span></div>
+                  <span class="c-lbl">Predicted Efficiency</span>
+                  <div class="c-val-box"><strong class="c-val text-green" id="scC_readiness">73%</strong> <span
+                      class="c-delta delta-up" id="scC_dEfficiency">+3%</span></div>
                 </div>
                 <div class="comp-metric-item">
                   <span class="c-lbl">Recovery Required</span>
@@ -1422,7 +1437,7 @@
                       id="scCustom_dFatigue">--</span></div>
                 </div>
                 <div class="comp-metric-item">
-                  <span class="c-lbl">Predicted Readiness</span>
+                  <span class="c-lbl">Predicted Efficiency</span>
                   <div class="c-val-box"><strong class="c-val" id="scCustom_readiness">--</strong> <span class="c-delta"
                       id="scCustom_dReadiness">--</span></div>
                 </div>
@@ -1600,13 +1615,11 @@
               <thead>
                 <tr>
                   <th>Day</th>
-                  <th>Session</th>
-                  <th>Intensity</th>
                   <th>Load</th>
                   <th>Fatigue</th>
                   <th>Recovery</th>
                   <th>Readiness</th>
-                  <th>Status</th>
+                  <th>Efficiency</th>
                 </tr>
               </thead>
               <tbody id="simBreakdownTableBody"></tbody>
@@ -1822,9 +1835,15 @@
                 <input type="number" id="settingAthleteMaxHr" class="form-control" value="196">
               </div>
             </div>
+            <button class="btn-save-settings" id="btnSaveAthleteProfile" style="margin-top:14px;">Save Profile</button>
+            <div id="profileSavedToast"
+              style="display:none;font-size:0.78rem;color:var(--status-green-text);margin-top:8px;font-weight:600;">
+              ✓ Profile saved successfully!
+            </div>
           </div>
 
-          <div class="settings-card">
+          <!-- Hardware & Safety Thresholds (Hidden from visible interface) -->
+          <div class="settings-card" id="cardHardwareSafetyThresholds" style="display: none;">
             <div class="settings-card-title">
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2">
                 <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />

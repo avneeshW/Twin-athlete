@@ -345,6 +345,24 @@ def calculate_performance(readiness: float, recovery: float, chronic_fitness: fl
     return round(float(np.clip(perf, 15.0, 99.0)), 1)
 
 
+def calculate_efficiency(recovery: float, fatigue: float, load: float = None, intensity: float = None) -> float:
+    """
+    Computes athlete physiological efficiency score (0 - 100%).
+    Reflects the ratio of recovery capacity and absence of neuromuscular fatigue to metabolic strain:
+    Efficiency = 100 - Total Strain
+    where Total Strain = (0.50 * fatigue) + (0.50 * (100 - recovery)) + (load * 0.05 if load else 0.0)
+    """
+    r = float(np.clip(recovery, 0.0, 100.0))
+    f = float(np.clip(fatigue, 0.0, 100.0))
+    strain = (0.50 * f) + (0.50 * (100.0 - r))
+    if load is not None and load > 0:
+        strain += min(15.0, float(load) * 0.05)
+    elif intensity is not None and intensity > 0.70:
+        strain += (float(intensity) - 0.70) * 15.0
+    efficiency = 100.0 - strain
+    return round(float(np.clip(efficiency, 10.0, 99.0)), 1)
+
+
 def classify_overall_state(readiness: float, fatigue: float, recovery: float) -> tuple[str, str, str]:
     """
     Classifies athlete state into clear operational badges:
@@ -577,6 +595,7 @@ def simulate_scenarios_comparison(current_state: dict, custom_duration: int = 60
     curr_f = float(current_state.get("fatigue", 38.0))
     curr_r = float(current_state.get("recovery", 78.0))
     curr_readiness = float(current_state.get("readiness", 85.0))
+    curr_eff = calculate_efficiency(curr_r, curr_f)
     sleep_h = float(current_state.get("sleep_hours", 7.8))
 
     scenarios = [
@@ -599,8 +618,9 @@ def simulate_scenarios_comparison(current_state: dict, custom_duration: int = 60
         recovery_drain = (load / 100.0) * 18.0
         pred_r = round(float(np.clip(curr_r - recovery_drain + (sleep_h * 2.5), 20.0, 98.0)), 1)
 
-        # Predict resulting readiness
+        # Predict resulting readiness & efficiency
         pred_readiness = calculate_readiness(pred_r, pred_f, sleep_hours=sleep_h)
+        pred_eff = calculate_efficiency(pred_r, pred_f, load=load, intensity=intensity)
 
         # Predict recovery requirement duration
         if pred_f >= 60.0 or pred_r < 55.0:
@@ -618,6 +638,7 @@ def simulate_scenarios_comparison(current_state: dict, custom_duration: int = 60
 
         delta_readiness = round(pred_readiness - curr_readiness, 1)
         delta_fatigue = round(pred_f - curr_f, 1)
+        delta_eff = round(pred_eff - curr_eff, 1)
 
         results.append({
             "id": sc["id"],
@@ -635,6 +656,8 @@ def simulate_scenarios_comparison(current_state: dict, custom_duration: int = 60
             "recovery_interval": [max(10.0, round(pred_r - 4.5, 1)), min(99.0, round(pred_r + 4.5, 1))],
             "predicted_readiness": pred_readiness,
             "readiness_uncertainty": "+/- 3.8 pts",
+            "predicted_efficiency": pred_eff,
+            "delta_efficiency": delta_eff,
             "delta_readiness": delta_readiness,
             "delta_fatigue": delta_fatigue,
             "recovery_requirement": rec_hours,
@@ -649,6 +672,7 @@ def simulate_scenarios_comparison(current_state: dict, custom_duration: int = 60
     return {
         "current_state": {
             "readiness": curr_readiness,
+            "efficiency": curr_eff,
             "fatigue": curr_f,
             "recovery": curr_r,
             "sleep_hours": sleep_h

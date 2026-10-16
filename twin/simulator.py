@@ -97,6 +97,24 @@ WORKOUT_PRESETS = {
 }
 
 
+def calculate_efficiency(recovery: float, fatigue: float, load: float = None, intensity: float = None) -> float:
+    """
+    Computes athlete physiological efficiency score (0 - 100%).
+    Reflects the ratio of recovery capacity and absence of neuromuscular fatigue to metabolic strain:
+    Efficiency = 100 - Total Strain
+    where Total Strain = (0.50 * fatigue) + (0.50 * (100 - recovery)) + (load * 0.05 if load else 0.0)
+    """
+    r = float(np.clip(recovery, 0.0, 100.0))
+    f = float(np.clip(fatigue, 0.0, 100.0))
+    strain = (0.50 * f) + (0.50 * (100.0 - r))
+    if load is not None and load > 0:
+        strain += min(15.0, float(load) * 0.05)
+    elif intensity is not None and intensity > 0.70:
+        strain += (float(intensity) - 0.70) * 15.0
+    efficiency = 100.0 - strain
+    return round(float(np.clip(efficiency, 10.0, 99.0)), 1)
+
+
 def simulate_single_step(current_fatigue: float, current_recovery: float, sleep_hours: float, 
                          duration: int, intensity: float) -> dict:
     """
@@ -156,13 +174,15 @@ def simulate_single_step(current_fatigue: float, current_recovery: float, sleep_
     # Derived physiological indicators
     pred_resting_hr = round(52.0 + ((100.0 - pred_recovery) * 0.18), 1)
     pred_performance = round((pred_recovery * 0.6) + ((100.0 - pred_fatigue) * 0.4), 1)
+    pred_efficiency = calculate_efficiency(pred_recovery, pred_fatigue, load=daily_load, intensity=intensity)
 
     return {
         "daily_load": daily_load,
         "predicted_fatigue": round(float(pred_fatigue), 1),
         "predicted_recovery": round(float(pred_recovery), 1),
         "predicted_resting_hr": pred_resting_hr,
-        "predicted_performance": pred_performance
+        "predicted_performance": pred_performance,
+        "predicted_efficiency": pred_efficiency
     }
 
 
@@ -252,6 +272,10 @@ def simulate_schedule(initial_state: dict = None, schedule: list[dict] = None) -
 
         risk_level, risk_desc = assess_overtraining_risk(res["predicted_fatigue"], res["predicted_recovery"], consecutive_hard_days)
 
+        eff_score = res.get("predicted_efficiency")
+        if eff_score is None:
+            eff_score = calculate_efficiency(res["predicted_recovery"], res["predicted_fatigue"], load=res["daily_load"], intensity=inten)
+
         records.append({
             "Day": entry.get("day", f"Day {len(records) + 1}"),
             "Activity": activity,
@@ -263,6 +287,8 @@ def simulate_schedule(initial_state: dict = None, schedule: list[dict] = None) -
             "Recovery (%)": res["predicted_recovery"],
             "Resting HR": res["predicted_resting_hr"],
             "Performance": res["predicted_performance"],
+            "Efficiency": eff_score,
+            "Efficiency (%)": eff_score,
             "Status": risk_level
         })
 

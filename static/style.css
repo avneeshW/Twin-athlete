@@ -4191,8 +4191,13 @@ a,
 .scenario-comp-card.selected-card,
 .scenario-comp-card.active-card {
   border: 2px solid var(--primary-blue);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(240, 247, 255, 0.85) 100%);
-  box-shadow: 0 8px 24px rgba(0, 132, 255, 0.2);
+  background: var(--glass-bg);
+  box-shadow: 0 8px 24px rgba(0, 132, 255, 0.25);
+}
+
+.scenario-comp-card.selected-card:hover,
+.scenario-comp-card.active-card:hover {
+  background: var(--glass-bg-hover);
 }
 
 .comp-card-top {
