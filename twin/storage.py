@@ -106,6 +106,10 @@ class StorageVault:
                     conn.execute("PRAGMA busy_timeout=5000;")
                 except Exception:
                     pass
+                try:
+                    conn.execute("PRAGMA foreign_keys=ON;")
+                except Exception:
+                    pass
                 if not is_memory:
                     try:
                         conn.execute("PRAGMA journal_mode=WAL;")
@@ -280,6 +284,24 @@ class StorageVault:
                 );
             """)
 
+            # Safe migrations for session_history extended columns
+            for col_def in [
+                "id TEXT",
+                "device_id TEXT",
+                "is_mock INTEGER DEFAULT 0",
+                "rpe_post REAL",
+                "notes TEXT"
+            ]:
+                try:
+                    conn.execute(f"ALTER TABLE session_history ADD COLUMN {col_def};")
+                except sqlite3.OperationalError:
+                    pass
+
+            try:
+                conn.execute("UPDATE session_history SET id = session_id WHERE id IS NULL;")
+            except Exception:
+                pass
+
             # 5. Audit Log Table
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS audit_events (
@@ -293,12 +315,39 @@ class StorageVault:
                 );
             """)
 
+            # 6. Raw Per-Sample Wearable Sensor Readings Table
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS samples (
+                    id INTEGER PRIMARY KEY,
+                    session_id TEXT,
+                    device_id TEXT NOT NULL,
+                    seq INTEGER,
+                    device_ms INTEGER,
+                    server_ts REAL NOT NULL,
+                    hr REAL,
+                    spo2 REAL,
+                    ax REAL,
+                    ay REAL,
+                    az REAL,
+                    gx REAL,
+                    gy REAL,
+                    gz REAL,
+                    cadence INTEGER,
+                    flags TEXT,
+                    is_mock INTEGER DEFAULT 0,
+                    FOREIGN KEY(session_id) REFERENCES session_history(session_id)
+                );
+            """)
+
             # Indices for rapid querying
             conn.execute("CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback_ledger(status);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_feedback_athlete ON feedback_ledger(athlete_id);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_session_athlete ON session_history(athlete_id, start_time);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_session_history_id ON session_history(id);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_device_athlete ON device_mappings(athlete_id);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_time ON audit_events(created_at);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_samples_session_id ON samples(session_id, id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_samples_device_ts ON samples(device_id, server_ts);")
 
     def _init_db(self):
         """Initializes tables and indices if they do not exist."""
@@ -589,14 +638,19 @@ class StorageVault:
         with self._lock:
             conn = self._get_connection()
             try:
+                sid = session.get("session_id") or session.get("id") or f"SES-{int(time.time())}"
                 with conn:
                     conn.execute("""
                         INSERT INTO session_history (
-                            session_id, athlete_id, start_time, end_time, duration_sec,
+                            session_id, id, athlete_id, device_id, is_mock, start_time, end_time, duration_sec,
                             avg_hr, peak_hr, avg_spo2, calories, steps, training_load,
-                            activity, hr_zone_distribution, created_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            activity, hr_zone_distribution, rpe_post, notes, created_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(session_id) DO UPDATE SET
+                            id = coalesce(excluded.id, session_history.id),
+                            athlete_id = excluded.athlete_id,
+                            device_id = coalesce(excluded.device_id, session_history.device_id),
+                            is_mock = excluded.is_mock,
                             end_time = excluded.end_time,
                             duration_sec = excluded.duration_sec,
                             avg_hr = excluded.avg_hr,
@@ -606,23 +660,159 @@ class StorageVault:
                             steps = excluded.steps,
                             training_load = excluded.training_load,
                             activity = excluded.activity,
-                            hr_zone_distribution = excluded.hr_zone_distribution;
+                            hr_zone_distribution = excluded.hr_zone_distribution,
+                            rpe_post = coalesce(excluded.rpe_post, session_history.rpe_post),
+                            notes = coalesce(excluded.notes, session_history.notes);
                     """, (
-                        session.get("session_id", f"SES-{int(time.time())}"),
+                        sid,
+                        session.get("id") or sid,
                         session.get("athlete_id", "ATH-0824"),
-                        session.get("start_time", time.time()),
-                        session.get("end_time", time.time()),
-                        session.get("duration_sec", 0.0),
-                        session.get("avg_hr", 0.0),
-                        session.get("peak_hr", 0.0),
-                        session.get("avg_spo2", 98.0),
-                        session.get("calories", 0.0),
-                        session.get("steps", 0),
-                        session.get("training_load", 0.0),
-                        session.get("activity", "Running"),
+                        session.get("device_id"),
+                        1 if session.get("is_mock") else 0,
+                        float(session.get("start_time", time.time())),
+                        float(session.get("end_time", time.time())),
+                        float(session.get("duration_sec", 0.0)),
+                        float(session.get("avg_hr", 0.0)),
+                        float(session.get("peak_hr", 0.0)),
+                        float(session.get("avg_spo2", 98.0)),
+                        float(session.get("calories", 0.0)),
+                        int(session.get("steps", 0)),
+                        float(session.get("training_load", 0.0)),
+                        str(session.get("activity", "Running")),
                         json.dumps(session.get("hr_zone_distribution", {})),
+                        session.get("rpe_post"),
+                        session.get("notes"),
                         time.time()
                     ))
+            finally:
+                conn.close()
+
+    def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+        conn = self._get_connection()
+        try:
+            cursor = conn.execute("SELECT * FROM session_history WHERE session_id = ? OR id = ?", (session_id, session_id))
+            row = cursor.fetchone()
+            if row:
+                d = dict(row)
+                if d.get("hr_zone_distribution"):
+                    try:
+                        d["hr_zone_distribution"] = json.loads(d["hr_zone_distribution"])
+                    except Exception:
+                        pass
+                return d
+            return None
+        finally:
+            conn.close()
+
+    def list_sessions(self, limit: int = 50, include_mock: bool = False, athlete_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        conn = self._get_connection()
+        try:
+            query = "SELECT * FROM session_history WHERE 1=1"
+            params = []
+            if not include_mock:
+                query += " AND (is_mock = 0 OR is_mock IS NULL)"
+            if athlete_id:
+                query += " AND athlete_id = ?"
+                params.append(athlete_id)
+            query += " ORDER BY start_time DESC LIMIT ?"
+            params.append(limit)
+            cursor = conn.execute(query, tuple(params))
+            results = []
+            for row in cursor.fetchall():
+                d = dict(row)
+                if d.get("hr_zone_distribution"):
+                    try:
+                        d["hr_zone_distribution"] = json.loads(d["hr_zone_distribution"])
+                    except Exception:
+                        pass
+                results.append(d)
+            return results
+        finally:
+            conn.close()
+
+    def update_session_end(self, session_id: str, end_time: float, rpe_post: Optional[float] = None, notes: Optional[str] = None) -> bool:
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                with conn:
+                    cursor = conn.execute("""
+                        UPDATE session_history
+                        SET end_time = ?,
+                            duration_sec = max(0.0, ? - start_time),
+                            rpe_post = coalesce(?, rpe_post),
+                            notes = coalesce(?, notes)
+                        WHERE session_id = ? OR id = ?;
+                    """, (end_time, end_time, rpe_post, notes, session_id, session_id))
+                    return cursor.rowcount > 0
+            finally:
+                conn.close()
+
+    # =========================================================================
+    # RAW PER-SAMPLE SENSOR TELEMETRY METHODS
+    # =========================================================================
+    def insert_samples_batch(self, samples_list: List[Dict[str, Any]]):
+        """Batch inserts raw sensor readings in a single transaction."""
+        if not samples_list:
+            return
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                with conn:
+                    conn.executemany("""
+                        INSERT INTO samples (
+                            id, session_id, device_id, seq, device_ms, server_ts,
+                            hr, spo2, ax, ay, az, gx, gy, gz, cadence, flags, is_mock
+                        ) VALUES (
+                            :id, :session_id, :device_id, :seq, :device_ms, :server_ts,
+                            :hr, :spo2, :ax, :ay, :az, :gx, :gy, :gz, :cadence, :flags, :is_mock
+                        );
+                    """, samples_list)
+            finally:
+                conn.close()
+
+    def get_max_sample_id(self) -> int:
+        """Retrieves maximum sample ID in database for seeding monotonic SSE IDs."""
+        conn = self._get_connection()
+        try:
+            cursor = conn.execute("SELECT MAX(id) FROM samples")
+            row = cursor.fetchone()
+            if row and row[0] is not None:
+                return int(row[0])
+            return 0
+        finally:
+            conn.close()
+
+    def get_samples_for_session(self, session_id: str, limit: int = 1000, offset: int = 0) -> List[Dict[str, Any]]:
+        conn = self._get_connection()
+        try:
+            cursor = conn.execute("""
+                SELECT * FROM samples
+                WHERE session_id = ?
+                ORDER BY id ASC
+                LIMIT ? OFFSET ?;
+            """, (session_id, limit, offset))
+            return [dict(r) for r in cursor.fetchall()]
+        finally:
+            conn.close()
+
+    def stream_samples_for_session(self, session_id: str, chunk_size: int = 1000, include_mock: bool = False):
+        """Generator streaming samples in chunks for CSV export without loading all into memory."""
+        offset = 0
+        while True:
+            conn = self._get_connection()
+            try:
+                query = "SELECT * FROM samples WHERE session_id = ?"
+                params = [session_id]
+                if not include_mock:
+                    query += " AND (is_mock = 0 OR is_mock IS NULL)"
+                query += " ORDER BY id ASC LIMIT ? OFFSET ?"
+                params.extend([chunk_size, offset])
+                cursor = conn.execute(query, tuple(params))
+                rows = cursor.fetchall()
+                if not rows:
+                    break
+                yield [dict(r) for r in rows]
+                offset += len(rows)
             finally:
                 conn.close()
 
