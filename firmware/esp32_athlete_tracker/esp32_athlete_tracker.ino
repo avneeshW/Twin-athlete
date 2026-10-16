@@ -5,12 +5,12 @@
  * 
  * Hardware Supported:
  *   - ESP32 DevKit v1 / NodeMCU-32S
- *   - MAX30102 / MAX30100 (Pulse Oximeter & Heart Rate) via I2C (0x57)
+ *   - MAX30100 Pulse Oximeter & Heart Rate via I2C (0x57)
  *   - MPU6050 (6-Axis Accelerometer & Gyroscope) via I2C (0x68)
  * 
  * Wiring (I2C Bus):
- *   - ESP32 GPIO 21 (SDA) -> MAX30102 SDA & MPU6050 SDA
- *   - ESP32 GPIO 22 (SCL) -> MAX30102 SCL & MPU6050 SCL
+ *   - ESP32 GPIO 21 (SDA) -> MAX30100 SDA & MPU6050 SDA
+ *   - ESP32 GPIO 22 (SCL) -> MAX30100 SCL & MPU6050 SCL
  *   - 3.3V                -> VCC (Both sensors)
  *   - GND                 -> GND (Both sensors)
  * 
@@ -46,7 +46,7 @@ const int LED_PIN = 2;
 
 // I2C Sensor addresses
 const uint8_t MPU6050_ADDR = 0x68;
-const uint8_t MAX30102_ADDR = 0x57;
+const uint8_t MAX30100_ADDR = 0x57;
 
 bool mpuConnected = false;
 bool maxConnected = false;
@@ -79,10 +79,10 @@ void setup() {
 
   // Probe for connected sensors
   mpuConnected = checkI2CDevice(MPU6050_ADDR);
-  maxConnected = checkI2CDevice(MAX30102_ADDR);
+  maxConnected = checkI2CDevice(MAX30100_ADDR);
 
   Serial.printf("[Sensors] MPU6050 (Accel)    : %s\n", mpuConnected ? "FOUND (0x68)" : "NOT DETECTED (Using fallback)");
-  Serial.printf("[Sensors] MAX30102 (HR/SpO2) : %s\n", maxConnected ? "FOUND (0x57)" : "NOT DETECTED (Using fallback)");
+  Serial.printf("[Sensors] MAX30100 (HR/SpO2) : %s\n", maxConnected ? "FOUND (0x57)" : "NOT DETECTED (Using fallback)");
 
   if (mpuConnected) {
     // Wake up MPU-6050 (write 0 to PWR_MGMT_1 register 0x6B)
@@ -152,7 +152,7 @@ void readSensors(float &hr, float &spo2, float &ax, float &ay, float &az) {
     az = 0.35 * sin(stridePhase * 0.5) + (random(-10, 10) / 100.0);
   }
 
-  // 2. Read MAX30102 Heart Rate & SpO2
+  // 2. Read MAX30100 Heart Rate & SpO2
   if (!maxConnected) {
     // Fallback Heart Rate: Athletic training curve ramping from 135 to 160 BPM
     hr = 142.0 + 16.0 * sin(t * 0.05) + (random(-20, 20) / 10.0);

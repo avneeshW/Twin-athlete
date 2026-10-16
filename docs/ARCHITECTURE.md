@@ -12,7 +12,7 @@ Twin-Athlete implements a reactive, closed-loop telemetry and simulation pipelin
 ```mermaid
 flowchart TD
     subgraph Ingestion["1. Edge & Ingestion Layer"]
-        ESP32["ESP32 Wearable\n(MAX30102 + MPU6050)"]
+        ESP32["ESP32 Wearable\n(MAX30100 + MPU6050)"]
         Replay["Activity Replay Engine\n(CSV / FIT / GPX)"]
         Mock["Deterministic Mock Feeder\n(180d Empirical Dataset)"]
     end
@@ -80,9 +80,11 @@ twin-athlete/
 │   ├── TECH_STACK.md                   # Tech Stack & Architectural Rationale
 │   └── SCIENTIFIC_FOUNDATIONS.md       # Mathematical & physiological reference
 ├── firmware/                           # Edge hardware implementation
-│   ├── esp32_firmware/
-│   │   └── esp32_firmware.ino          # FreeRTOS dual-core I2C sensor sampling
-│   └── hardware_wiring_schematic.png   # MAX30102 + MPU6050 wiring diagram
+│   ├── WIRING_GUIDE.md                 # Hardware wiring, MAX30100 pull-up fix & setup
+│   ├── config.example.h                # Firmware API key template
+│   ├── esp32_athlete_tracker/          # All-in-one Arduino firmware (MAX30100 + MPU6050)
+│   ├── esp32_max30100/                 # Dedicated MAX30100 PPG firmware
+│   └── esp32_mpu6050/                  # Dedicated MPU6050 IMU firmware
 ├── models/                             # Versioned model artifacts & card
 │   ├── twin_fatigue_model.pkl          # Trained Random Forest fatigue model
 │   ├── twin_recovery_model.pkl         # Trained Random Forest recovery model
@@ -275,14 +277,27 @@ To satisfy the **honesty-first** philosophy, prospective predictions are held ac
 ### 8. Hardware Integration Specifications
 
 * **Microcontroller:** ESP32-WROOM-32 (240 MHz dual-core Xtensa LX6).
-* **MAX30102 PPG Sensor:**
-  - Sample Rate: 50 Hz optical register polling.
-  - Heart Rate calculation: Peak-to-peak AC interval timing.
+* **MAX30100 PPG Sensor:**
+  - I2C address: `0x57`.
+  - Register-level control: `0x06` (Mode), `0x07` (SpO2 configuration), `0x09` (LED current).
+  - Sample Rate: Direct FIFO polling / optical register timing.
+  - Heart Rate calculation: AC peak-to-peak interval timing.
   - SpO2 calculation: Red/IR optical absorption ratio ($R = \frac{(AC/DC)_{\text{red}}}{(AC/DC)_{\text{ir}}}$).
 * **MPU6050 6-DOF IMU:**
-  - Dynamic Range: Configured to $\pm 16g$ and $\pm 2000^\circ/\text{s}$.
+  - I2C address: `0x68`.
+  - Dynamic Range: Configured to $\pm 2g$ / $\pm 16g$ and $\pm 2000^\circ/\text{s}$.
   - Cadence Extraction: Peak-valley zero-crossing detection on $a_y$ vertical axis.
   - Mechanical Load: Impact force vector magnitude integrated over session duration.
 * **Transmission Modes:**
-  1. *Direct WiFi:* Client sends HTTP POST packets directly to `/api/esp32/telemetry`.
-  2. *Serial Bridge (`esp32_serial_bridge.py`):* Bridges USB UART at 115200 baud to the local REST endpoint with auto-reconnect.
+  1. *Direct WiFi:* Client sends HTTP POST packets with `X-API-Key` to `/api/esp32/telemetry`.
+  2. *Serial Bridge (`esp32_serial_bridge.py`):* Bridges USB UART at 115200 baud to the local REST endpoint with auto-reconnect and `X-API-Key` injection.
+
+---
+
+### 9. Single-Worker Deployment Requirement
+
+Twin-Athlete is intentionally engineered for a **single-process multithreaded architecture** (`--worker-class gthread`, `--workers 1`, `--threads 4`):
+1. **In-Process Bounded Queues**: The `TelemetryWriter` queue (bounded at 5000 samples) and per-client SSE broadcast queues are hosted in process memory.
+2. **Dedicated Single-Connection Writer**: One dedicated SQLite connection commits batched sample transactions every ~1 s without lock thrashing or cross-process concurrency conflicts.
+3. **Session Lifecycle & Ingest Routing**: Device mappings and active session tracking remain synchronized in-memory with zero hot-path database queries.
+Running multiple worker processes (pre-fork) would fragment the client SSE queues, duplicate session management states, and cause multi-process SQLite write-lock contention.

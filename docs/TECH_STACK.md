@@ -18,7 +18,7 @@
 | **Model Storage** | joblib | `≥1.3.0` | Optimized serialization and disk unpickling of trained model weights |
 | **Database** | SQLite + WAL | `3.42+` (Built-in) | Zero-dependency local persistence for baselines, sessions, and ledger |
 | **Frontend UI** | HTML5 / Vanilla CSS / JS | Native ES6+ | Zero-build, dependency-free cockpit UI with custom glassmorphic styling |
-| **Edge Hardware** | Arduino C++ (ESP32) | `2.0.x core` | FreeRTOS dual-core I2C sensor sampling (MAX30102 + MPU6050) |
+| **Edge Hardware** | Arduino C++ (ESP32) | `2.0.x core` | FreeRTOS dual-core I2C sensor sampling (MAX30100 + MPU6050) |
 | **Containerization**| Docker | `Engine 24.x+` | Multi-stage lightweight `python:3.11-slim` container |
 
 ---

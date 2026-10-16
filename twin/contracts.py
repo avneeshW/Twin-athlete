@@ -63,7 +63,7 @@ def validate_sensor_packet(raw: Any) -> SensorPacketValidationResult:
     else:
         device_id = device_id.strip()
 
-    # 2. Heart Rate (MAX30100 / MAX30102 PPG)
+    # 2. Heart Rate (MAX30100 PPG)
     raw_hr = raw.get("heart_rate", raw.get("hr"))
     has_cardiac = False
     if raw_hr is not None:

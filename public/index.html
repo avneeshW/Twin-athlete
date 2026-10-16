@@ -2131,7 +2131,7 @@
       <div class="modal-header">
         <div>
           <h3 class="modal-title">ESP32 Hardware Wiring &amp; Setup</h3>
-          <p class="modal-subtitle">MAX30102 Optical PPG &amp; MPU6050 6-DOF IMU Sensor Hub</p>
+          <p class="modal-subtitle">MAX30100 Optical PPG &amp; MPU6050 6-DOF IMU Sensor Hub</p>
         </div>
         <button class="modal-btn-close" id="btnCloseHwModal">&times;</button>
       </div>
@@ -2140,7 +2140,7 @@
         <div style="background:#F1F6FB;padding:14px;border-radius:10px;">
           <h4 style="font-weight:700;color:var(--text-dark);margin-bottom:6px;">Pinout Wiring (I2C Bus):</h4>
           <ul style="padding-left:18px;line-height:1.6;font-family:monospace;font-size:0.82rem;color:var(--text-dark);">
-            <li>ESP32 3V3 ───&gt; VCC (MAX30102 &amp; MPU6050)</li>
+            <li>ESP32 3V3 ───&gt; VCC (MAX30100 &amp; MPU6050)</li>
             <li>ESP32 GND ───&gt; GND (Common Ground)</li>
             <li>ESP32 GPIO 21 (SDA) ───&gt; SDA (Sensor I2C Data)</li>
             <li>ESP32 GPIO 22 (SCL) ───&gt; SCL (Sensor I2C Clock)</li>
@@ -2579,7 +2579,7 @@ Content-Type: application/json
         <div style="background:#FFFFFF;border:1px solid var(--border-card);border-radius:12px;padding:14px 16px;">
           <h4 style="margin:0 0 8px 0;font-size:0.9rem;font-weight:800;color:var(--text-dark);">Sensor Signal Processing &amp; Bounds</h4>
           <div style="display:flex;flex-direction:column;gap:6px;font-size:0.8rem;color:var(--text-muted);">
-            <div>• <strong>MAX30102 Optical PPG:</strong> Dual-wavelength (Red 660nm / IR 880nm) photoplethysmography with ambient background subtraction. Operating bounds: 30–240 BPM, 70–100% SpO<sub>2</sub>.</div>
+            <div>• <strong>MAX30100 Optical PPG:</strong> Dual-wavelength (Red 660nm / IR 880nm) photoplethysmography with ambient background subtraction. Operating bounds: 30–240 BPM, 70–100% SpO<sub>2</sub>.</div>
             <div>• <strong>MPU6050 6-DOF IMU:</strong> 3-axis accelerometer configured to +/- 2g scale (16,384 LSB/g) with dynamic gravity compensation.</div>
             <div>• <strong>Packet Contract:</strong> Schema v2.4 strict runtime verification. Out-of-bounds readings are safely quarantined.</div>
           </div>

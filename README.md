@@ -220,9 +220,9 @@ Twin-athlete/
 ## 🚀 Getting Started
 
 ### 1. Prerequisites
-* Python 3.9, 3.10, or 3.11 installed
+* Python 3.9, 3.10, 3.11, or 3.12 installed
 * Modern web browser (Chrome, Firefox, Edge, Safari)
-* *(Optional)* ESP32 DevKit v1 with MAX30102 PPG and MPU6050 6-DOF IMU
+* *(Optional)* ESP32 DevKit v1 with MAX30100 PPG optical sensor (I2C `0x57`) and MPU6050 6-DOF IMU (I2C `0x68`)
 
 ### 2. Installation
 ```bash
@@ -241,6 +241,10 @@ This trains the dual ensemble Random Forests on the 180-day longitudinal athlete
 ```bash
 python app.py
 ```
+Or for production deployment using Gunicorn with the single-worker requirement:
+```bash
+gunicorn --worker-class gthread --workers 1 --threads 4 --bind 0.0.0.0:5000 app:app
+```
 Navigate your browser to:
 ```
 http://localhost:5000
@@ -248,40 +252,98 @@ http://localhost:5000
 
 ---
 
-## 🧪 Test Suite & Forensic Verification
+## ⚡ Hardened Phase 2 Architecture & Operations
 
-Run the complete 47-test suite across unit, contract, integration, and security layers:
+### 1. Database Architecture & `TWIN_DB_PATH`
+* **Committed Seed DB vs. Runtime DB**:
+  - `twin_athlete.db` is the committed baseline seed file (tracked in Git, containing athlete profiles and reference baseline history).
+  - Runtime mutations are written to `TWIN_DB_PATH` (defaults to `data/twin_runtime.db`, gitignored).
+  - On first launch, the seed database is automatically copied to `data/twin_runtime.db` if it does not already exist. Real incoming athlete telemetry and workout sessions never mutate the committed seed repository file.
+* **Per-Connection Pragmas**: Every SQLite connection applies:
+  ```sql
+  PRAGMA journal_mode = WAL;
+  PRAGMA busy_timeout = 5000;
+  PRAGMA synchronous = NORMAL;
+  PRAGMA foreign_keys = ON;
+  ```
+* **Raw Sensor Storage (`samples` table)**:
+  - Extends `session_history` with `id`, `device_id`, `is_mock`, `rpe_post`, and `notes`.
+  - Added new `samples` table storing raw telemetry: `id`, `session_id`, `device_id`, `seq`, `device_ms`, `server_ts`, `hr`, `spo2`, `ax`, `ay`, `az`, `gx`, `gy`, `gz`, `cadence`, `flags`, `is_mock`.
+  - Fast query indices on `(session_id, id)` and `(device_id, server_ts)`.
 
-```bash
-python -m unittest discover -p "test_*.py"
-```
-*(or explicitly specify test directory: `python -m unittest discover -s tests -p "test_*.py"`)*
+### 2. High-Performance Zero-DB Ingestion Path
+* **Zero Database Calls on Hot Ingest**:
+  - `POST /api/esp32/telemetry` validates contracts and resolves device routing from an in-memory cache of `device_mappings` without touching SQLite.
+  - Telemetry samples are pushed off the request thread via non-blocking `queue.put_nowait()` into a bounded queue (depth 5,000).
+  - If the queue is saturated, the oldest sample is dropped to protect memory, and per-device drop counters are incremented.
+* **Single Long-Lived Writer Thread**:
+  - A background `TelemetryWriter` worker commits batched samples via `executemany` every ~1 second or 100 samples in a single transaction.
+  - If SQLite encounters a lock or operational delay, transactions are kept in a bounded retry buffer with exponential backoff—never raising or stalling sensor ingestion or client SSE streams.
+  - Clean graceful shutdown is guaranteed via `atexit` and `SIGTERM` handlers.
 
-Expected output:
-```text
-Ran 47 tests in 0.95s
+### 3. Session Lifecycle & Streaming CSV Export
+* **Automated & Manual Session Control**:
+  - **Auto-Session**: First telemetry packet from any device automatically starts an active session (`SES-<device_id>-<timestamp>`).
+  - **Auto-Close on Idle**: Sessions auto-close after 60 seconds of inactivity (`TWIN_SESSION_IDLE_TIMEOUT`), persisting session aggregates to `session_history` so data is never lost if a user forgets to click Stop.
+  - `POST /api/session/start`: Manually start or name a workout session with custom notes.
+  - `POST /api/session/end`: Closes active session and records athlete RPE (`rpe_post`), post-workout notes, and summary statistics.
+  - `POST /api/session/reset`: Instantly resets active session state while preserving persistent history.
+  - `GET /api/sessions`: Lists recorded sessions with optional `?include_mock=1` filtering.
+* **Chunked Streaming CSV Export**:
+  - `GET /api/sessions/<session_id>/export.csv` streams raw per-sample sensor records in chunks of 1,000 rows using a memory-efficient generator.
+  - Real exports strictly exclude mock samples (`is_mock=0`). Mock sessions return `403 Forbidden` unless explicitly requested with `?include_mock=1`.
 
-OK
-```
+### 4. Monotonic SSE IDs & Replay on Reconnect
+* **Monotonic Event Sequencing**: Every SSE event receives a monotonic `id:` seeded from `MAX(samples.id)` at startup.
+* **`Last-Event-ID` Replay**: On reconnect with `Last-Event-ID: <id>`, the server forces a flush of pending queue samples, queries SQLite for missed events (capped at 5,000 events or 5 minutes), replays them to the client in order, and transitions to the live stream without duplicating events.
+* **Client Drop Accounting**: If an individual browser client's SSE queue fills, drops are tracked and reported in `/api/health`.
 
-### Test Breakdown:
-- **`test_forensics_e2e.py` (11 Tests)**: Validates strict data contracts, rejection of impossible sensor packets (HR > 240, SpO2 < 70%), HTTP security headers (`nosniff`, `SAMEORIGIN`), model card integrity, data quality reporting, prediction-vs-actual feedback ledger, and coach team overview.
-- **`test_ai_coach.py` (8 Tests)**: Validates Banister TRIMP, ACWR calculations, personalization tiers, What-If simulation comparisons, and recommendation factor attribution.
-- **`test_telemetry.py` (7 Tests)**: Validates sliding-window heart rate averaging, cadence computation, gravity compensation, and sensor error fallbacks.
-- **`test_storage.py` (6 Tests)**: Validates SQLite WAL mode, schema initialization, baseline profiles, feedback ledger, session history, and audit logging.
-- **`test_registry.py` (6 Tests)**: Validates multi-athlete registry, squad overview, active athlete routing, and hardware device mapping.
-- **`test_simulator.py` (5 Tests)**: Validates biomechanical What-If forward simulation, mechanistic Banister fallback, ML inference, and overtraining risk assessment.
-- **`test_e2e_api.py` (4 Tests)**: Validates REST API responses, mock streaming activation, and session check-in ingestion.
+### 5. API Keys & Device Authentication
+* **Device-Keyed Rate Limiting**:
+  - Authenticated ingestion: 35 packets/sec per authenticated `device_id`, backed by a 150 req/sec per-IP backstop.
+  - Set `TWIN_API_KEYS` in your environment:
+    ```bash
+    export TWIN_API_KEYS="ESP32-ATHLETE-01:secret-key-1,ESP32-MAX30100:secret-key-2"
+    ```
+  - When enabled, `POST /api/esp32/telemetry` and session endpoints require `X-API-Key`, verified using constant-time `hmac.compare_digest`.
+  - Firmware reads credentials from gitignored `firmware/config.h` (template in `firmware/config.example.h`).
+  - Serial bridge supports `--api-key <key>` for automated USB UART authentication.
+
+### 6. Deployment Architecture: Single-Worker Requirement
+* **Why Single-Worker (`gthread`)?**:
+  - Twin-Athlete's architecture uses in-process memory state: per-client SSE broadcast queues, the bounded 5,000-sample ingest queue, session managers, and the dedicated writer thread.
+  - Running multi-process pre-fork workers (e.g. `gunicorn -w 4`) fragments client SSE connections across workers, duplicates session managers, and causes multi-process SQLite write-lock contention.
+  - Always deploy with:
+    ```text
+    web: gunicorn --worker-class gthread --workers 1 --threads 4 --bind 0.0.0.0:$PORT app:app
+    ```
+
+### 7. Serverless Limitations (Vercel / AWS Lambda)
+* **Ephemeral Fallback**:
+  - On serverless environments (`VERCEL` or `AWS_LAMBDA_FUNCTION_NAME`), SQLite automatically uses ephemeral `/tmp/twin_athlete.db`.
+  - `GET /api/health` indicates `persistent: false` and `storage_mode: "tmp"`.
+  - The web cockpit renders a persistent red alert banner warning that changes are temporary across lambda invocations.
+* **Loud Local Failures**:
+  - On local development and self-hosted instances, SQLite operational errors **fail loudly** (retrying with backoff and raising exceptions) and will NEVER silently degrade to `/tmp` or `:memory:`.
+
+### 8. Edge Sensors & Hardware Guidance
+* **MAX30100 Pulse Oximeter (`0x57`)**:
+  - Direct register manipulation for Red and IR optical LEDs.
+  - **Important Wiring Note**: Many commercial MAX30100 breakout modules have on-board 4.7 kΩ pull-ups mistakenly tied to 1.8V rather than 3.3V, causing I2C timeouts on ESP32s. Connect `VIN` to 3.3V and see `firmware/WIRING_GUIDE.md` for pull-up remediation instructions.
+* **MPU6050 6-Axis IMU (`0x68`)**:
+  - 3-axis accelerometer and 3-axis gyroscope for stride detection, impact deceleration, and running cadence.
 
 ---
 
-## 🔒 Security & Privacy Implementation
+## 🧪 Test Suite & Forensic Verification
 
-- **HTTP Security Headers**: Every server response includes `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, and `Referrer-Policy: strict-origin-when-cross-origin`.
-- **In-Memory Rate Limiting**: Enforced at 35 requests/second per IP on public ingestion routes to prevent denial-of-service degradation.
-- **Payload Validation**: Strict bounds checking prevents memory poisoning, buffer overflows, and NaN propagation in mathematical routines.
-- **Client Security**: Zero private API keys, database credentials, or secret tokens are bundled into client-side assets.
-- **Privacy Model**: Athlete health metrics are stored locally and anonymized; data retention protocols allow complete baseline reset via `POST /api/athlete/baseline`.
+Run the complete 116-test suite covering units, contracts, storage migrations, thread batching, SSE replay, and end-to-end APIs:
+
+```bash
+python -m pytest tests/
+```
+
+All 116 tests execute in under 10 seconds with zero external database dependencies.
 
 ---
 
