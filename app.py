@@ -123,6 +123,14 @@ except Exception:
     except Exception:
         vault = None
 
+try:
+    from twin.writer import get_telemetry_writer
+    telemetry_writer = get_telemetry_writer(storage_vault=vault)
+except Exception as e:
+    telemetry_writer = None
+    print(f"[app] Notice: telemetry_writer import error: {e}")
+
+
 def get_dataset_path() -> str:
     candidates = [
         os.path.join(BASE_DIR, "ml", "data", "synthetic_athlete_dataset.csv"),
@@ -1150,9 +1158,14 @@ def get_health():
     dropped_counts = {}
     last_packet_age = {}
     queue_depth = 0
+    if telemetry_writer:
+        queue_depth = telemetry_writer.queue_depth
+        with getattr(telemetry_writer, "_lock", threading.Lock()):
+            for dev, cnt in getattr(telemetry_writer, "dropped_counts", {}).items():
+                dropped_counts[dev] = dropped_counts.get(dev, 0) + cnt
     if engine:
-        dropped_counts = dict(getattr(engine, "dropped_counts", {}))
-        queue_depth = int(getattr(engine, "queue_depth", 0))
+        for dev, cnt in getattr(engine, "dropped_counts", {}).items():
+            dropped_counts[dev] = dropped_counts.get(dev, 0) + cnt
         for dev_id, info in getattr(engine, "connected_devices", {}).items():
             last_ts = info.get("last_seen")
             if last_ts:
