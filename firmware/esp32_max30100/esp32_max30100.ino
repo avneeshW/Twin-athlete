@@ -23,12 +23,18 @@
 #include <Wire.h>
 
 // ==============================================================================
-// 1. NETWORK & SERVER CONFIGURATION
+// 1. NETWORK & HARDWARE CONFIGURATION
+// Reads from config.h if present, otherwise uses default placeholders below
 // ==============================================================================
-const char* WIFI_SSID     = "YOUR_WIFI_NAME";       // 2.4 GHz Wi-Fi SSID
-const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";   // Wi-Fi Password
-const char* SERVER_URL    = "http://192.168.1.5:5000/api/esp32/telemetry"; // Backend IP
-const char* DEVICE_ID     = "ESP32-MAX30100";
+#if __has_include("config.h")
+  #include "config.h"
+#else
+  #define WIFI_SSID       "YOUR_WIFI_NAME"
+  #define WIFI_PASSWORD   "YOUR_WIFI_PASSWORD"
+  #define SERVER_URL      "http://192.168.1.5:5000/api/esp32/telemetry"
+  #define DEVICE_ID       "ESP32-MAX30100"
+  #define TWIN_API_KEY    ""
+#endif
 
 // Transmit interval (1000 ms = 1 Hz, 500 ms = 2 Hz)
 const unsigned long TRANSMIT_INTERVAL_MS = 1000;
@@ -163,6 +169,9 @@ void loop() {
       HTTPClient http;
       http.begin(SERVER_URL);
       http.addHeader("Content-Type", "application/json");
+      if (strlen(TWIN_API_KEY) > 0) {
+        http.addHeader("X-API-Key", TWIN_API_KEY);
+      }
 
       int code = http.POST((uint8_t*)jsonPayload, strlen(jsonPayload));
       if (code > 0) {

@@ -2,9 +2,14 @@ import os
 import sys
 import json
 import time
+import hmac
+import atexit
 import queue
 import threading
 import subprocess
+from typing import Tuple, Optional, Dict, Any
+
+from twin.config import get_configured_api_keys
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_FATIGUE_PATH = os.path.join(BASE_DIR, "twin_fatigue_model.pkl")
@@ -199,7 +204,7 @@ def add_security_headers(response):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, X-API-Key, Last-Event-ID"
     return response
 
 @app.before_request
@@ -208,7 +213,7 @@ def handle_options_preflight():
         response = app.make_default_options_response()
         response.headers["Access-Control-Allow-Origin"] = "*"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, X-API-Key, Last-Event-ID"
         return response
 
 @app.errorhandler(500)
@@ -254,21 +259,117 @@ def handle_all_unhandled(err):
     return f"<h1>Internal Server Error</h1><pre>{str(err)}</pre>", 500
 
 
-# Rate Limiting Tracker for Ingestion Endpoints (max 35 req/sec per IP)
+# Authentication & Rate Limiting System
+def authenticate_request(req) -> Tuple[bool, Optional[str], Optional[str]]:
+    """
+    Verifies X-API-Key against configured TWIN_API_KEYS using hmac.compare_digest.
+    Returns: (is_authorized, authenticated_device_id, error_message)
+    """
+    keys = get_configured_api_keys()
+    if not keys:
+        # If no keys configured, allow open local operation
+        return True, None, None
+
+    provided_key = req.headers.get("X-API-Key")
+    if not provided_key or not provided_key.strip():
+        return False, None, "Missing X-API-Key header"
+
+    provided_clean = provided_key.strip()
+    for dev_id, valid_key in keys.items():
+        if hmac.compare_digest(provided_clean, valid_key.strip()):
+            return True, dev_id, None
+
+    return False, None, "Invalid API key"
+
+
+# Rate Limiting Tracker keyed by authenticated device identity with looser per-IP cap
 _rate_tracker = {}
 _rate_lock = threading.Lock()
 
-def check_rate_limit(client_ip: str, max_per_sec: int = 35) -> bool:
+def check_rate_limits(device_id: str, client_ip: str, max_device_per_sec: int = 35, max_ip_per_sec: int = 150) -> Tuple[bool, str]:
     now = time.time()
     with _rate_lock:
-        timestamps = _rate_tracker.setdefault(client_ip, [])
-        timestamps = [t for t in timestamps if now - t < 1.0]
-        if len(timestamps) >= max_per_sec:
-            _rate_tracker[client_ip] = timestamps
-            return False
-        timestamps.append(now)
-        _rate_tracker[client_ip] = timestamps
-        return True
+        # 1. Per-device rate limit check
+        dev_key = f"dev:{device_id}"
+        dev_ts = _rate_tracker.setdefault(dev_key, [])
+        dev_ts = [t for t in dev_ts if now - t < 1.0]
+        if len(dev_ts) >= max_device_per_sec:
+            _rate_tracker[dev_key] = dev_ts
+            return False, f"Rate limit exceeded for device {device_id} (max {max_device_per_sec} packets/sec)"
+
+        # 2. Per-IP looser backstop limit check
+        ip_key = f"ip:{client_ip}"
+        ip_ts = _rate_tracker.setdefault(ip_key, [])
+        ip_ts = [t for t in ip_ts if now - t < 1.0]
+        if len(ip_ts) >= max_ip_per_sec:
+            _rate_tracker[ip_key] = ip_ts
+            return False, f"Rate limit exceeded for IP {client_ip} (max {max_ip_per_sec} requests/sec)"
+
+        dev_ts.append(now)
+        ip_ts.append(now)
+        _rate_tracker[dev_key] = dev_ts
+        _rate_tracker[ip_key] = ip_ts
+        return True, ""
+
+
+# In-memory reject tracking flushed periodically to audit_events (NOT per packet)
+_rate_limit_rejects: Dict[str, int] = {}
+_contract_rejects: Dict[str, int] = {}
+_rejects_lock = threading.Lock()
+_last_audit_flush = time.time()
+
+def record_rate_limit_reject(device_id: str):
+    with _rejects_lock:
+        _rate_limit_rejects[device_id] = _rate_limit_rejects.get(device_id, 0) + 1
+        _check_and_flush_audit_rejects_unlocked()
+
+def record_contract_reject(device_id: str):
+    with _rejects_lock:
+        _contract_rejects[device_id] = _contract_rejects.get(device_id, 0) + 1
+        _check_and_flush_audit_rejects_unlocked()
+
+def _check_and_flush_audit_rejects_unlocked(force: bool = False):
+    global _last_audit_flush
+    now = time.time()
+    if not force and (now - _last_audit_flush < 30.0):
+        return
+
+    _last_audit_flush = now
+    if not vault:
+        return
+
+    to_flush_rl = dict(_rate_limit_rejects)
+    to_flush_cr = dict(_contract_rejects)
+    _rate_limit_rejects.clear()
+    _contract_rejects.clear()
+
+    for dev, count in to_flush_rl.items():
+        if count > 0:
+            try:
+                vault.save_audit_event(
+                    event_id=f"EVT-RL-{dev}-{int(now)}",
+                    event_type="RATE_LIMIT_EXCEEDED",
+                    severity="WARNING",
+                    source="telemetry_ingest",
+                    details={"device_id": dev, "rejected_packets": count, "window_sec": 30}
+                )
+            except Exception as e:
+                print(f"[app] Notice saving rate limit audit event: {e}")
+
+    for dev, count in to_flush_cr.items():
+        if count > 0:
+            try:
+                vault.save_audit_event(
+                    event_id=f"EVT-CR-{dev}-{int(now)}",
+                    event_type="CONTRACT_VALIDATION_REJECT",
+                    severity="WARNING",
+                    source="telemetry_ingest",
+                    details={"device_id": dev, "rejected_packets": count, "window_sec": 30}
+                )
+            except Exception as e:
+                print(f"[app] Notice saving contract reject audit event: {e}")
+
+atexit.register(lambda: _check_and_flush_audit_rejects_unlocked(force=True))
 
 # SSE Connected Client Queues & Mock Feeder Thread State
 sse_clients = []
@@ -953,16 +1054,28 @@ def ingest_esp32_telemetry():
     updates digital twin state, persists raw samples via background writer,
     and broadcasts via SSE with ZERO DB calls on the critical path.
     """
-    client_ip = request.remote_addr or "127.0.0.1"
-    if not check_rate_limit(client_ip, max_per_sec=35):
-        return jsonify({"status": "rejected", "error": "Rate limit exceeded (max 35 packets/sec)"}), 429
+    # 1. Authenticate Request via X-API-Key
+    is_auth, auth_dev_id, auth_err = authenticate_request(request)
+    if not is_auth:
+        return jsonify({"status": "rejected", "error": auth_err}), 401
 
     payload = request.get_json(force=True, silent=True)
     if not payload or not isinstance(payload, dict):
         return jsonify({"status": "rejected", "error": "Invalid or missing JSON object payload"}), 400
 
+    client_ip = request.remote_addr or "127.0.0.1"
+    target_dev = auth_dev_id or payload.get("device_id") or "unknown"
+
+    # 2. Keyed Rate Limiter (Device-keyed with looser IP backstop)
+    allowed, limit_err = check_rate_limits(target_dev, client_ip, max_device_per_sec=35, max_ip_per_sec=150)
+    if not allowed:
+        record_rate_limit_reject(target_dev)
+        return jsonify({"status": "rejected", "error": limit_err}), 429
+
+    # 3. Contract Schema Validation
     val_res = twin_contracts.validate_sensor_packet(payload)
     if not val_res.is_valid:
+        record_contract_reject(target_dev)
         return jsonify({
             "status": "rejected",
             "error": "Sensor packet validation failed",
@@ -1178,6 +1291,9 @@ def handle_mock_feed():
 @app.route("/api/session/reset", methods=["POST"])
 def reset_session():
     """Resets the active workout metrics, step counter, and archives session to SQLite vault."""
+    is_auth, _, auth_err = authenticate_request(request)
+    if not is_auth:
+        return jsonify({"success": False, "error": auth_err}), 401
     if session_manager:
         try:
             session_manager.close_session()

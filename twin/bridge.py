@@ -4,6 +4,7 @@ Forwards incoming JSON serial packets from an ESP32 connected via USB cable
 directly to the Digital Twin Athlete local server.
 """
 
+import os
 import sys
 import json
 import time
@@ -78,10 +79,14 @@ def main():
             if raw_line.startswith("{") and raw_line.endswith("}"):
                 try:
                     payload = json.loads(raw_line)
+                    headers = {"Content-Type": "application/json"}
+                    api_key = os.environ.get("TWIN_API_KEY", "").strip()
+                    if api_key:
+                        headers["X-API-Key"] = api_key
                     req = urllib.request.Request(
                         DEFAULT_SERVER,
                         data=json.dumps(payload).encode("utf-8"),
-                        headers={"Content-Type": "application/json"}
+                        headers=headers
                     )
                     with urllib.request.urlopen(req, timeout=2.0) as resp:
                         packet_num += 1
