@@ -147,6 +147,21 @@ class StorageVault:
                 except sqlite3.OperationalError:
                     pass
 
+            # Seed default baseline profile for ATH-0824 if not present
+            try:
+                conn.execute("""
+                    INSERT OR IGNORE INTO athlete_baselines (
+                        athlete_id, name, sport, position, squad_number, age, height_cm, weight_kg,
+                        resting_hr_baseline, max_hr, vo2_max, chronic_load_baseline,
+                        typical_sleep_baseline, history_days, dominant_leg, recovery, fatigue, acwr, updated_at
+                    ) VALUES (
+                        'ATH-0824', 'Daniel Saji', 'Football', 'Midfield / Box-to-Box', '8', 24, 182.0, 75.5,
+                        54.0, 195.0, 58.5, 42.0, 7.8, 180, 'Right', 78.0, 38.0, 1.08, ?
+                    );
+                """, (time.time(),))
+            except Exception:
+                pass
+
             # Global Application Settings Key-Value Store (shared across devices)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS app_settings (
