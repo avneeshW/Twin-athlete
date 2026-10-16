@@ -1,6 +1,7 @@
 import time
 import math
 from collections import deque
+from typing import Any, Dict, List, Optional
 
 try:
     import numpy as np
@@ -106,14 +107,18 @@ class TelemetryEngine:
         """Increments the in-memory dropped sample count for a specific device."""
         self.dropped_counts[device_id] = self.dropped_counts.get(device_id, 0) + 1
 
-    def record_sequence_number(self, device_id: str, seq: int):
+    def record_sequence_number(self, device_id: str, seq: Any):
         """Tracks sequence progression and computes lost packets / sequence gaps."""
+        try:
+            seq_num = int(seq)
+        except (ValueError, TypeError):
+            return
         if device_id in self.last_seq_per_device:
             last = self.last_seq_per_device[device_id]
-            if seq > last + 1:
-                gap = seq - (last + 1)
+            if seq_num > last + 1:
+                gap = seq_num - (last + 1)
                 self.sequence_gaps[device_id] = self.sequence_gaps.get(device_id, 0) + gap
-        self.last_seq_per_device[device_id] = seq
+        self.last_seq_per_device[device_id] = seq_num
 
     def reset_session(self):
         """Resets active workout session stats."""

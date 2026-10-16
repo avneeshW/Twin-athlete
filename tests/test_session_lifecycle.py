@@ -33,7 +33,7 @@ def test_zero_db_calls_on_ingest(monkeypatch):
 
 def test_device_mapping_cache():
     """Verify registry fast device mapping cache and invalidation on mapping update."""
-    dev = "ESP32-CACHE-CHECK"
+    dev = f"ESP32-CACHE-{time.time()}"
     # Initially fallback to active athlete
     initial_aid = registry.get_athlete_for_device(dev)
     assert initial_aid == registry.active_athlete_id

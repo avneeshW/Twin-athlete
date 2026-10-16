@@ -974,6 +974,10 @@ def ingest_esp32_telemetry():
     now_ts = clean.get("ingested_at", time.time())
     is_mock = 1 if (clean.get("is_mock") or "SIMULAT" in dev_id.upper() or "MOCK" in dev_id.upper()) else 0
 
+    # Compute sequence gaps / lost packets
+    if engine and dev_id:
+        engine.record_sequence_number(dev_id, clean.get("packet", 0))
+
     # Fast in-memory device to athlete routing (Zero DB queries)
     target_athlete_id = registry.get_athlete_for_device(dev_id) if registry else "ATH-0824"
 
@@ -1225,6 +1229,7 @@ def get_health():
 
     dropped_counts = {}
     last_packet_age = {}
+    sequence_gaps = {}
     queue_depth = 0
     if telemetry_writer:
         queue_depth = telemetry_writer.queue_depth
@@ -1234,6 +1239,8 @@ def get_health():
     if engine:
         for dev, cnt in getattr(engine, "dropped_counts", {}).items():
             dropped_counts[dev] = dropped_counts.get(dev, 0) + cnt
+        for dev, gap in getattr(engine, "sequence_gaps", {}).items():
+            sequence_gaps[dev] = gap
         for dev_id, info in getattr(engine, "connected_devices", {}).items():
             last_ts = info.get("last_seen")
             if last_ts:
@@ -1246,6 +1253,8 @@ def get_health():
         "db_path": db_path,
         "queue_depth": queue_depth,
         "dropped_counts": dropped_counts,
+        "lost_packet_counts": sequence_gaps,
+        "sequence_gaps": sequence_gaps,
         "last_packet_age": last_packet_age
     }), 200
 

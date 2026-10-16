@@ -158,13 +158,38 @@ def validate_sensor_packet(raw: Any) -> SensorPacketValidationResult:
     else:
         sensor_type = "cardiac"
 
+    # 7. Optional Device Millis (from hardware millis())
+    raw_device_ms = raw.get("device_ms")
+    device_ms = None
+    if raw_device_ms is not None:
+        try:
+            device_ms = int(raw_device_ms)
+        except (ValueError, TypeError):
+            device_ms = None
+
+    # Optional Gyroscope readings (gx, gy, gz)
+    gx, gy, gz = None, None, None
+    for gyro_axis, gyro_key in [("gx", "gx"), ("gy", "gy"), ("gz", "gz")]:
+        if raw.get(gyro_key) is not None:
+            try:
+                g_val = float(raw[gyro_key])
+                if gyro_axis == "gx": gx = round(g_val, 3)
+                elif gyro_axis == "gy": gy = round(g_val, 3)
+                elif gyro_axis == "gz": gz = round(g_val, 3)
+            except (ValueError, TypeError):
+                pass
+
     sanitized = {
         "device_id": device_id,
+        "device_ms": device_ms,
         "heart_rate": round(hr, 1) if hr is not None else None,
         "spo2": round(spo2, 1) if spo2 is not None else None,
         "ax": round(ax, 3) if ax is not None else None,
         "ay": round(ay, 3) if ay is not None else None,
         "az": round(az, 3) if az is not None else None,
+        "gx": gx,
+        "gy": gy,
+        "gz": gz,
         "has_cardiac": has_cardiac,
         "has_motion": has_motion,
         "sensor_type": sensor_type,

@@ -151,10 +151,10 @@ void loop() {
     int battery = 88;
 
     // Build JSON packet
-    char jsonPayload[256];
+    char jsonPayload[320];
     snprintf(jsonPayload, sizeof(jsonPayload),
-      "{\"device_id\":\"%s\",\"heart_rate\":%.1f,\"spo2\":%.1f,\"battery\":%d,\"packet\":%lu}",
-      DEVICE_ID, hr, spo2, battery, packetCounter
+      "{\"device_id\":\"%s\",\"device_ms\":%lu,\"heart_rate\":%.1f,\"spo2\":%.1f,\"battery\":%d,\"packet\":%lu}",
+      DEVICE_ID, currentMillis, hr, spo2, battery, packetCounter
     );
 
     Serial.println(jsonPayload);

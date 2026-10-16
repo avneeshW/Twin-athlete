@@ -174,10 +174,10 @@ void loop() {
     int battery = 92; // Can be read via ADC pin if voltage divider is attached
 
     // Format JSON packet cleanly using snprintf
-    char jsonPayload[256];
+    char jsonPayload[320];
     snprintf(jsonPayload, sizeof(jsonPayload),
-      "{\"device_id\":\"%s\",\"heart_rate\":%.1f,\"spo2\":%.1f,\"ax\":%.2f,\"ay\":%.2f,\"az\":%.2f,\"battery\":%d,\"packet\":%lu}",
-      DEVICE_ID, hr, spo2, ax, ay, az, battery, packetCounter
+      "{\"device_id\":\"%s\",\"device_ms\":%lu,\"heart_rate\":%.1f,\"spo2\":%.1f,\"ax\":%.2f,\"ay\":%.2f,\"az\":%.2f,\"battery\":%d,\"packet\":%lu}",
+      DEVICE_ID, currentMillis, hr, spo2, ax, ay, az, battery, packetCounter
     );
 
     // Also output to USB Serial (so esp32_serial_bridge.py can read it over USB cable!)
