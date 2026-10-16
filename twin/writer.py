@@ -39,6 +39,8 @@ class TelemetryWriter:
         self.dropped_counts: Dict[str, int] = {}
         self._is_shutdown = False
         self._next_sample_id = 0
+        self._flush_event = threading.Event()
+        self._flush_done = threading.Event()
         if self.vault:
             try:
                 self._next_sample_id = self.vault.get_max_sample_id()
@@ -51,6 +53,17 @@ class TelemetryWriter:
     @property
     def queue_depth(self) -> int:
         return self.queue.qsize()
+
+    def flush(self, timeout: float = 3.0) -> bool:
+        """
+        Forces writer worker thread to immediately flush all pending queue samples to SQLite.
+        Blocks until flush completes or timeout elapses.
+        """
+        if self._is_shutdown or not self._worker_thread or not self._worker_thread.is_alive():
+            return True
+        self._flush_done.clear()
+        self._flush_event.set()
+        return self._flush_done.wait(timeout=timeout)
 
     def next_sample_id(self) -> int:
         """Returns monotonic sample ID seeded from MAX(samples.id)."""
@@ -210,7 +223,7 @@ class TelemetryWriter:
 
                 if samples:
                     self._conn.executemany("""
-                        INSERT INTO samples (
+                        INSERT OR IGNORE INTO samples (
                             id, session_id, device_id, seq, device_ms, server_ts,
                             hr, spo2, ax, ay, az, gx, gy, gz, cadence, flags, is_mock
                         ) VALUES (
@@ -255,6 +268,24 @@ class TelemetryWriter:
                 batch.append(sample)
             except queue.Empty:
                 pass
+
+            # Handle on-demand flush request (e.g. before SSE Last-Event-ID replay)
+            if self._flush_event.is_set():
+                while not self.queue.empty():
+                    try:
+                        batch.append(self.queue.get_nowait())
+                    except queue.Empty:
+                        break
+                drain_all = list(self.retry_buffer) + batch
+                self.retry_buffer = []
+                batch = []
+                if drain_all:
+                    for i in range(0, len(drain_all), BATCH_SIZE):
+                        self._flush_batch(drain_all[i:i + BATCH_SIZE])
+                last_flush_time = time.time()
+                self._flush_event.clear()
+                self._flush_done.set()
+                continue
 
             now = time.time()
             # 3. Flush when batch size reached or flush timeout elapsed

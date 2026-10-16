@@ -380,13 +380,18 @@ mock_feed_stop_event = threading.Event()
 
 
 def broadcast_sse(payload: dict):
-    """Pushes new telemetry packet to all connected SSE clients."""
+    """Pushes new telemetry packet to all connected SSE clients and counts client drops."""
     with sse_clients_lock:
         dead_clients = []
         for q in sse_clients:
             try:
                 q.put_nowait(payload)
-            except (queue.Full, Exception):
+            except queue.Full:
+                client_id = getattr(q, "_client_id", "client")
+                q._drop_count = getattr(q, "_drop_count", 0) + 1
+                sample_id = payload.get("sample_id", "?")
+                print(f"[SSE] Warning: client queue full for {client_id}. Dropped event #{sample_id} (total client drops: {q._drop_count})")
+            except Exception:
                 dead_clients.append(q)
         for dead in dead_clients:
             if dead in sse_clients:
@@ -1170,31 +1175,95 @@ def sse_stream():
     """
     Server-Sent Events (SSE) live telemetry stream.
     Pushes low-latency biometric packets directly to the connected browser cockpit.
+    Supports Last-Event-ID reconnection replay without gaps or duplicates.
     """
+    last_event_id_raw = request.headers.get("Last-Event-ID") or request.args.get("last_event_id")
+    device_id_filter = request.args.get("device_id")
+    athlete_id_filter = request.args.get("athlete_id")
+
     def event_generator():
+        client_uuid = f"client-{time.time()}-{threading.get_ident()}"
         q = queue.Queue(maxsize=40)
+        setattr(q, "_client_id", client_uuid)
+        setattr(q, "_drop_count", 0)
+
+        # Register queue for live streaming
         with sse_clients_lock:
             sse_clients.append(q)
+
+        max_replayed_id = -1
+
         try:
-            # Emit immediate initial state if active or mock running
-            is_active_initial = (engine.last_packet_time is not None and (time.time() - engine.last_packet_time < 4.0)) or mock_feed_running
-            initial_packet = engine.get_latest_state()
-            initial_packet["is_heartbeat"] = not is_active_initial
-            yield f"data: {json.dumps(initial_packet)}\n\n"
+            # 1. Check for Last-Event-ID reconnection
+            if last_event_id_raw is not None:
+                try:
+                    last_id = int(last_event_id_raw)
+                    max_replayed_id = last_id
+                    # Force a writer flush so unflushed samples are in the DB
+                    if telemetry_writer:
+                        telemetry_writer.flush(timeout=2.0)
 
-            was_connected = is_active_initial
+                    # Query past samples from SQLite
+                    if vault:
+                        replayed_samples = vault.get_samples_after_id(
+                            after_id=last_id,
+                            athlete_id=athlete_id_filter,
+                            device_id=device_id_filter,
+                            max_events=5000,
+                            max_age_sec=300.0
+                        )
+                        for s in replayed_samples:
+                            sid = s["id"]
+                            if sid > max_replayed_id:
+                                max_replayed_id = sid
+                            replay_event = {
+                                "sample_id": sid,
+                                "session_id": s["session_id"],
+                                "device_id": s["device_id"],
+                                "timestamp": s["server_ts"],
+                                "vitals": {
+                                    "heart_rate": {"value": s["hr"], "status": "normal"},
+                                    "spo2": {"value": s["spo2"], "status": "normal"},
+                                    "cadence": {"value": s["cadence"], "status": "normal"},
+                                    "activity": {"value": "Running"}
+                                },
+                                "replayed": True
+                            }
+                            yield f"id: {sid}\ndata: {json.dumps(replay_event)}\n\n"
+                except Exception as e:
+                    print(f"[SSE] Replay error: {e}")
 
+            # 2. If not replaying, emit immediate initial state
+            if last_event_id_raw is None:
+                is_active_initial = (engine.last_packet_time is not None and (time.time() - engine.last_packet_time < 4.0)) or mock_feed_running
+                initial_packet = engine.get_latest_state()
+                initial_packet["is_heartbeat"] = not is_active_initial
+                if "sample_id" in initial_packet:
+                    yield f"id: {initial_packet['sample_id']}\ndata: {json.dumps(initial_packet)}\n\n"
+                else:
+                    yield f"data: {json.dumps(initial_packet)}\n\n"
+
+            was_connected = (engine.last_packet_time is not None and (time.time() - engine.last_packet_time < 4.0)) or mock_feed_running
+
+            # 3. Stream live messages from queue
             while True:
                 try:
                     msg = q.get(timeout=1.0)
+                    # Deduplicate any messages already emitted during replay
+                    msg_sid = msg.get("sample_id")
+                    if msg_sid is not None and msg_sid <= max_replayed_id:
+                        continue
+
                     was_connected = True
-                    yield f"data: {json.dumps(msg)}\n\n"
+                    if msg_sid is not None:
+                        yield f"id: {msg_sid}\ndata: {json.dumps(msg)}\n\n"
+                    else:
+                        yield f"data: {json.dumps(msg)}\n\n"
                 except queue.Empty:
                     now = time.time()
                     is_connected = (engine.last_packet_time is not None and (now - engine.last_packet_time < 4.0)) or mock_feed_running
 
                     if was_connected and not is_connected and not mock_feed_running:
-                        # Sensor just disconnected: notify browser once
                         was_connected = False
                         disconnect_event = {
                             "event": "sensor_disconnect",
@@ -1209,7 +1278,6 @@ def sse_stream():
                         }
                         yield f"data: {json.dumps(disconnect_event)}\n\n"
                     else:
-                        # Silently keep SSE socket alive with comment (does NOT trigger onmessage or produce packets)
                         yield ": keep-alive\n\n"
         finally:
             with sse_clients_lock:

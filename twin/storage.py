@@ -816,6 +816,49 @@ class StorageVault:
             finally:
                 conn.close()
 
+    def get_samples_after_id(
+        self,
+        after_id: int,
+        athlete_id: Optional[str] = None,
+        device_id: Optional[str] = None,
+        max_events: int = 5000,
+        max_age_sec: float = 300.0
+    ) -> List[Dict[str, Any]]:
+        """
+        Retrieves samples stored with id > after_id for SSE Last-Event-ID replay.
+        Capped at max_events (default 5000) or max_age_sec (default 5 min).
+        """
+        conn = self._get_connection()
+        try:
+            min_server_ts = time.time() - max_age_sec
+            if device_id:
+                query = """
+                    SELECT * FROM samples
+                    WHERE id > ? AND server_ts >= ? AND device_id = ?
+                    ORDER BY id ASC LIMIT ?
+                """
+                params = [after_id, min_server_ts, device_id, max_events]
+            elif athlete_id:
+                query = """
+                    SELECT s.* FROM samples s
+                    JOIN session_history sh ON s.session_id = sh.id
+                    WHERE s.id > ? AND s.server_ts >= ? AND sh.athlete_id = ?
+                    ORDER BY s.id ASC LIMIT ?
+                """
+                params = [after_id, min_server_ts, athlete_id, max_events]
+            else:
+                query = """
+                    SELECT * FROM samples
+                    WHERE id > ? AND server_ts >= ?
+                    ORDER BY id ASC LIMIT ?
+                """
+                params = [after_id, min_server_ts, max_events]
+
+            cursor = conn.execute(query, tuple(params))
+            return [dict(r) for r in cursor.fetchall()]
+        finally:
+            conn.close()
+
     def get_recent_sessions(self, athlete_id: str = "ATH-0824", limit: int = 10) -> List[Dict[str, Any]]:
         conn = self._get_connection()
         try:
