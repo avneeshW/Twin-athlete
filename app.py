@@ -130,6 +130,13 @@ except Exception as e:
     telemetry_writer = None
     print(f"[app] Notice: telemetry_writer import error: {e}")
 
+try:
+    from twin.session_manager import get_session_manager
+    session_manager = get_session_manager(storage_vault=vault, writer=telemetry_writer)
+except Exception as e:
+    session_manager = None
+    print(f"[app] Notice: session_manager import error: {e}")
+
 
 def get_dataset_path() -> str:
     candidates = [
@@ -943,7 +950,8 @@ def ingest_esp32_telemetry():
     """
     Ingests live telemetry packet from ESP32 wearable via HTTP POST.
     Enforces rate limits, validates data contracts, rejects out-of-range values,
-    updates digital twin state, and broadcasts via SSE.
+    updates digital twin state, persists raw samples via background writer,
+    and broadcasts via SSE with ZERO DB calls on the critical path.
     """
     client_ip = request.remote_addr or "127.0.0.1"
     if not check_rate_limit(client_ip, max_per_sec=35):
@@ -961,13 +969,65 @@ def ingest_esp32_telemetry():
             "details": val_res.errors
         }), 422
 
+    clean = val_res.sanitized_data or {}
+    dev_id = clean.get("device_id") or payload.get("device_id", "unknown")
+    now_ts = clean.get("ingested_at", time.time())
+    is_mock = 1 if (clean.get("is_mock") or "SIMULAT" in dev_id.upper() or "MOCK" in dev_id.upper()) else 0
+
+    # Fast in-memory device to athlete routing (Zero DB queries)
+    target_athlete_id = registry.get_athlete_for_device(dev_id) if registry else "ATH-0824"
+
+    # Auto-session per device on first packet & auto-close on idle
+    current_session_id = f"SES-{dev_id}"
+    if session_manager:
+        current_session_id = session_manager.get_or_create_session(
+            device_id=dev_id,
+            athlete_id=target_athlete_id,
+            now=now_ts,
+            is_mock=bool(is_mock)
+        )
+        session_manager.record_vitals(
+            device_id=dev_id,
+            hr=clean.get("heart_rate"),
+            spo2=clean.get("spo2"),
+            steps=engine.step_count if engine else 0
+        )
+
     analyzed_state = engine.process_telemetry(payload)
+
+    # Monotonic sample id & non-blocking background queue enqueue
+    sample_id = None
+    if telemetry_writer:
+        sample_id = telemetry_writer.next_sample_id()
+        sample_record = {
+            "id": sample_id,
+            "session_id": current_session_id,
+            "device_id": dev_id,
+            "seq": clean.get("packet", 0),
+            "device_ms": clean.get("device_ms"),
+            "server_ts": now_ts,
+            "hr": clean.get("heart_rate"),
+            "spo2": clean.get("spo2"),
+            "ax": clean.get("ax"),
+            "ay": clean.get("ay"),
+            "az": clean.get("az"),
+            "gx": clean.get("gx"),
+            "gy": clean.get("gy"),
+            "gz": clean.get("gz"),
+            "cadence": analyzed_state["vitals"]["cadence"]["value"] if "cadence" in analyzed_state.get("vitals", {}) else 0,
+            "flags": "normal",
+            "is_mock": is_mock
+        }
+        telemetry_writer.enqueue_sample(sample_record)
+
+    if sample_id is not None:
+        analyzed_state["sample_id"] = sample_id
+        analyzed_state["session_id"] = current_session_id
+
     broadcast_sse(analyzed_state)
 
-    # Route vital metrics to mapped athlete twin in registry
-    dev_id = payload.get("device_id")
-    target_athlete_id = registry.get_athlete_for_device(dev_id)
-    target_twin = registry.get_twin(target_athlete_id)
+    # Route vital metrics to mapped athlete twin in registry (in-memory)
+    target_twin = registry.get_twin(target_athlete_id) if registry else None
     if target_twin:
         target_twin.update_vitals(
             hr=analyzed_state["vitals"]["heart_rate"]["value"],
@@ -979,6 +1039,7 @@ def ingest_esp32_telemetry():
         "provenance": engine.data_provenance,
         "packet_count": engine.packet_count,
         "device_id": engine.device_id,
+        "session_id": current_session_id,
         "processed_hr": analyzed_state["vitals"]["heart_rate"]["value"],
         "hr_zone": analyzed_state["vitals"]["heart_rate"]["status"],
         "activity": analyzed_state["vitals"]["activity"]["value"],
@@ -1113,12 +1174,19 @@ def handle_mock_feed():
 @app.route("/api/session/reset", methods=["POST"])
 def reset_session():
     """Resets the active workout metrics, step counter, and archives session to SQLite vault."""
+    if session_manager:
+        try:
+            session_manager.close_session()
+        except Exception as e:
+            print(f"[app] Error closing active raw session on reset: {e}")
+
     if vault is not None and len(engine.all_hr_readings) > 0:
         try:
             now = time.time()
             dur = max(1.0, now - engine.session_start_time)
             session_summary = {
                 "session_id": f"SES-{int(engine.session_start_time)}",
+                "id": f"SES-{int(engine.session_start_time)}",
                 "athlete_id": "ATH-0824",
                 "start_time": engine.session_start_time,
                 "end_time": now,

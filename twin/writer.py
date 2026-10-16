@@ -38,6 +38,12 @@ class TelemetryWriter:
         self._lock = threading.Lock()
         self.dropped_counts: Dict[str, int] = {}
         self._is_shutdown = False
+        self._next_sample_id = 0
+        if self.vault:
+            try:
+                self._next_sample_id = self.vault.get_max_sample_id()
+            except Exception:
+                self._next_sample_id = 0
 
         self._start_worker()
         self._register_shutdown_handlers()
@@ -45,6 +51,12 @@ class TelemetryWriter:
     @property
     def queue_depth(self) -> int:
         return self.queue.qsize()
+
+    def next_sample_id(self) -> int:
+        """Returns monotonic sample ID seeded from MAX(samples.id)."""
+        with self._lock:
+            self._next_sample_id += 1
+            return self._next_sample_id
 
     def _get_dedicated_connection(self) -> sqlite3.Connection:
         """Creates the writer thread's single long-lived database connection."""
@@ -82,6 +94,9 @@ class TelemetryWriter:
         if self._is_shutdown:
             return
 
+        if sample.get("id") is None:
+            sample["id"] = self.next_sample_id()
+
         try:
             self.queue.put_nowait(sample)
         except queue.Full:
@@ -102,6 +117,26 @@ class TelemetryWriter:
                 with self._lock:
                     self.dropped_counts[dev] = self.dropped_counts.get(dev, 0) + 1
 
+    def enqueue_session(self, session_dict: Dict[str, Any]) -> None:
+        """Enqueues session metadata to be persisted to session_history by worker thread."""
+        if self._is_shutdown:
+            return
+        item = {"_type": "session", **session_dict}
+        try:
+            self.queue.put_nowait(item)
+        except queue.Full:
+            try:
+                old = self.queue.get_nowait()
+                dev = old.get("device_id", "unknown")
+                with self._lock:
+                    self.dropped_counts[dev] = self.dropped_counts.get(dev, 0) + 1
+            except Exception:
+                pass
+            try:
+                self.queue.put_nowait(item)
+            except Exception:
+                pass
+
     def _flush_batch(self, batch: List[Dict[str, Any]]) -> bool:
         """Executes executemany batch insert in a single transaction."""
         if not batch:
@@ -114,21 +149,78 @@ class TelemetryWriter:
                 print(f"[TelemetryWriter] Error opening connection: {e}")
                 return False
 
+        sessions = []
+        samples = []
+        for item in batch:
+            if isinstance(item, dict) and item.get("_type") == "session":
+                sessions.append(item)
+            else:
+                samples.append(item)
+
         try:
             with self._conn:
-                self._conn.executemany("""
-                    INSERT INTO samples (
-                        id, session_id, device_id, seq, device_ms, server_ts,
-                        hr, spo2, ax, ay, az, gx, gy, gz, cadence, flags, is_mock
-                    ) VALUES (
-                        :id, :session_id, :device_id, :seq, :device_ms, :server_ts,
-                        :hr, :spo2, :ax, :ay, :az, :gx, :gy, :gz, :cadence, :flags, :is_mock
-                    );
-                """, batch)
+                for sess in sessions:
+                    sid = sess.get("session_id") or sess.get("id")
+                    if not sid:
+                        continue
+                    self._conn.execute("""
+                        INSERT INTO session_history (
+                            session_id, id, athlete_id, device_id, is_mock, start_time, end_time,
+                            duration_sec, avg_hr, peak_hr, avg_spo2, calories, steps, training_load,
+                            activity, hr_zone_distribution, rpe_post, notes, created_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(session_id) DO UPDATE SET
+                            id = coalesce(excluded.id, session_history.id),
+                            athlete_id = excluded.athlete_id,
+                            device_id = coalesce(excluded.device_id, session_history.device_id),
+                            is_mock = excluded.is_mock,
+                            end_time = excluded.end_time,
+                            duration_sec = excluded.duration_sec,
+                            avg_hr = excluded.avg_hr,
+                            peak_hr = excluded.peak_hr,
+                            avg_spo2 = excluded.avg_spo2,
+                            calories = excluded.calories,
+                            steps = excluded.steps,
+                            training_load = excluded.training_load,
+                            activity = excluded.activity,
+                            hr_zone_distribution = excluded.hr_zone_distribution,
+                            rpe_post = coalesce(excluded.rpe_post, session_history.rpe_post),
+                            notes = coalesce(excluded.notes, session_history.notes);
+                    """, (
+                        sid,
+                        sess.get("id") or sid,
+                        sess.get("athlete_id", "ATH-0824"),
+                        sess.get("device_id"),
+                        1 if sess.get("is_mock") else 0,
+                        float(sess.get("start_time", time.time())),
+                        float(sess.get("end_time", time.time())),
+                        float(sess.get("duration_sec", 0.0)),
+                        float(sess.get("avg_hr", 0.0)),
+                        float(sess.get("peak_hr", 0.0)),
+                        float(sess.get("avg_spo2", 98.0)),
+                        float(sess.get("calories", 0.0)),
+                        int(sess.get("steps", 0)),
+                        float(sess.get("training_load", 0.0)),
+                        str(sess.get("activity", "Running")),
+                        json.dumps(sess.get("hr_zone_distribution", {})) if isinstance(sess.get("hr_zone_distribution"), (dict, list)) else (sess.get("hr_zone_distribution") or "{}"),
+                        sess.get("rpe_post"),
+                        sess.get("notes"),
+                        time.time()
+                    ))
+
+                if samples:
+                    self._conn.executemany("""
+                        INSERT INTO samples (
+                            id, session_id, device_id, seq, device_ms, server_ts,
+                            hr, spo2, ax, ay, az, gx, gy, gz, cadence, flags, is_mock
+                        ) VALUES (
+                            :id, :session_id, :device_id, :seq, :device_ms, :server_ts,
+                            :hr, :spo2, :ax, :ay, :az, :gx, :gy, :gz, :cadence, :flags, :is_mock
+                        );
+                    """, samples)
             return True
         except sqlite3.OperationalError as oe:
             print(f"[TelemetryWriter] OperationalError during batch flush: {oe}")
-            # Reset connection on failure so subsequent attempts reconnect cleanly
             try:
                 self._conn.close()
             except Exception:

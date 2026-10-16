@@ -121,6 +121,7 @@ class AthleteRegistry:
             except Exception as e:
                 print(f"[AthleteRegistry] Vault init fallback: {e}")
         self._twins: Dict[str, DigitalTwin] = {}
+        self._device_mappings_cache: Dict[str, str] = {}
         self.active_athlete_id: str = "ATH-0824"
         self._init_squad()
 
@@ -327,6 +328,7 @@ class AthleteRegistry:
             "ESP32-ATHLETE-01": "ATH-0824",
             "ESP32-ATHLETE-02": "ATH-0102"
         }
+        self._device_mappings_cache.update(default_device_maps)
         for dev, aid in default_device_maps.items():
             if self.vault:
                 try:
@@ -341,6 +343,7 @@ class AthleteRegistry:
         if self.vault:
             try:
                 saved_mappings = self.vault.get_all_device_mappings()
+                self._device_mappings_cache.update(saved_mappings)
                 for dev, aid in saved_mappings.items():
                     if aid in self._twins:
                         self._twins[aid].device_id = dev
@@ -356,6 +359,10 @@ class AthleteRegistry:
         try:
             saved_rows = self.vault.get_all_athlete_profiles()
             saved_ids = {r.get("athlete_id") for r in saved_rows if r.get("athlete_id") and r.get("active_squad", 1)}
+            try:
+                self._device_mappings_cache = self.vault.get_all_device_mappings()
+            except Exception:
+                pass
 
             # Prune twins that were removed from storage by another process or device
             for aid in list(self._twins.keys()):
@@ -724,6 +731,8 @@ class AthleteRegistry:
 
         if existed_in_memory:
             del self._twins[athlete_id]
+        # Invalidate in-memory device mappings cache for deleted athlete
+        self._device_mappings_cache = {dev: aid for dev, aid in self._device_mappings_cache.items() if aid != athlete_id}
         if self.vault:
             try:
                 self.vault.delete_athlete_profile(athlete_id)
@@ -746,15 +755,16 @@ class AthleteRegistry:
                     tw.device_id = None
             if self.vault:
                 self.vault.save_device_mapping(device_id, athlete_id)
+            self._device_mappings_cache[device_id] = athlete_id
             self._twins[athlete_id].device_id = device_id
             return True
         return False
 
     def get_athlete_for_device(self, device_id: str) -> str:
-        if self.vault:
-            aid = self.vault.get_athlete_for_device(device_id)
-            if aid and aid in self._twins:
-                return aid
+        """Fast zero-DB lookup of athlete ID mapped to device ID."""
+        aid = self._device_mappings_cache.get(device_id)
+        if aid and aid in self._twins:
+            return aid
         # Fallback to active athlete if unmapped
         return self.active_athlete_id
 
