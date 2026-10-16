@@ -10,6 +10,7 @@ from app import app, engine
 class TestE2EIntegration(unittest.TestCase):
 
     def setUp(self):
+        engine.device_id = "ESP32-ATHLETE-01"
         self.client = app.test_client()
 
     def test_index_serves(self):

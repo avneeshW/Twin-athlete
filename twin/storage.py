@@ -782,15 +782,14 @@ class StorageVault:
         finally:
             conn.close()
 
-    def get_samples_for_session(self, session_id: str, limit: int = 1000, offset: int = 0) -> List[Dict[str, Any]]:
+    def get_samples_for_session(self, session_id: str, limit: int = 1000, offset: int = 0, include_mock: bool = False) -> List[Dict[str, Any]]:
         conn = self._get_connection()
         try:
-            cursor = conn.execute("""
-                SELECT * FROM samples
-                WHERE session_id = ?
-                ORDER BY id ASC
-                LIMIT ? OFFSET ?;
-            """, (session_id, limit, offset))
+            query = "SELECT * FROM samples WHERE session_id = ?"
+            if not include_mock:
+                query += " AND (is_mock = 0 OR is_mock IS NULL)"
+            query += " ORDER BY id ASC LIMIT ? OFFSET ?"
+            cursor = conn.execute(query, (session_id, limit, offset))
             return [dict(r) for r in cursor.fetchall()]
         finally:
             conn.close()
@@ -859,15 +858,17 @@ class StorageVault:
         finally:
             conn.close()
 
-    def get_recent_sessions(self, athlete_id: str = "ATH-0824", limit: int = 10) -> List[Dict[str, Any]]:
+    def get_recent_sessions(self, athlete_id: str = "ATH-0824", limit: int = 10, include_mock: bool = False) -> List[Dict[str, Any]]:
         conn = self._get_connection()
         try:
-            cursor = conn.execute("""
+            mock_clause = "" if include_mock else " AND (is_mock = 0 OR is_mock IS NULL)"
+            query = f"""
                 SELECT * FROM session_history
-                WHERE athlete_id = ?
+                WHERE athlete_id = ?{mock_clause}
                 ORDER BY start_time DESC
                 LIMIT ?
-            """, (athlete_id, limit))
+            """
+            cursor = conn.execute(query, (athlete_id, limit))
             results = []
             for row in cursor.fetchall():
                 d = dict(row)
@@ -878,6 +879,23 @@ class StorageVault:
                         pass
                 results.append(d)
             return results
+        finally:
+            conn.close()
+
+    def get_session_by_id(self, session_id: str) -> Optional[Dict[str, Any]]:
+        conn = self._get_connection()
+        try:
+            cursor = conn.execute("SELECT * FROM session_history WHERE id = ? OR session_id = ?", (session_id, session_id))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            d = dict(row)
+            if d.get("hr_zone_distribution"):
+                try:
+                    d["hr_zone_distribution"] = json.loads(d["hr_zone_distribution"])
+                except Exception:
+                    pass
+            return d
         finally:
             conn.close()
 

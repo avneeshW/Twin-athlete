@@ -399,7 +399,7 @@ def broadcast_sse(payload: dict):
 
 
 def run_mock_feed_worker():
-    """Background simulator thread generating realistic ESP32 telemetry."""
+    """Background simulator thread generating realistic ESP32 telemetry tagged as mock."""
     global mock_feed_running
     t = 0.0
     while not mock_feed_stop_event.is_set():
@@ -415,21 +415,71 @@ def run_mock_feed_worker():
         az = float(np.sin(stride * 0.5) * 0.5 + np.random.normal(0, 0.15))
 
         spo2 = float(np.clip(98.0 + np.random.normal(0, 0.5), 94.0, 99.0))
+        now_ts = time.time()
 
         packet = {
-            "device_id": "ESP32-SIMULATED-RUNNER",
+            "device_id": "mock",
             "heart_rate": round(target_hr, 1),
             "spo2": round(spo2, 1),
             "ax": round(ax, 2),
             "ay": round(ay, 2),
             "az": round(az, 2),
             "battery": 94,
-            "timestamp": time.time()
+            "timestamp": now_ts,
+            "is_mock": 1
         }
 
+        # Auto-session for mock simulator feed
+        current_session_id = "SES-mock"
+        if session_manager:
+            current_session_id = session_manager.get_or_create_session(
+                device_id="mock",
+                athlete_id="ATH-0824",
+                now=now_ts,
+                is_mock=True
+            )
+            session_manager.record_vitals(
+                device_id="mock",
+                hr=packet.get("heart_rate"),
+                spo2=packet.get("spo2"),
+                steps=engine.step_count if engine else 0
+            )
+
         analyzed = engine.process_telemetry(packet)
+
+        # Monotonic sample id & enqueue to telemetry_writer
+        sample_id = None
+        if telemetry_writer:
+            sample_id = telemetry_writer.next_sample_id()
+            sample_record = {
+                "id": sample_id,
+                "session_id": current_session_id,
+                "device_id": "mock",
+                "seq": int(t * 2),
+                "device_ms": int(t * 1000),
+                "server_ts": now_ts,
+                "hr": packet.get("heart_rate"),
+                "spo2": packet.get("spo2"),
+                "ax": packet.get("ax"),
+                "ay": packet.get("ay"),
+                "az": packet.get("az"),
+                "gx": 0.0,
+                "gy": 0.0,
+                "gz": 0.0,
+                "cadence": analyzed["vitals"]["cadence"]["value"] if "cadence" in analyzed.get("vitals", {}) else 0,
+                "flags": "mock",
+                "is_mock": 1
+            }
+            telemetry_writer.enqueue_sample(sample_record)
+
+        if sample_id is not None:
+            analyzed["sample_id"] = sample_id
+            analyzed["session_id"] = current_session_id
+
         if "device" in analyzed:
             analyzed["device"]["mock_mode"] = True
+            analyzed["device"]["device_id"] = "mock"
+
         broadcast_sse(analyzed)
         mock_feed_stop_event.wait(0.5)
 
@@ -1090,7 +1140,9 @@ def ingest_esp32_telemetry():
     clean = val_res.sanitized_data or {}
     dev_id = clean.get("device_id") or payload.get("device_id", "unknown")
     now_ts = clean.get("ingested_at", time.time())
-    is_mock = 1 if (clean.get("is_mock") or "SIMULAT" in dev_id.upper() or "MOCK" in dev_id.upper()) else 0
+    is_mock = 1 if (clean.get("is_mock") or payload.get("is_mock") or "SIMULAT" in str(dev_id).upper() or "MOCK" in str(dev_id).upper()) else 0
+    if is_mock:
+        dev_id = "mock"
 
     # Compute sequence gaps / lost packets
     if engine and dev_id:
@@ -1525,7 +1577,7 @@ def export_session_csv(session_id: str):
     if telemetry_writer:
         telemetry_writer.flush(timeout=2.0)
 
-    # Verify session existence
+    # Verify session existence and mock status
     if vault:
         sess = vault.get_session(session_id)
         if not sess:
@@ -1533,6 +1585,12 @@ def export_session_csv(session_id: str):
             active_s = session_manager.get_active_session(session_id) if session_manager else None
             if not active_s:
                 return jsonify({"error": f"Session '{session_id}' not found"}), 404
+            sess = active_s
+
+        if sess.get("is_mock") and not include_mock:
+            return jsonify({
+                "error": "Session is marked as mock. Set ?include_mock=1 to export mock data."
+            }), 403
 
     def generate_csv():
         # Header row
@@ -1938,7 +1996,8 @@ def get_recorded_sessions():
         try:
             athlete_id = request.args.get("athlete_id", "ATH-0824")
             limit = int(request.args.get("limit", 20))
-            sessions = vault.get_recent_sessions(athlete_id=athlete_id, limit=limit)
+            include_mock = request.args.get("include_mock", "0") in ("1", "true", "True")
+            sessions = vault.get_recent_sessions(athlete_id=athlete_id, limit=limit, include_mock=include_mock)
             return jsonify({"sessions": sessions, "count": len(sessions)}), 200
         except Exception as e:
             return jsonify({"error": str(e)}), 500

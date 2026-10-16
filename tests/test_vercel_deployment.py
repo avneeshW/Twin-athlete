@@ -71,14 +71,21 @@ class TestVercelDeployment(unittest.TestCase):
         self.assertEqual(res_root.get_json().get("status"), "online")
 
     def test_storage_vault_serverless_resilience(self):
-        os.environ["VERCEL"] = "1"
-        from twin.storage import StorageVault
-        vault = StorageVault()
-        self.assertIsNotNone(vault)
-        # Verify athlete profile retrieval
-        profile = vault.get_athlete_profile("ATH-0824")
-        self.assertIsNotNone(profile)
-        self.assertEqual(profile.get("athlete_id"), "ATH-0824")
+        old_val = os.environ.get("VERCEL")
+        try:
+            os.environ["VERCEL"] = "1"
+            from twin.storage import StorageVault
+            vault = StorageVault()
+            self.assertIsNotNone(vault)
+            # Verify athlete profile retrieval
+            profile = vault.get_athlete_profile("ATH-0824")
+            self.assertIsNotNone(profile)
+            self.assertEqual(profile.get("athlete_id"), "ATH-0824")
+        finally:
+            if old_val is None:
+                os.environ.pop("VERCEL", None)
+            else:
+                os.environ["VERCEL"] = old_val
 
 
 if __name__ == "__main__":
