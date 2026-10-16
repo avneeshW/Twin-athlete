@@ -18,34 +18,63 @@ import json
 import sqlite3
 import threading
 from typing import Dict, Any, List, Optional
+import shutil
+
+try:
+    from .config import get_runtime_db_path, SEED_DB_FILE, DEFAULT_RUNTIME_DB
+except Exception:
+    try:
+        from twin.config import get_runtime_db_path, SEED_DB_FILE, DEFAULT_RUNTIME_DB
+    except Exception:
+        BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        SEED_DB_FILE = os.path.join(BASE_DIR, "twin_athlete.db")
+        DEFAULT_RUNTIME_DB = os.path.join(BASE_DIR, "data", "twin_runtime.db")
+        def get_runtime_db_path():
+            return os.environ.get("TWIN_DB_PATH") or os.environ.get("TWIN_DB_FILE") or DEFAULT_RUNTIME_DB
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_DB_FILE = os.path.join(BASE_DIR, "twin_athlete.db")
 
 
 class StorageVault:
-    """Thread-safe SQLite storage vault with WAL mode and resilient fallback."""
+    """Thread-safe SQLite storage vault with WAL mode, seed replication, and resilient fallback."""
 
     def __init__(self, db_path: Optional[str] = None):
-        raw_path = db_path or os.environ.get("TWIN_DB_FILE") or DEFAULT_DB_FILE
-        if raw_path != ":memory:" and not str(raw_path).startswith("file:") and not os.path.isabs(raw_path):
-            self.db_path = os.path.abspath(os.path.join(BASE_DIR, raw_path))
-        else:
-            self.db_path = raw_path
-
-        # In serverless environments (e.g. Vercel, AWS Lambda), the deployment directory is strictly read-only.
-        # Copy the pre-seeded SQLite database to the writable /tmp scratch directory.
+        raw_path = db_path or os.environ.get("TWIN_DB_PATH") or os.environ.get("TWIN_DB_FILE") or get_runtime_db_path()
         is_serverless = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
-        if is_serverless and self.db_path != ":memory:" and not str(self.db_path).startswith("file:"):
-            import tempfile, shutil
+
+        if raw_path == ":memory:" or str(raw_path).startswith("file:"):
+            self.db_path = raw_path
+            self.storage_mode = "memory"
+            self.persistent = False
+        elif is_serverless:
+            import tempfile
             tmp_db = os.path.join(tempfile.gettempdir(), "twin_athlete.db")
-            if not os.path.exists(tmp_db) and os.path.exists(self.db_path):
+            seed_source = raw_path if (os.path.exists(raw_path) and os.path.isabs(raw_path)) else SEED_DB_FILE
+            if not os.path.exists(tmp_db) and os.path.exists(seed_source):
                 try:
-                    shutil.copy2(self.db_path, tmp_db)
+                    shutil.copy2(seed_source, tmp_db)
                 except Exception as e:
                     print(f"[StorageVault] Warning: Failed to copy seed DB to {tmp_db}: {e}")
-            if os.path.exists(tmp_db) or not os.path.exists(self.db_path):
-                self.db_path = tmp_db
+            self.db_path = tmp_db
+            self.storage_mode = "tmp"
+            self.persistent = False
+        else:
+            if not os.path.isabs(raw_path):
+                self.db_path = os.path.abspath(os.path.join(BASE_DIR, raw_path))
+            else:
+                self.db_path = raw_path
+            self.storage_mode = "file"
+            self.persistent = True
+
+            # Copy seed DB to runtime location on initial creation
+            if not os.path.exists(self.db_path):
+                try:
+                    os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+                    if os.path.exists(SEED_DB_FILE) and os.path.abspath(SEED_DB_FILE) != os.path.abspath(self.db_path):
+                        shutil.copy2(SEED_DB_FILE, self.db_path)
+                except Exception as e:
+                    print(f"[StorageVault] Notice: Seed copy to runtime DB: {e}")
 
         self._lock = threading.Lock()
         if self.db_path != ":memory:" and not str(self.db_path).startswith("file:"):

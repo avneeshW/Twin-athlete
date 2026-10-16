@@ -12,4 +12,5 @@ COPY . .
 
 EXPOSE 8080
 
-CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 0 app:app
+# Single-process deployment: SSE broadcast queues, writer thread, and in-memory sample queue are in-process singletons.
+CMD exec gunicorn --bind :$PORT --workers 1 --worker-class gthread --threads 8 --timeout 0 app:app

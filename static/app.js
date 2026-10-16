@@ -217,8 +217,30 @@ window.getActiveUserProfile = getActiveUserProfile;
 window.updateActiveUserProfile = updateActiveUserProfile;
 window.renderActiveUserProfileUI = renderActiveUserProfileUI;
 
+async function checkStorageHealth() {
+  try {
+    const res = await fetch("/api/health");
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data && data.persistent === false) {
+      let banner = document.getElementById("storageAlertBanner");
+      if (!banner) {
+        banner = document.createElement("div");
+        banner.id = "storageAlertBanner";
+        banner.style.cssText = "background: #dc2626; color: #ffffff; padding: 10px 16px; font-weight: 600; text-align: center; font-size: 13px; position: sticky; top: 0; z-index: 99999; box-shadow: 0 2px 8px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; gap: 8px;";
+        const mode = (data.storage_mode || "ephemeral").toUpperCase();
+        banner.innerHTML = `<span>⚠️ <strong>EPHEMERAL STORAGE ACTIVE (${mode}):</strong> Telemetry and workout sessions will NOT be permanently persisted across server restarts.</span>`;
+        document.body.prepend(banner);
+      }
+    }
+  } catch (e) {
+    // Suppress health check network failures during offline/initialization states
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   renderActiveUserProfileUI();
+  checkStorageHealth();
 
   // Watch header profile user-name for any direct external updates to maintain two-way synchronization
   const headerNameEl = document.querySelector(".user-profile-menu .user-name");

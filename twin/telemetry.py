@@ -96,6 +96,25 @@ class TelemetryEngine:
         self.last_quality_grade = "EXCELLENT"
         self.last_quality_index = 96.0
 
+        # Health & Telemetry Metrics
+        self.dropped_counts = {}         # {device_id: int}
+        self.sequence_gaps = {}          # {device_id: int}
+        self.last_seq_per_device = {}    # {device_id: int}
+        self.queue_depth = 0
+
+    def record_dropped_sample(self, device_id: str):
+        """Increments the in-memory dropped sample count for a specific device."""
+        self.dropped_counts[device_id] = self.dropped_counts.get(device_id, 0) + 1
+
+    def record_sequence_number(self, device_id: str, seq: int):
+        """Tracks sequence progression and computes lost packets / sequence gaps."""
+        if device_id in self.last_seq_per_device:
+            last = self.last_seq_per_device[device_id]
+            if seq > last + 1:
+                gap = seq - (last + 1)
+                self.sequence_gaps[device_id] = self.sequence_gaps.get(device_id, 0) + gap
+        self.last_seq_per_device[device_id] = seq
+
     def reset_session(self):
         """Resets active workout session stats."""
         self.session_start_time = time.time()

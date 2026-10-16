@@ -1136,6 +1136,39 @@ def reset_session():
     })
 
 
+@app.route("/api/health", methods=["GET"])
+def get_health():
+    """
+    Diagnostic health endpoint disclosing storage persistence mode and wearable queue health.
+    """
+    now = time.time()
+    vault_inst = vault
+    storage_mode = getattr(vault_inst, "storage_mode", "file") if vault_inst else "memory"
+    persistent = getattr(vault_inst, "persistent", True) if vault_inst else False
+    db_path = getattr(vault_inst, "db_path", "unknown") if vault_inst else "none"
+
+    dropped_counts = {}
+    last_packet_age = {}
+    queue_depth = 0
+    if engine:
+        dropped_counts = dict(getattr(engine, "dropped_counts", {}))
+        queue_depth = int(getattr(engine, "queue_depth", 0))
+        for dev_id, info in getattr(engine, "connected_devices", {}).items():
+            last_ts = info.get("last_seen")
+            if last_ts:
+                last_packet_age[dev_id] = round(now - float(last_ts), 1)
+
+    return jsonify({
+        "status": "healthy" if persistent else "degraded",
+        "storage_mode": storage_mode,
+        "persistent": persistent,
+        "db_path": db_path,
+        "queue_depth": queue_depth,
+        "dropped_counts": dropped_counts,
+        "last_packet_age": last_packet_age
+    }), 200
+
+
 @app.route("/api/status", methods=["GET"])
 def get_status():
     models_ready = (
