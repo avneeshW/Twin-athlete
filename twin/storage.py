@@ -67,8 +67,9 @@ class StorageVault:
             self.storage_mode = "file"
             self.persistent = True
 
-            # Copy seed DB to runtime location on initial creation
-            if not os.path.exists(self.db_path):
+            # Copy seed DB to runtime location on initial creation if using default runtime DB
+            target_is_runtime = (db_path is None) or (os.path.abspath(self.db_path) == os.path.abspath(DEFAULT_RUNTIME_DB))
+            if target_is_runtime and not os.path.exists(self.db_path):
                 try:
                     os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
                     if os.path.exists(SEED_DB_FILE) and os.path.abspath(SEED_DB_FILE) != os.path.abspath(self.db_path):
@@ -84,54 +85,78 @@ class StorageVault:
                 pass
         self._init_db()
 
+    @property
+    def is_serverless(self) -> bool:
+        return bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+
     def _get_connection(self) -> sqlite3.Connection:
         is_memory = (self.db_path == ":memory:" or str(self.db_path).startswith("file:"))
-        try:
-            if str(self.db_path).startswith("file:"):
-                conn = sqlite3.connect(self.db_path, uri=True, timeout=10.0, check_same_thread=False)
-            else:
-                conn = sqlite3.connect(self.db_path, timeout=10.0, check_same_thread=False)
-            conn.row_factory = sqlite3.Row
-            if not is_memory:
-                try:
-                    conn.execute("PRAGMA journal_mode=WAL;")
-                except sqlite3.OperationalError:
-                    try:
-                        conn.execute("PRAGMA journal_mode=DELETE;")
-                    except Exception:
-                        pass
+        retries = 3
+        backoff = 0.05
+        last_error = None
+
+        for attempt in range(retries):
             try:
-                conn.execute("PRAGMA synchronous=NORMAL;")
-            except Exception:
-                pass
-            return conn
-        except sqlite3.OperationalError as e:
-            # Fallback when the specified DB path cannot be opened (permissions, directory missing, locked)
-            print(f"[StorageVault] Warning: Unable to open database at '{self.db_path}': {e}. Attempting fallback...")
-            # Try system TEMP directory (cross-platform /tmp on Linux and AppData/Temp on Windows)
-            import tempfile
-            temp_db = os.path.join(tempfile.gettempdir(), "twin_athlete.db")
-            if self.db_path != temp_db:
+                if str(self.db_path).startswith("file:"):
+                    conn = sqlite3.connect(self.db_path, uri=True, timeout=5.0, check_same_thread=False)
+                else:
+                    conn = sqlite3.connect(self.db_path, timeout=5.0, check_same_thread=False)
+                conn.row_factory = sqlite3.Row
                 try:
-                    conn = sqlite3.connect(temp_db, timeout=10.0, check_same_thread=False)
-                    conn.row_factory = sqlite3.Row
-                    try:
-                        conn.execute("PRAGMA journal_mode=WAL;")
-                    except Exception:
-                        pass
-                    try:
-                        conn.execute("PRAGMA synchronous=NORMAL;")
-                    except Exception:
-                        pass
-                    self.db_path = temp_db
-                    return conn
+                    conn.execute("PRAGMA busy_timeout=5000;")
                 except Exception:
                     pass
-            # Final fallback: shared in-memory DB
-            self.db_path = "file:twin_athlete_mem?mode=memory&cache=shared"
-            conn = sqlite3.connect(self.db_path, uri=True, check_same_thread=False)
-            conn.row_factory = sqlite3.Row
-            return conn
+                if not is_memory:
+                    try:
+                        conn.execute("PRAGMA journal_mode=WAL;")
+                    except sqlite3.OperationalError:
+                        try:
+                            conn.execute("PRAGMA journal_mode=DELETE;")
+                        except Exception:
+                            pass
+                try:
+                    conn.execute("PRAGMA synchronous=NORMAL;")
+                except Exception:
+                    pass
+                return conn
+            except sqlite3.OperationalError as e:
+                last_error = e
+                time.sleep(backoff)
+                backoff *= 2
+
+        # Retries exhausted
+        if not self.is_serverless:
+            print(f"[StorageVault] ERROR: Local database operational error on '{self.db_path}': {last_error}")
+            raise last_error
+
+        # Serverless fallback only
+        print(f"[StorageVault] Warning: Serverless fallback triggered on '{self.db_path}': {last_error}")
+        self.storage_mode = "tmp"
+        self.persistent = False
+        import tempfile
+        temp_db = os.path.join(tempfile.gettempdir(), "twin_athlete.db")
+        if self.db_path != temp_db:
+            try:
+                conn = sqlite3.connect(temp_db, timeout=5.0, check_same_thread=False)
+                conn.row_factory = sqlite3.Row
+                try:
+                    conn.execute("PRAGMA busy_timeout=5000;")
+                    conn.execute("PRAGMA journal_mode=WAL;")
+                    conn.execute("PRAGMA synchronous=NORMAL;")
+                except Exception:
+                    pass
+                self.db_path = temp_db
+                return conn
+            except Exception:
+                pass
+
+        # Final in-memory fallback for serverless
+        self.storage_mode = "memory"
+        self.persistent = False
+        self.db_path = "file:twin_athlete_mem?mode=memory&cache=shared"
+        conn = sqlite3.connect(self.db_path, uri=True, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        return conn
 
     def _run_schema_migrations(self, conn: sqlite3.Connection):
         """Executes table and index creations with safe migrations."""
@@ -282,11 +307,17 @@ class StorageVault:
             try:
                 self._run_schema_migrations(conn)
             except sqlite3.OperationalError as oe:
-                print(f"[StorageVault] Schema migration error on '{self.db_path}': {oe}. Switching to fallback...")
                 try:
                     conn.close()
                 except Exception:
                     pass
+                if not self.is_serverless:
+                    print(f"[StorageVault] ERROR: Schema initialization failed on local database '{self.db_path}': {oe}")
+                    raise oe
+
+                print(f"[StorageVault] Schema migration error on '{self.db_path}': {oe}. Switching to serverless fallback...")
+                self.storage_mode = "tmp"
+                self.persistent = False
                 import tempfile, shutil
                 temp_db = os.path.join(tempfile.gettempdir(), "twin_athlete.db")
                 if self.db_path != temp_db:
@@ -305,6 +336,8 @@ class StorageVault:
                             conn.close()
                         except Exception:
                             pass
+                self.storage_mode = "memory"
+                self.persistent = False
                 self.db_path = "file:twin_athlete_mem?mode=memory&cache=shared"
                 conn = self._get_connection()
                 try:
@@ -662,9 +695,11 @@ class StorageVault:
 try:
     vault = StorageVault()
 except Exception as e:
-    print(f"[twin.storage] Warning: StorageVault init error: {e}. Falling back to in-memory vault.")
-    try:
-        vault = StorageVault(db_path=":memory:")
-    except Exception:
-        vault = None
+    is_serverless_env = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+    if not is_serverless_env:
+        print(f"[twin.storage] FATAL: StorageVault initialization failed on local environment: {e}")
+        raise e
+    print(f"[twin.storage] Warning: StorageVault init error: {e}. Falling back to in-memory vault for serverless.")
+    vault = StorageVault(db_path=":memory:")
+
 

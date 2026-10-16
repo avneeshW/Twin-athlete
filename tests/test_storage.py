@@ -167,19 +167,29 @@ class TestStorageVault(unittest.TestCase):
         self.assertTrue(os.path.isabs(DEFAULT_DB_FILE))
         self.assertTrue(DEFAULT_DB_FILE.endswith("twin_athlete.db"))
 
-    def test_fallback_on_unopenable_path(self):
-        """Verify StorageVault does not crash when initialized with an unopenable path."""
-        # A path in a non-existent drive or restricted folder
-        bad_path = "Z:\\non_existent_folder_xyz\\vault.db"
-        vault = StorageVault(db_path=bad_path)
-        self.assertIsNotNone(vault)
-        # Should still be able to save and retrieve an athlete profile
-        vault.save_athlete_profile({"athlete_id": "ATH-TEST", "name": "Fallback Player"})
-        retrieved = vault.get_athlete_profile("ATH-TEST")
-        self.assertIsNotNone(retrieved)
-        self.assertEqual(retrieved["name"], "Fallback Player")
+    def test_local_operational_error_raises_loudly(self):
+        """Verify StorageVault raises sqlite3.OperationalError on local run instead of silently falling back."""
+        bad_path = "Z:\\non_existent_folder_xyz_9999\\vault.db"
+        import sqlite3
+        with self.assertRaises(sqlite3.OperationalError):
+            StorageVault(db_path=bad_path)
+
+    def test_serverless_fallback_marks_not_persistent(self):
+        """Verify that under serverless environments (VERCEL=1), fallback occurs and marks persistent=False."""
+        old_env = os.environ.get("VERCEL")
+        try:
+            os.environ["VERCEL"] = "1"
+            vault = StorageVault(db_path=":memory:")
+            self.assertFalse(vault.persistent)
+            self.assertEqual(vault.storage_mode, "memory")
+        finally:
+            if old_env is None:
+                os.environ.pop("VERCEL", None)
+            else:
+                os.environ["VERCEL"] = old_env
 
 
 if __name__ == "__main__":
     unittest.main()
+
 
