@@ -759,7 +759,7 @@ class StorageVault:
             try:
                 with conn:
                     conn.executemany("""
-                        INSERT INTO samples (
+                        INSERT OR REPLACE INTO samples (
                             id, session_id, device_id, seq, device_ms, server_ts,
                             hr, spo2, ax, ay, az, gx, gy, gz, cadence, flags, is_mock
                         ) VALUES (

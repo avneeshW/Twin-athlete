@@ -68,6 +68,13 @@ class TelemetryWriter:
     def next_sample_id(self) -> int:
         """Returns monotonic sample ID seeded from MAX(samples.id)."""
         with self._lock:
+            if self.vault:
+                try:
+                    db_max = self.vault.get_max_sample_id()
+                    if db_max >= self._next_sample_id:
+                        self._next_sample_id = db_max
+                except Exception:
+                    pass
             self._next_sample_id += 1
             return self._next_sample_id
 

@@ -1400,6 +1400,187 @@ def reset_session():
     })
 
 
+@app.route("/api/session/start", methods=["POST"])
+def start_session_endpoint():
+    """Starts a new workout session with optional custom session name and notes."""
+    is_auth, auth_dev_id, auth_err = authenticate_request(request)
+    if not is_auth:
+        return jsonify({"success": False, "error": auth_err}), 401
+
+    data = request.get_json(silent=True) or {}
+    device_id = auth_dev_id or data.get("device_id") or "ESP32-ATHLETE-01"
+    athlete_id = data.get("athlete_id")
+    if not athlete_id and registry:
+        athlete_id = registry.get_athlete_for_device(device_id)
+    athlete_id = athlete_id or "ATH-0824"
+
+    session_name = data.get("session_id") or data.get("name")
+    notes = data.get("notes")
+    is_mock = bool(data.get("is_mock", False) or "MOCK" in str(device_id).upper() or "SIMULAT" in str(device_id).upper())
+
+    if session_manager:
+        sid = session_manager.start_session(
+            device_id=device_id,
+            athlete_id=athlete_id,
+            session_id=session_name,
+            notes=notes,
+            is_mock=is_mock
+        )
+    else:
+        sid = session_name or f"SES-{device_id}-{int(time.time())}"
+        if vault:
+            vault.save_session({
+                "session_id": sid,
+                "id": sid,
+                "athlete_id": athlete_id,
+                "device_id": device_id,
+                "is_mock": 1 if is_mock else 0,
+                "start_time": time.time(),
+                "activity": "Running",
+                "notes": notes or "Manual session start"
+            })
+
+    return jsonify({
+        "success": True,
+        "session_id": sid,
+        "device_id": device_id,
+        "athlete_id": athlete_id,
+        "start_time": time.time()
+    }), 200
+
+
+@app.route("/api/session/end", methods=["POST"])
+def end_session_endpoint():
+    """Ends active workout session, persists aggregates, and records post-workout RPE and notes."""
+    is_auth, auth_dev_id, auth_err = authenticate_request(request)
+    if not is_auth:
+        return jsonify({"success": False, "error": auth_err}), 401
+
+    data = request.get_json(silent=True) or {}
+    device_id = auth_dev_id or data.get("device_id")
+    athlete_id = data.get("athlete_id")
+    session_id = data.get("session_id")
+    rpe_post = data.get("rpe_post")
+    if rpe_post is not None:
+        try:
+            rpe_post = float(rpe_post)
+        except (ValueError, TypeError):
+            rpe_post = None
+    notes = data.get("notes")
+
+    closed_ids = []
+    if session_manager:
+        closed_ids = session_manager.close_session(
+            device_id=device_id,
+            athlete_id=athlete_id,
+            rpe_post=rpe_post,
+            notes=notes
+        )
+
+    # If specific session_id was targeted, update DB directly if needed
+    if session_id and vault:
+        vault.update_session_end(session_id, end_time=time.time(), rpe_post=rpe_post, notes=notes)
+        if session_id not in closed_ids:
+            closed_ids.append(session_id)
+
+    # Flush writer so all session samples are persisted
+    if telemetry_writer:
+        telemetry_writer.flush(timeout=2.0)
+
+    return jsonify({
+        "success": True,
+        "closed_sessions": closed_ids,
+        "message": f"Successfully ended {len(closed_ids)} session(s)."
+    }), 200
+
+
+@app.route("/api/sessions", methods=["GET"])
+def list_sessions_endpoint():
+    """Returns list of recorded workout sessions with optional mock filtering."""
+    limit = int(request.args.get("limit", 50))
+    include_mock = request.args.get("include_mock", "0") in ("1", "true", "True")
+    athlete_id = request.args.get("athlete_id")
+
+    if vault:
+        sessions = vault.list_sessions(limit=limit, include_mock=include_mock, athlete_id=athlete_id)
+    else:
+        sessions = []
+
+    return jsonify({
+        "success": True,
+        "sessions": sessions,
+        "count": len(sessions)
+    }), 200
+
+
+@app.route("/api/sessions/<session_id>/export.csv", methods=["GET"])
+def export_session_csv(session_id: str):
+    """
+    Streams CSV export of raw samples for the specified session in chunks of ~1000.
+    Excludes mock data unless ?include_mock=1.
+    """
+    include_mock = request.args.get("include_mock", "0") in ("1", "true", "True")
+
+    # Flush writer to ensure all pending samples for this session are committed to SQLite
+    if telemetry_writer:
+        telemetry_writer.flush(timeout=2.0)
+
+    # Verify session existence
+    if vault:
+        sess = vault.get_session(session_id)
+        if not sess:
+            # Check active sessions in memory
+            active_s = session_manager.get_active_session(session_id) if session_manager else None
+            if not active_s:
+                return jsonify({"error": f"Session '{session_id}' not found"}), 404
+
+    def generate_csv():
+        # Header row
+        columns = [
+            "id", "session_id", "device_id", "seq", "device_ms", "server_ts",
+            "hr", "spo2", "ax", "ay", "az", "gx", "gy", "gz", "cadence", "flags", "is_mock"
+        ]
+        yield ",".join(columns) + "\n"
+
+        if not vault:
+            return
+
+        for chunk in vault.stream_samples_for_session(session_id, chunk_size=1000, include_mock=include_mock):
+            lines = []
+            for row in chunk:
+                line = [
+                    str(row.get("id", "")),
+                    str(row.get("session_id", "")),
+                    str(row.get("device_id", "")),
+                    str(row.get("seq", "")),
+                    str(row.get("device_ms", "") if row.get("device_ms") is not None else ""),
+                    str(row.get("server_ts", "")),
+                    str(row.get("hr", "") if row.get("hr") is not None else ""),
+                    str(row.get("spo2", "") if row.get("spo2") is not None else ""),
+                    str(row.get("ax", "") if row.get("ax") is not None else ""),
+                    str(row.get("ay", "") if row.get("ay") is not None else ""),
+                    str(row.get("az", "") if row.get("az") is not None else ""),
+                    str(row.get("gx", "") if row.get("gx") is not None else ""),
+                    str(row.get("gy", "") if row.get("gy") is not None else ""),
+                    str(row.get("gz", "") if row.get("gz") is not None else ""),
+                    str(row.get("cadence", "") if row.get("cadence") is not None else ""),
+                    str(row.get("flags", "normal")),
+                    str(row.get("is_mock", 0))
+                ]
+                lines.append(",".join(line))
+            yield "\n".join(lines) + "\n"
+
+    filename = f"session_{session_id}_samples.csv"
+    return Response(
+        generate_csv(),
+        mimetype="text/csv",
+        headers={
+            "Content-Disposition": f"attachment; filename=\"{filename}\"",
+            "Cache-Control": "no-cache"
+        }
+    )
+
+
 @app.route("/api/health", methods=["GET"])
 def get_health():
     """

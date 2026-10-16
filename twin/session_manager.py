@@ -47,6 +47,69 @@ class SessionManager:
         with self._lock:
             return self._active_sessions.get(device_id)
 
+    def start_session(
+        self,
+        device_id: str,
+        athlete_id: str = "ATH-0824",
+        session_id: Optional[str] = None,
+        notes: Optional[str] = None,
+        is_mock: bool = False
+    ) -> str:
+        """Manually starts a session with optional custom session_id and notes."""
+        current_time = time.time()
+        with self._lock:
+            existing = self._active_sessions.get(device_id)
+            if existing:
+                self._close_session_unlocked(existing, end_time=current_time)
+
+            clean_dev = device_id.replace(" ", "_")
+            sid = session_id or f"SES-{clean_dev}-{int(current_time)}"
+            new_session = {
+                "session_id": sid,
+                "id": sid,
+                "device_id": device_id,
+                "athlete_id": athlete_id,
+                "is_mock": 1 if is_mock else 0,
+                "start_time": current_time,
+                "last_packet_time": current_time,
+                "packet_count": 0,
+                "hr_readings": [],
+                "spo2_readings": [],
+                "steps": 0,
+                "activity": "Running",
+                "notes": notes or "Manual session start",
+                "rpe_post": None
+            }
+            self._active_sessions[device_id] = new_session
+
+            init_data = {
+                "session_id": sid,
+                "id": sid,
+                "athlete_id": athlete_id,
+                "device_id": device_id,
+                "is_mock": 1 if is_mock else 0,
+                "start_time": current_time,
+                "end_time": current_time,
+                "duration_sec": 0.0,
+                "avg_hr": 0.0,
+                "peak_hr": 0.0,
+                "avg_spo2": 98.0,
+                "calories": 0.0,
+                "steps": 0,
+                "training_load": 0.0,
+                "activity": "Running",
+                "notes": notes or "Manual session start"
+            }
+            if self.writer:
+                self.writer.enqueue_session(init_data)
+            elif self.vault:
+                try:
+                    self.vault.save_session(init_data)
+                except Exception as e:
+                    print(f"[SessionManager] Notice: {e}")
+
+            return sid
+
     def get_or_create_session(self, device_id: str, athlete_id: str, now: float = None, is_mock: bool = False) -> str:
         """
         Retrieves current active session ID for device, or auto-creates a new session.
