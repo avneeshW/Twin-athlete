@@ -488,7 +488,7 @@
               </div>
             </div>
 
-            <!-- 5 Quick Vitals Metric Cards -->
+            <!-- 4 Quick Vitals Metric Cards -->
             <div class="vitals-grid-row">
               <!-- Heart Rate -->
               <div class="card metric-card">
@@ -528,32 +528,6 @@
                   <span class="pill-dot"></span>
                   <span id="vitalSpo2StatusText">Normal</span>
                 </div>
-              </div>
-
-              <!-- Activity (Replaced Speed) -->
-              <div class="card metric-card" id="cardActivity">
-                <div class="metric-header">
-                  <div class="metric-icon-box icon-activity">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-                    </svg>
-                  </div>
-                  <span class="metric-label">Activity</span>
-                </div>
-                <div class="metric-val-row">
-                  <span class="metric-num" id="vitalActivityVal">Waiting for data</span>
-                </div>
-                <div class="badge-pill pill-green" id="vitalActivityStatus">
-                  <span class="pill-dot"></span>
-                  <span id="vitalActivityStatusText">Waiting for data</span>
-                </div>
-                <!-- Compatibility hooks for existing test suites and references -->
-                <span id="vitalActivitySub" style="display:none;">Team Training</span>
-                <span id="vitalSpeedVal" style="display:none;">--</span>
-                <span id="vitalSpeedUnit" style="display:none;">km/h</span>
-                <span id="vitalSpeedTrend" style="display:none;">--</span>
-                <span id="vitalSpeedStatus" style="display:none;"></span>
-                <span id="vitalSpeedStatusText" style="display:none;"></span>
               </div>
 
               <!-- Acceleration -->
@@ -597,6 +571,19 @@
                   <span id="vitalEnduranceStatusText">Good Capacity</span>
                 </div>
               </div>
+            </div>
+
+            <!-- Hidden compatibility hooks for existing test suites and telemetry references -->
+            <div style="display:none;" aria-hidden="true">
+              <span id="vitalActivityVal">Waiting for data</span>
+              <span id="vitalActivityStatus">Waiting for data</span>
+              <span id="vitalActivityStatusText">Waiting for data</span>
+              <span id="vitalActivitySub">Team Training</span>
+              <span id="vitalSpeedVal">--</span>
+              <span id="vitalSpeedUnit">km/h</span>
+              <span id="vitalSpeedTrend">--</span>
+              <span id="vitalSpeedStatus"></span>
+              <span id="vitalSpeedStatusText"></span>
             </div>
           </div>
 
