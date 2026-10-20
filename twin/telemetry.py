@@ -588,11 +588,6 @@ class TelemetryEngine:
                     "status": "Moderate" if mag < 2.5 else "High",
                     "color": "yellow" if mag < 2.5 else "red",
                     "axes": {"x": ax, "y": ay, "z": az}
-                },
-                "cadence": {
-                    "value": cadence_spm,
-                    "unit": "SPM",
-                    "steps": self.step_count
                 }
             },
             "recent_session": {
@@ -605,7 +600,6 @@ class TelemetryEngine:
                 "max_heart_rate": max_hr_session,
                 "calories": int(round(self.total_calories)),
                 "burn_rate_kcal_min": round((burned_kcal / (dt / 60.0)), 1) if dt > 0 else 1.2,
-                "cadence": cadence_spm,
                 "steps": self.step_count,
                 "datetime": time.strftime("%d %b %Y • %I:%M %p")
             },
@@ -802,11 +796,6 @@ class TelemetryEngine:
                     "status": "High Load",
                     "color": "yellow",
                     "axes": {"x": 0.4, "y": 1.9, "z": -0.7}
-                },
-                "cadence": {
-                    "value": 168,
-                    "unit": "SPM",
-                    "steps": 1240
                 }
             },
             "recent_session": {

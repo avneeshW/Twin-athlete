@@ -466,7 +466,6 @@ def run_mock_feed_worker():
                 "gx": 0.0,
                 "gy": 0.0,
                 "gz": 0.0,
-                "cadence": analyzed["vitals"]["cadence"]["value"] if "cadence" in analyzed.get("vitals", {}) else 0,
                 "flags": "mock",
                 "is_mock": 1
             }
@@ -607,8 +606,7 @@ def get_dashboard_data():
         "speed": {"value": 8.4, "unit": "km/h", "value_ms": 2.33, "unit_ms": "m/s", "status": "Moderate Pace", "color": "green", "trend": "+0.6"},
         "endurance": {"value": 82, "unit": "%", "status": "Good Capacity (Est.)", "color": "green", "is_estimate": True, "trend": "Est."},
         "activity": {"value": "Running", "unit": "", "subtext": "Team Training", "status": "Running", "color": "purple"},
-        "acceleration": {"value": 2.8, "unit": "g", "trend": "+22%", "status": "High Load", "color": "yellow", "axes": {"x": 0.4, "y": 1.9, "z": -0.7}},
-        "cadence": {"value": 168, "unit": "SPM", "steps": 1240}
+        "acceleration": {"value": 2.8, "unit": "g", "trend": "+22%", "status": "High Load", "color": "yellow", "axes": {"x": 0.4, "y": 1.9, "z": -0.7}}
     }
 
     now_str = time.strftime("%d %b %Y • %I:%M %p")
@@ -1188,7 +1186,7 @@ def ingest_esp32_telemetry():
             "gx": clean.get("gx"),
             "gy": clean.get("gy"),
             "gz": clean.get("gz"),
-            "cadence": analyzed_state["vitals"]["cadence"]["value"] if "cadence" in analyzed_state.get("vitals", {}) else 0,
+            "cadence": clean.get("cadence"),
             "flags": "normal",
             "is_mock": is_mock
         }

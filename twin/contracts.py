@@ -238,7 +238,6 @@ class TwinStateModel:
     acwr: float = 1.09
 
     # Biomechanical Movement State
-    cadence_spm: int = 168
     impact_magnitude_g: float = 2.8
     bilateral_asymmetry_pct: float = 14.2
     activity_mode: str = "Running"

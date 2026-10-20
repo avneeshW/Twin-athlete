@@ -834,13 +834,6 @@
                 style="font-size:0.85rem;color:var(--text-muted);">g</span></div>
             <div class="live-kpi-sub" id="liveLabAccelAxes" style="display:none;"></div>
           </div>
-
-          <div class="live-kpi-card">
-            <span class="live-kpi-title">Step Rate</span>
-            <div class="live-kpi-val"><span id="liveLabCadenceVal">168</span> <span
-                style="font-size:0.85rem;color:var(--text-muted);">SPM</span></div>
-            <div class="live-kpi-sub" style="display:none;"><span id="liveLabStepsVal"></span><span id="liveLabCalBurnVal"></span></div>
-          </div>
         </div>
 
         <!-- Raw Telemetry Stream Inspector Console -->
@@ -2140,7 +2133,7 @@
             style="background:#0F172A;color:#38BDF8;padding:10px 12px;border-radius:8px;font-size:0.8rem;margin-top:6px;overflow-x:auto;">POST http://&lt;SERVER_IP&gt;:5000/api/esp32/telemetry
 Content-Type: application/json
 
-{"hr": 156, "spo2": 98, "ax": 0.4, "ay": 1.9, "az": -0.7, "cadence": 168}</pre>
+{"hr": 156, "spo2": 98, "ax": 0.4, "ay": 1.9, "az": -0.7}</pre>
         </div>
 
         <button class="btn-top-action" id="btnModalCloseDone"
@@ -2466,7 +2459,7 @@ Content-Type: application/json
             <div class="step-num-circle">1</div>
             <div>
               <strong class="step-title">Collect</strong>
-              <p class="step-desc">Stream live telemetry (heart rate, SpO<sub>2</sub>, 6-DOF IMU acceleration, cadence)
+              <p class="step-desc">Stream live telemetry (heart rate, SpO<sub>2</sub>, 6-DOF IMU acceleration)
                 from physical ESP32 wearables and longitudinal training logs.</p>
             </div>
           </div>

@@ -229,6 +229,28 @@ class TelemetryWriter:
                     ))
 
                 if samples:
+                    normalized_samples = [
+                        {
+                            "id": s.get("id"),
+                            "session_id": s.get("session_id"),
+                            "device_id": s.get("device_id"),
+                            "seq": s.get("seq", 0),
+                            "device_ms": s.get("device_ms"),
+                            "server_ts": s.get("server_ts", time.time()),
+                            "hr": s.get("hr"),
+                            "spo2": s.get("spo2"),
+                            "ax": s.get("ax"),
+                            "ay": s.get("ay"),
+                            "az": s.get("az"),
+                            "gx": s.get("gx", 0.0),
+                            "gy": s.get("gy", 0.0),
+                            "gz": s.get("gz", 0.0),
+                            "cadence": s.get("cadence"),
+                            "flags": s.get("flags", "normal"),
+                            "is_mock": s.get("is_mock", 0),
+                        }
+                        for s in samples
+                    ]
                     self._conn.executemany("""
                         INSERT OR IGNORE INTO samples (
                             id, session_id, device_id, seq, device_ms, server_ts,
@@ -237,7 +259,7 @@ class TelemetryWriter:
                             :id, :session_id, :device_id, :seq, :device_ms, :server_ts,
                             :hr, :spo2, :ax, :ay, :az, :gx, :gy, :gz, :cadence, :flags, :is_mock
                         );
-                    """, samples)
+                    """, normalized_samples)
             return True
         except sqlite3.OperationalError as oe:
             print(f"[TelemetryWriter] OperationalError during batch flush: {oe}")

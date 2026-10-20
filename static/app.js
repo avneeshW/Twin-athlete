@@ -970,9 +970,6 @@ function handleSensorDisconnected() {
   if (labAccelG) labAccelG.textContent = "--";
   if (labAccelAxes) labAccelAxes.textContent = "X: -- • Y: -- • Z: --";
 
-  const labCadenceVal = document.getElementById("liveLabCadenceVal");
-  if (labCadenceVal) labCadenceVal.textContent = "--";
-
   // 5. Freeze Hologram pulse animation
   const nodes = document.querySelectorAll(".joint-node");
   nodes.forEach(node => {
@@ -1094,18 +1091,16 @@ function appendTerminalLog(data) {
 
   const hr = data.vitals?.heart_rate?.value ?? "--";
   const spo2 = data.vitals?.spo2?.value ?? "--";
-  const activity = data.vitals?.activity?.value ?? "Active";
   const ax = data.vitals?.acceleration?.axes?.x ?? "0.0";
   const ay = data.vitals?.acceleration?.axes?.y ?? "0.0";
   const az = data.vitals?.acceleration?.axes?.z ?? "0.0";
-  const cadence = data.vitals?.cadence?.value ?? "--";
 
   const entry = document.createElement("div");
   entry.className = "log-entry";
   entry.innerHTML = `
     <span class="log-time">[${timeStr}]</span>
     <span class="log-src">ESP32_RX:</span>
-    <span class="log-data">HR=${hr} BPM | SpO2=${spo2}% | Act=${activity} | Accel=[${ax},${ay},${az}]g | Cadence=${cadence} SPM</span>
+    <span class="log-data">HR=${hr} BPM | SpO2=${spo2}% | Accel=[${ax},${ay},${az}]g</span>
   `;
 
   terminalBox.appendChild(entry);
@@ -1368,14 +1363,6 @@ function updateVitalsUI(vitals) {
     }
   }
 
-  // Cadence / Steps
-  if (vitals.cadence) {
-    const labCadence = document.getElementById("liveLabCadenceVal");
-    const labSteps = document.getElementById("liveLabStepsVal");
-    if (labCadence) labCadence.textContent = vitals.cadence.value;
-    if (labSteps) labSteps.textContent = `${(vitals.cadence.steps || 1240).toLocaleString()} steps`;
-  }
-
   // Update Training Risk Running Impact dynamically
   if (vitals.acceleration) {
     const rawG = vitals.acceleration.current_g !== undefined ? vitals.acceleration.current_g : vitals.acceleration.value;
@@ -1600,9 +1587,6 @@ function generateClientMockPacket() {
   const az = parseFloat((Math.sin(stride * 0.5) * 0.4 + ((Math.random() - 0.5) * 0.2)).toFixed(2));
   const rawMag = parseFloat(Math.sqrt(ax * ax + ay * ay + az * az).toFixed(2));
 
-  // Cadence: 33 to 35 SPM (matching ESP32 receiver stream)
-  const cadence = 33 + (t % 3 === 0 ? 1 : 0);
-
   // Dynamic activity based on speed/gait/intensity
   let actName = "Running";
   if (hr >= 152 || ay > 2.4) {
@@ -1650,10 +1634,6 @@ function generateClientMockPacket() {
         axes: { x: ax, y: ay, z: az },
         trend: rawMag > 2.0 ? "+16%" : "-4%",
         status: rawMag > 2.2 ? "High Impact" : "Optimal"
-      },
-      cadence: {
-        value: cadence,
-        status: "Optimal"
       },
       speed: {
         value: speed,
@@ -2122,10 +2102,10 @@ function initDigitalTwinView() {
   const nodes = [
     { id: "deepNodeHead", title: "Cerebral / Central Nervous System", desc: "Neuro-muscular fatigue indicator. Sleep quality multiplier active." },
     { id: "deepNodeHeart", title: "Cardiovascular Cardiac Output", desc: "Live PPG pulse sensor: current heart rate, stroke volume reserve, and aerobic zone." },
-    { id: "deepNodeLWrist", title: "Left Wrist (Grip & IMU)", desc: "Tri-axial accelerometer vector streaming. Cadence and arm swing biomechanics." },
-    { id: "deepNodeRWrist", title: "Right Wrist (Grip & IMU)", desc: "Arm swing symmetry and cadence balance." },
+    { id: "deepNodeLWrist", title: "Left Wrist (Grip & IMU)", desc: "Tri-axial accelerometer vector streaming. Arm swing biomechanics." },
+    { id: "deepNodeRWrist", title: "Right Wrist (Grip & IMU)", desc: "Arm swing symmetry and movement balance." },
     { id: "deepNodeLKnee", title: "Left Knee (Patellar Load)", desc: "Impact force dissipation: 2.4g instantaneous ground acceleration." },
-    { id: "deepNodeRKnee", title: "Right Knee (Patellar Load)", desc: "Joint torque estimation under continuous running cadence." },
+    { id: "deepNodeRKnee", title: "Right Knee (Patellar Load)", desc: "Joint torque estimation under continuous running kinematics." },
     { id: "deepNodeLAnkle", title: "Left Ankle (Achilles Load)", desc: "Ground contact time and step frequency." },
     { id: "deepNodeRAnkle", title: "Right Ankle (Achilles Load)", desc: "Vertical stiffness and propulsion impulse." }
   ];
@@ -3898,7 +3878,7 @@ function initMetricCardsClick() {
   if (actCard) {
     actCard.addEventListener("click", () => {
       const act = document.getElementById("vitalActivityVal")?.textContent || "Running";
-      showToast(`Activity Status: ${act} (Team Training Session) • GPS speed & cadence streaming`, "⚽");
+      showToast(`Activity Status: ${act} (Team Training Session) • GPS speed streaming`, "⚽");
     });
   }
 
@@ -6070,7 +6050,6 @@ async function prepareAthleteReportData(ath, activeAthleteId) {
   let heartRate = "N/A";
   let spo2 = "N/A";
   let motionLevel = "N/A";
-  let stepRate = "N/A";
   let trainingLoad = "N/A";
   let runningImpact = "N/A";
   let movementBalance = "Good";
@@ -6093,9 +6072,6 @@ async function prepareAthleteReportData(ath, activeAthleteId) {
       const g = v.acceleration.value !== undefined ? v.acceleration.value : v.acceleration.current_g;
       const gStat = v.acceleration.status || (g > 2.5 ? "High Load" : (g > 1.4 ? "Normal" : "Low"));
       motionLevel = g != null ? `${g}g (${gStat})` : gStat;
-    }
-    if (v.cadence && v.cadence.value) {
-      stepRate = `${v.cadence.value} SPM`;
     }
     const elLoad = document.getElementById("riskStatusTrainingLoad");
     if (elLoad && elLoad.textContent.trim()) {
@@ -6128,8 +6104,6 @@ async function prepareAthleteReportData(ath, activeAthleteId) {
           const s = sData.sessions[0];
           if (s.avg_hr) heartRate = `${Math.round(s.avg_hr)} BPM`;
           if (s.avg_spo2) spo2 = `${Math.round(s.avg_spo2)}%`;
-          if (s.cadence) stepRate = `${s.cadence} SPM`;
-          else if (s.steps) stepRate = `${s.steps} steps`;
           if (s.training_load) trainingLoad = typeof s.training_load === "number" ? (s.training_load > 60 ? "High" : (s.training_load > 30 ? "Moderate" : "Low")) : String(s.training_load);
           motionLevel = "Normal";
         }
@@ -6148,9 +6122,6 @@ async function prepareAthleteReportData(ath, activeAthleteId) {
     }
     if (motionLevel === "N/A") {
       motionLevel = "Normal";
-    }
-    if (stepRate === "N/A") {
-      stepRate = "156 SPM";
     }
     if (trainingLoad === "N/A") {
       trainingLoad = fatigue != null ? (fatigue > 55 ? "High" : (fatigue > 30 ? "Moderate" : "Low")) : "Moderate";
@@ -6192,7 +6163,6 @@ async function prepareAthleteReportData(ath, activeAthleteId) {
     heartRate,
     spo2,
     motionLevel,
-    stepRate,
     trainingLoad,
     runningImpact,
     movementBalance,
@@ -6397,8 +6367,6 @@ function renderPlayerPdfBlock(doc, ath, index, x, y, width) {
 
   curY1 += 5.5;
   renderPdfMetricRow(doc, col1X, curY1, colWidth, "Motion Level", ath.motionLevel || "N/A");
-  curY1 += 5;
-  renderPdfMetricRow(doc, col1X, curY1, colWidth, "Step Rate", ath.stepRate || "N/A");
 
   // === RIGHT COLUMN: TRAINING ===
   let curY2 = y + 23.5;
