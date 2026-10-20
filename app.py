@@ -986,7 +986,7 @@ def api_weekly_report():
 
 @app.route("/api/history", methods=["GET"])
 def get_history():
-    """Returns historical 180-day longitudinal data with guaranteed Vercel fallback."""
+    """Returns historical 7-day longitudinal data with guaranteed Vercel fallback."""
     ds_path = get_dataset_path()
     df = None
     if os.path.exists(ds_path):
@@ -998,31 +998,33 @@ def get_history():
     if df is None or len(df) == 0:
         try:
             from ml.generate_data import generate_athlete_dataset
-            df = generate_athlete_dataset(days=180, seed=42)
+            df = generate_athlete_dataset(days=7, seed=42)
         except Exception:
             df = None
 
     if df is not None and len(df) > 0:
-        clean_df = df.replace({np.nan: None})
+        # Restrict strictly to Days 1 through 7 (first 7 available days)
+        df_7 = df.iloc[:7].copy()
+        clean_df = df_7.replace({np.nan: None})
         records = []
         for i, row in enumerate(clean_df.to_dict(orient="records")):
             row["day"] = i + 1
             records.append(row)
 
         summary = {
-            "days": len(df),
-            "mean_sleep": round(float(df["sleep_hours"].mean()), 2) if "sleep_hours" in df else 7.5,
-            "mean_load": round(float(df["daily_load"].mean()), 1) if "daily_load" in df else 0.0,
-            "mean_performance": round(float(df["performance_score"].mean()), 1) if "performance_score" in df else 75.0,
-            "mean_resting_hr": round(float(df["resting_hr"].mean()), 1) if "resting_hr" in df else 55.0,
-            "peak_fatigue": round(float(df["fatigue_level"].max()), 1) if "fatigue_level" in df else 0.0,
-            "min_recovery": round(float(df["recovery_score"].min()), 1) if "recovery_score" in df else 100.0
+            "days": len(df_7),
+            "mean_sleep": round(float(df_7["sleep_hours"].mean()), 2) if "sleep_hours" in df_7 else 7.5,
+            "mean_load": round(float(df_7["daily_load"].mean()), 1) if "daily_load" in df_7 else 0.0,
+            "mean_performance": round(float(df_7["performance_score"].mean()), 1) if "performance_score" in df_7 else 75.0,
+            "mean_resting_hr": round(float(df_7["resting_hr"].mean()), 1) if "resting_hr" in df_7 else 55.0,
+            "peak_fatigue": round(float(df_7["fatigue_level"].max()), 1) if "fatigue_level" in df_7 else 0.0,
+            "min_recovery": round(float(df_7["recovery_score"].min()), 1) if "recovery_score" in df_7 else 100.0
         }
     else:
-        # High-resilience deterministic mathematical fallback for serverless
+        # High-resilience deterministic mathematical fallback for serverless (Days 1 to 7)
         records = []
         prev_f, prev_r = 30.0, 75.0
-        for day in range(1, 181):
+        for day in range(1, 8):
             phase = day * 0.35
             is_rest = (day % 7 == 0 or day % 12 == 0)
             dur = 0 if is_rest else int(round(45 + 30 * np.sin(phase * 0.8)))
@@ -1047,13 +1049,13 @@ def get_history():
             prev_f, prev_r = fatigue, recovery
 
         summary = {
-            "days": 180,
-            "mean_sleep": 7.8,
-            "mean_load": 42.0,
-            "mean_performance": 79.4,
-            "mean_resting_hr": 54.0,
-            "peak_fatigue": 48.2,
-            "min_recovery": 62.0
+            "days": len(records),
+            "mean_sleep": round(float(sum(r["sleep_hours"] for r in records) / len(records)), 2),
+            "mean_load": round(float(sum(r["daily_load"] for r in records) / len(records)), 1),
+            "mean_performance": round(float(sum(r["performance_score"] for r in records) / len(records)), 1),
+            "mean_resting_hr": round(float(sum(r["resting_hr"] for r in records) / len(records)), 1),
+            "peak_fatigue": round(float(max(r["fatigue_level"] for r in records)), 1),
+            "min_recovery": round(float(min(r["recovery_score"] for r in records)), 1)
         }
 
     return jsonify({

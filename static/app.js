@@ -297,8 +297,8 @@ document.addEventListener("DOMContentLoaded", () => {
   initForensicAuditorControls();
   initCoachSquadControls();
 
-  // Pre-hydrate 180-Day Longitudinal Physiological Log immediately on initial render
-  const initialHistory = generateDeterministic180DayHistory();
+  // Pre-hydrate 7-Day Longitudinal Physiological Log immediately on initial render
+  const initialHistory = generateDeterministic7DayHistory();
   populateAnalyticsTable(initialHistory);
   loadAnalyticsView();
 
@@ -1811,7 +1811,7 @@ function initLiveTelemetryLab() {
 }
 
 /* ==============================================================================
-   9. ANALYTICS VIEW (180-DAY LONGITUDINAL PROGRESSION)
+   9. ANALYTICS VIEW (7-DAY LONGITUDINAL PROGRESSION)
    ============================================================================== */
 async function loadAnalyticsView() {
   const refreshBtn = document.getElementById("btnRefreshAnalytics");
@@ -1822,7 +1822,7 @@ async function loadAnalyticsView() {
   // Pre-render deterministic dataset immediately if table is not yet populated
   const tbody = document.getElementById("analyticsHistoryTableBody");
   if (tbody && tbody.children.length === 0) {
-    populateAnalyticsTable(generateDeterministic180DayHistory());
+    populateAnalyticsTable(generateDeterministic7DayHistory());
   }
 
   try {
@@ -1830,6 +1830,15 @@ async function loadAnalyticsView() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     cachedAnalyticsData = data;
+
+    const rawHistory = Array.isArray(data.history) && data.history.length > 0
+      ? data.history
+      : generateDeterministic7DayHistory();
+
+    // Restrict strictly to Days 1 through 7
+    const historyData = rawHistory
+      .filter(r => (r && r.day !== undefined ? Number(r.day) >= 1 && Number(r.day) <= 7 : true))
+      .slice(0, 7);
 
     if (data.summary) {
       const s = data.summary;
@@ -1848,10 +1857,6 @@ async function loadAnalyticsView() {
       if (minRecoveryEl) minRecoveryEl.textContent = `${(s.min_recovery || 62.0).toFixed(1)}%`;
     }
 
-    const historyData = Array.isArray(data.history) && data.history.length > 0
-      ? data.history
-      : generateDeterministic180DayHistory();
-
     renderAnalyticsFatigueRecoveryChart(historyData);
     renderAnalyticsLoadPerfChart(historyData);
     populateAnalyticsTable(historyData);
@@ -1861,8 +1866,8 @@ async function loadAnalyticsView() {
       renderMovementChart(cachedDashboardData.charts.movement);
     }
   } catch (err) {
-    console.warn("Analytics fetch failed, maintaining deterministic 180-day baseline:", err);
-    const fallbackHistory = generateDeterministic180DayHistory();
+    console.warn("Analytics fetch failed, maintaining deterministic 7-day baseline:", err);
+    const fallbackHistory = generateDeterministic7DayHistory();
     populateAnalyticsTable(fallbackHistory);
     renderAnalyticsFatigueRecoveryChart(fallbackHistory);
     renderAnalyticsLoadPerfChart(fallbackHistory);
@@ -1886,7 +1891,7 @@ function renderAnalyticsFatigueRecoveryChart(history) {
   ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, w, h);
 
-  const pad = { top: 12, right: 15, bottom: 20, left: 32 };
+  const pad = { top: 12, right: 15, bottom: 22, left: 32 };
   const plotW = w - pad.left - pad.right;
   const plotH = h - pad.top - pad.bottom;
 
@@ -1905,7 +1910,12 @@ function renderAnalyticsFatigueRecoveryChart(history) {
     ctx.fillText(`${val}%`, pad.left - 6, y + 3);
   });
 
-  if (!history || history.length < 2) {
+  const rawPts = Array.isArray(history) && history.length > 0 ? history : generateDeterministic7DayHistory();
+  const pts = rawPts
+    .filter(r => (r && r.day !== undefined ? Number(r.day) >= 1 && Number(r.day) <= 7 : true))
+    .slice(0, 7);
+
+  if (pts.length < 1) {
     ctx.save();
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -1916,8 +1926,17 @@ function renderAnalyticsFatigueRecoveryChart(history) {
     return;
   }
 
-  const pts = history.slice(-60); // Show last 60 days for high clarity
   const stepX = plotW / Math.max(1, pts.length - 1);
+
+  // X-axis Day labels (Day 1 to Day 7)
+  ctx.fillStyle = "#8E8E93";
+  ctx.font = "9px Inter, sans-serif";
+  ctx.textAlign = "center";
+  pts.forEach((row, i) => {
+    const x = pad.left + i * stepX;
+    const label = `Day ${row.day !== undefined ? row.day : (i + 1)}`;
+    ctx.fillText(label, x, h - 5);
+  });
 
   // Fatigue Curve (Red)
   ctx.beginPath();
@@ -1961,7 +1980,7 @@ function renderAnalyticsLoadPerfChart(history) {
   ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, w, h);
 
-  const pad = { top: 12, right: 15, bottom: 20, left: 32 };
+  const pad = { top: 12, right: 15, bottom: 22, left: 32 };
   const plotW = w - pad.left - pad.right;
   const plotH = h - pad.top - pad.bottom;
 
@@ -1979,7 +1998,12 @@ function renderAnalyticsLoadPerfChart(history) {
     ctx.fillText(val, pad.left - 6, y + 3);
   });
 
-  if (!history || history.length < 2) {
+  const rawPts = Array.isArray(history) && history.length > 0 ? history : generateDeterministic7DayHistory();
+  const pts = rawPts
+    .filter(r => (r && r.day !== undefined ? Number(r.day) >= 1 && Number(r.day) <= 7 : true))
+    .slice(0, 7);
+
+  if (pts.length < 1) {
     ctx.save();
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -1990,8 +2014,17 @@ function renderAnalyticsLoadPerfChart(history) {
     return;
   }
 
-  const pts = history.slice(-60);
   const stepX = plotW / Math.max(1, pts.length - 1);
+
+  // X-axis Day labels (Day 1 to Day 7)
+  ctx.fillStyle = "#8E8E93";
+  ctx.font = "9px Inter, sans-serif";
+  ctx.textAlign = "center";
+  pts.forEach((row, i) => {
+    const x = pad.left + i * stepX;
+    const label = `Day ${row.day !== undefined ? row.day : (i + 1)}`;
+    ctx.fillText(label, x, h - 5);
+  });
 
   // Load Bars (Cyan)
   pts.forEach((row, i) => {
@@ -2017,12 +2050,12 @@ function renderAnalyticsLoadPerfChart(history) {
   ctx.stroke();
 }
 
-function generateDeterministic180DayHistory() {
+function generateDeterministic7DayHistory() {
   const history = [];
   let prevFatigue = 30.0;
   let prevRecovery = 75.0;
 
-  for (let day = 1; day <= 180; day++) {
+  for (let day = 1; day <= 7; day++) {
     const phase = day * 0.35;
     const isRest = (day % 7 === 0 || day % 12 === 0);
     const duration = isRest ? 0 : Math.round(45 + 30 * Math.sin(phase * 0.8));
@@ -2054,25 +2087,50 @@ function generateDeterministic180DayHistory() {
   return history;
 }
 
+function generateDeterministic180DayHistory() {
+  return generateDeterministic7DayHistory();
+}
+
 function populateAnalyticsTable(history) {
   const tbody = document.getElementById("analyticsHistoryTableBody");
   if (!tbody) return;
 
-  // 1. Resolve dataset: use passed history if valid non-empty array, otherwise deterministic 180-day baseline
-  let rows = Array.isArray(history) && history.length > 0 ? history : generateDeterministic180DayHistory();
+  // 1. Resolve dataset: use passed history if valid non-empty array, otherwise deterministic 7-day baseline
+  let rawRows = Array.isArray(history) && history.length > 0 ? history : generateDeterministic7DayHistory();
 
-  // 2. Explicitly sort in ascending order by Day (Day 1 at the top down to Day 180)
+  // 2. Filter strictly to Days 1 through 7, completely removing Days 8 through 180
+  // Requirement 1 & 2: Display only Day 1, Day 2, Day 3, Day 4, Day 5, Day 6, and Day 7. Remove Days 8 through 180.
+  // Requirement 6 & 7: Use actual available data for Days 1 through 7. If fewer than 7 days available, display only available days.
+  let rows = rawRows.filter(r => {
+    if (!r) return false;
+    const d = r.day !== undefined && r.day !== null ? Number(r.day) : null;
+    return d !== null ? (d >= 1 && d <= 7) : true;
+  });
+
+  // Explicitly sort in ascending order by Day (Day 1 at the top down to Day 7)
   rows = [...rows].sort((a, b) => {
     const dayA = a && a.day !== undefined ? Number(a.day) : 0;
     const dayB = b && b.day !== undefined ? Number(b.day) : 0;
     return dayA - dayB;
   });
 
+  // Restrict to at most 7 days
+  rows = rows.slice(0, 7);
+
   // 3. Update row count header indicator
   const countEl = document.getElementById("historyRowCount");
-  if (countEl) countEl.textContent = `Showing all ${rows.length} recorded training days (Day 1 – ${rows.length})`;
+  if (countEl) {
+    countEl.textContent = rows.length > 0
+      ? `Showing all ${rows.length} recorded training days (Day 1 – ${rows.length})`
+      : "No training days recorded";
+  }
 
-  // 4. Render all rows starting from Day 1 to Day 180
+  // 4. Render all rows starting from Day 1 to Day 7
+  if (rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:18px;">No training records available</td></tr>`;
+    return;
+  }
+
   tbody.innerHTML = rows.map((r, idx) => {
     const dayNum = (r && r.day !== undefined && r.day !== null) ? r.day : (idx + 1);
     const sleep = (r && r.sleep_hours !== undefined && r.sleep_hours !== null) ? Number(r.sleep_hours).toFixed(1) : "8.0";
